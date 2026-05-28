@@ -22,7 +22,7 @@ export function KanbanColumn({ status, tasks, sprintId }: KanbanColumnProps) {
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
           <div>
             <p className="text-sm font-semibold text-slate-900">{t(`status.${status}`)}</p>
-            <p className="text-xs text-slate-500">{tasks.length} issues</p>
+            <p className="text-xs text-slate-500">{t('kanban.issues', { count: tasks.length })}</p>
           </div>
           <button
             onClick={() => setShowCreate(true)}

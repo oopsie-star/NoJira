@@ -4,7 +4,7 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: process.env.VITE_APP_BASE_URL ?? '/',
   resolve: {
     alias: { '@': resolve(__dirname, 'src') },
   },

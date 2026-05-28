@@ -1,5 +1,7 @@
-import { FolderKanban, LayoutDashboard, ListTodo, Plus, Users } from 'lucide-react'
+import { useState } from 'react'
+import { LayoutDashboard, ListTodo, Plus, Users } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
+import { CreateProjectModal } from '@/components/project/CreateProjectModal'
 import { useI18n } from '@/lib/i18n'
 import { useStore } from '@/store'
 
@@ -16,8 +18,10 @@ export function LeftSidebar() {
   const activeProjectId = useStore((state) => state.activeProjectId)
   const setActiveProjectId = useStore((state) => state.setActiveProjectId)
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
+  const [showCreateProject, setShowCreateProject] = useState(false)
 
   return (
+    <>
     <aside className="flex w-[264px] flex-shrink-0 flex-col border-r border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-4 py-4">
         <div className="flex items-center gap-3">
@@ -53,8 +57,15 @@ export function LeftSidebar() {
 
       <div className="min-h-0 flex-1 overflow-y-auto border-t border-slate-200 px-3 py-4">
         <div className="mb-2 flex items-center justify-between px-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('project.switcher')}</p>
-          <Plus size={14} className="text-slate-400" />
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('project.all')}</p>
+          <button
+            type="button"
+            onClick={() => setShowCreateProject(true)}
+            title={t('project.create')}
+            className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+          >
+            <Plus size={14} />
+          </button>
         </div>
         <div className="space-y-1">
           {projects.map((project) => (
@@ -91,7 +102,7 @@ export function LeftSidebar() {
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="rounded-xl bg-white p-3 shadow-sm">
-              <p className="text-xs text-slate-500">{t('project.switcher')}</p>
+              <p className="text-xs text-slate-500">{t('project.all')}</p>
               <p className="mt-1 truncate text-lg font-semibold text-slate-900">{projects.length}</p>
             </div>
             <div className="rounded-xl bg-white p-3 shadow-sm">
@@ -102,5 +113,10 @@ export function LeftSidebar() {
         </div>
       </div>
     </aside>
+
+    {showCreateProject && (
+      <CreateProjectModal onClose={() => setShowCreateProject(false)} />
+    )}
+    </>
   )
 }

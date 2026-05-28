@@ -104,7 +104,7 @@ function CreateEpicModal({ onClose }: { onClose: () => void }) {
             <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={4} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue" />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Color</label>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('backlog.epicColor')}</label>
             <div className="flex flex-wrap gap-3">
               {EPIC_COLORS.map((epicColor) => (
                 <button
@@ -207,7 +207,7 @@ export function BacklogView() {
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{t('nav.backlog')}</p>
                   <h1 className="mt-1 text-3xl font-semibold text-slate-900">{t('backlog.title')}</h1>
-                  <p className="mt-2 text-sm text-slate-500">{t('board.searchPlaceholder')}</p>
+                  <p className="mt-2 text-sm text-slate-500">{t('backlog.subtitle')}</p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
