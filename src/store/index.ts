@@ -294,7 +294,7 @@ interface AppState {
   createPortfolioItem: (fields: Partial<PortfolioItem>) => Promise<PortfolioItem | null>
   createTask: (fields: Partial<Task>) => Promise<Task | null>
   createSubtask: (parentTaskId: string, title: string) => Promise<Task | null>
-  createTaskComment: (taskId: string, body: string) => Promise<void>
+  createTaskComment: (taskId: string, body: string, attachments?: string[]) => Promise<void>
   createTaskLink: (sourceTaskId: string, targetTaskId: string, linkType: TaskLinkType) => Promise<TaskLink | null>
   createProjectWebhook: (fields: Pick<ProjectWebhook, 'name' | 'endpoint_url' | 'events' | 'secret'>) => Promise<ProjectWebhook | null>
   deleteTaskComment: (commentId: string) => Promise<void>
@@ -850,7 +850,7 @@ export const useStore = create<AppState>((set, get) => {
     return subtask
   },
 
-  createTaskComment: async (taskId, body) => {
+  createTaskComment: async (taskId, body, attachments) => {
     const profile = get().profile
     const currentTask = get().tasks.find((task) => task.id === taskId)
     const trimmedBody = body.trim()
@@ -863,6 +863,7 @@ export const useStore = create<AppState>((set, get) => {
         task_id: taskId,
         author_id: profile.id,
         body: trimmedBody,
+        attachments: attachments ?? [],
       })
       .select(TASK_COMMENT_SELECT)
       .single()

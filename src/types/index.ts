@@ -191,14 +191,15 @@ export interface Notification {
 }
 
 export interface TaskComment {
-  id:         string
-  project_id: string
-  task_id:    string
-  author_id:  string
-  body:       string
-  created_at: string
-  updated_at: string
-  author?:    Profile | null
+  id:          string
+  project_id:  string
+  task_id:     string
+  author_id:   string
+  body:        string
+  attachments: string[]
+  created_at:  string
+  updated_at:  string
+  author?:     Profile | null
 }
 
 export type TaskActivityType =

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { LeftSidebar } from './LeftSidebar'
 import { MobileBottomBar } from './MobileBottomBar'
 import { TopNavbar } from './TopNavbar'
+import { AiAssistant } from '@/components/ai/AiAssistant'
 import { useAuthContext } from '@/auth/AuthContext'
 import { useStore } from '@/store'
 
@@ -17,6 +18,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
   const fetchTaskLinks = useStore((state) => state.fetchTaskLinks)
   const fetchPendingMembers = useStore((state) => state.fetchPendingMembers)
   const activeProjectId = useStore((state) => state.activeProjectId)
+  const activeProjectName = useStore((state) => state.projects.find((p) => p.id === state.activeProjectId)?.name)
   const profileId = useStore((state) => state.profile?.id)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -52,6 +54,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
         </main>
       </div>
       <MobileBottomBar />
+      <AiAssistant projectName={activeProjectName} />
     </div>
   )
 }

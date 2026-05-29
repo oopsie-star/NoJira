@@ -1,8 +1,9 @@
 ﻿import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Copy, Trash2 } from 'lucide-react'
+import { Copy, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { useI18n } from '@/lib/i18n'
 import { useStore } from '@/store'
+import { getLLMConfig, setLLMConfig, callLLM, DEFAULT_MODELS, type LLMProvider } from '@/lib/ai'
 import { WEBHOOK_EVENT_OPTIONS, type ProjectAutomationSettings, type WebhookEvent } from '@/types'
 
 function CopyButton({ text }: { text: string }) {
@@ -49,6 +50,59 @@ export function OpsPage() {
     { key: 'auto_close_epics', label: t('ops.automation.closeEpics'), hint: t('ops.automation.closeEpicsHint') },
     { key: 'notify_on_unblock', label: t('ops.automation.notifyUnblock'), hint: t('ops.automation.notifyUnblockHint') },
   ]
+
+  // AI settings state (local only – keys never leave the browser)
+  const [aiProvider, setAiProvider] = useState<LLMProvider>(() => getLLMConfig().provider)
+  const [aiModel, setAiModel] = useState(() => getLLMConfig().model)
+  const [aiApiKey, setAiApiKey] = useState(() => getLLMConfig().apiKey)
+  const [aiEndpoint, setAiEndpoint] = useState(() => getLLMConfig().customEndpoint ?? '')
+  const [aiShowKey, setAiShowKey] = useState(false)
+  const [aiSaved, setAiSaved] = useState(false)
+  const [aiTestResult, setAiTestResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const [aiTesting, setAiTesting] = useState(false)
+
+  const AI_PROVIDERS: Array<{ value: LLMProvider; label: string }> = [
+    { value: 'openrouter', label: 'OpenRouter (recommended, free tier available)' },
+    { value: 'gemini', label: 'Google Gemini (direct)' },
+    { value: 'deepseek', label: 'DeepSeek' },
+    { value: 'openai', label: 'OpenAI' },
+    { value: 'custom', label: 'Custom (OpenAI-compatible)' },
+  ]
+
+  function handleAiProviderChange(provider: LLMProvider) {
+    setAiProvider(provider)
+    setAiModel(DEFAULT_MODELS[provider])
+  }
+
+  function handleAiSave() {
+    setLLMConfig({
+      provider: aiProvider,
+      model: aiModel,
+      apiKey: aiApiKey,
+      customEndpoint: aiEndpoint || undefined,
+    })
+    setAiSaved(true)
+    setTimeout(() => setAiSaved(false), 2000)
+  }
+
+  async function handleAiTest() {
+    setAiTesting(true)
+    setAiTestResult(null)
+    // Temporarily save so callLLM picks up the current form values
+    setLLMConfig({
+      provider: aiProvider,
+      model: aiModel,
+      apiKey: aiApiKey,
+      customEndpoint: aiEndpoint || undefined,
+    })
+    const result = await callLLM([{ role: 'user', content: 'Say hello in one word' }], { maxTokens: 16 })
+    setAiTesting(false)
+    if (result.error) {
+      setAiTestResult({ ok: false, message: `${t('ops.ai.testFail')}: ${result.error}` })
+    } else {
+      setAiTestResult({ ok: true, message: `${t('ops.ai.testOk')}: "${result.content}"` })
+    }
+  }
 
   useEffect(() => {
     void fetchProjects()
@@ -289,6 +343,99 @@ export function OpsPage() {
             </div>
           </section>
         </div>
+
+        <section className="shrink-0 rounded-[28px] bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900">{t('ops.ai.title')}</h2>
+          <p className="mt-1 text-sm text-slate-500">{t('ops.ai.hint')}</p>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
+                {t('ops.ai.provider')}
+              </label>
+              <select
+                value={aiProvider}
+                onChange={(e) => handleAiProviderChange(e.target.value as LLMProvider)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio"
+              >
+                {AI_PROVIDERS.map((p) => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
+                {t('ops.ai.model')}
+              </label>
+              <input
+                value={aiModel}
+                onChange={(e) => setAiModel(e.target.value)}
+                placeholder={DEFAULT_MODELS[aiProvider]}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
+                {t('ops.ai.apiKey')}
+              </label>
+              <div className="relative">
+                <input
+                  type={aiShowKey ? 'text' : 'password'}
+                  value={aiApiKey}
+                  onChange={(e) => setAiApiKey(e.target.value)}
+                  placeholder="sk-..."
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 pr-12 text-sm outline-none focus:border-qira-pistachio"
+                />
+                <button
+                  type="button"
+                  onClick={() => setAiShowKey((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                >
+                  {aiShowKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            {aiProvider === 'custom' && (
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
+                  {t('ops.ai.endpoint')}
+                </label>
+                <input
+                  value={aiEndpoint}
+                  onChange={(e) => setAiEndpoint(e.target.value)}
+                  placeholder="https://your-provider.com/v1/chat/completions"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleAiSave}
+              className="rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
+            >
+              {aiSaved ? t('ops.ai.saved') : t('ops.ai.save')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleAiTest()}
+              disabled={aiTesting || !aiApiKey.trim()}
+              className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+            >
+              {aiTesting ? '…' : t('ops.ai.test')}
+            </button>
+            {aiTestResult && (
+              <span className={['text-sm font-medium', aiTestResult.ok ? 'text-emerald-600' : 'text-rose-600'].join(' ')}>
+                {aiTestResult.message}
+              </span>
+            )}
+          </div>
+        </section>
       </div>
     </GlobalLayout>
   )

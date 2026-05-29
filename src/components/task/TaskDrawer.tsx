@@ -1,5 +1,6 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Calendar, Link2, MessageSquare, Plus, Send, Timer, Trash2, X } from 'lucide-react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import { Calendar, Link2, MessageSquare, Paperclip, Plus, Send, Timer, Trash2, X } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import { IssueTypeBadge, PriorityBadge } from '@/components/common/IssueBadges'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { AttachmentUpload } from './AttachmentUpload'
@@ -81,6 +82,9 @@ export function TaskDrawer() {
   const [draftLabels, setDraftLabels] = useState('')
   const [subtaskTitle, setSubtaskTitle] = useState('')
   const [commentBody, setCommentBody] = useState('')
+  const [commentFiles, setCommentFiles] = useState<File[]>([])
+  const [commentUploading, setCommentUploading] = useState(false)
+  const commentFileRef = useRef<HTMLInputElement>(null)
   const [linkType, setLinkType] = useState<TaskLinkType>('blocks')
   const [linkedTaskId, setLinkedTaskId] = useState('')
   const [saving, setSaving] = useState(false)
@@ -111,6 +115,7 @@ export function TaskDrawer() {
     setDraftLabels(task.labels.join(', '))
     setSubtaskTitle('')
     setCommentBody('')
+    setCommentFiles([])
     setLinkType('blocks')
     setLinkedTaskId('')
     void fetchTaskContext(task.id)
@@ -174,9 +179,28 @@ export function TaskDrawer() {
   }
 
   async function handleAddComment() {
-    if (!commentBody.trim()) return
-    await createTaskComment(currentTask.id, commentBody)
-    setCommentBody('')
+    if (!commentBody.trim() && commentFiles.length === 0) return
+    setCommentUploading(true)
+    try {
+      const uploadedPaths: string[] = []
+      for (const file of commentFiles) {
+        const safeName = file.name.replace(/[^\w.\-() ]+/g, '_')
+        const path = `${currentTask.project_id}/${currentTask.id}/comments/${profile?.id ?? 'unknown'}/${Date.now()}-${safeName}`
+        const { error } = await supabase.storage.from('attachments').upload(path, file, { upsert: false })
+        if (!error) uploadedPaths.push(path)
+      }
+      await createTaskComment(currentTask.id, commentBody, uploadedPaths)
+      setCommentBody('')
+      setCommentFiles([])
+    } finally {
+      setCommentUploading(false)
+    }
+  }
+
+  function handleCommentFileInput(event: ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(event.target.files ?? [])
+    setCommentFiles((prev) => [...prev, ...picked])
+    event.target.value = ''
   }
 
   async function handleAddLink() {
@@ -380,15 +404,46 @@ export function TaskDrawer() {
                   placeholder={t('task.commentPlaceholder')}
                   className="w-full resize-none bg-transparent text-sm text-slate-900 outline-none"
                 />
-                <div className="mt-3 flex justify-end">
+                {commentFiles.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {commentFiles.map((file, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1 rounded-full bg-white border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700">
+                        {file.name}
+                        <button
+                          type="button"
+                          onClick={() => setCommentFiles((prev) => prev.filter((_, i) => i !== idx))}
+                          className="ml-0.5 text-slate-400 hover:text-slate-700"
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-3 flex items-center justify-between gap-2">
                   <button
                     type="button"
-                    onClick={handleAddComment}
-                    disabled={!commentBody.trim()}
+                    onClick={() => commentFileRef.current?.click()}
+                    className="flex items-center gap-1.5 rounded-xl p-2 text-slate-400 transition hover:bg-white hover:text-slate-600"
+                    title={t('task.attachments')}
+                  >
+                    <Paperclip size={16} />
+                  </button>
+                  <input
+                    ref={commentFileRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleCommentFileInput}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleAddComment()}
+                    disabled={(!commentBody.trim() && commentFiles.length === 0) || commentUploading}
                     className="inline-flex items-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
                   >
                     <Send size={15} />
-                    {t('task.addComment')}
+                    {commentUploading ? '…' : t('task.addComment')}
                   </button>
                 </div>
               </div>
