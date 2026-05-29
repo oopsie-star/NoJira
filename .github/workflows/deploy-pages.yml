@@ -30,23 +30,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build for Netlify (base /)
-        run: npm run build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-
-      - name: Deploy to Netlify
-        uses: nwtgck/actions-netlify@v3.0
-        with:
-          publish-dir: './dist'
-          production-deploy: true
-          deploy-message: "Deploy from GitHub Actions"
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-        timeout-minutes: 5
-
       - name: Build for GitHub Pages (base /NoJira/)
         run: npm run build
         env:
@@ -54,7 +37,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_APP_BASE_URL: /NoJira/
 
-      - name: Add SPA fallback
+      - name: Add SPA fallback (copy index.html as 404.html)
         run: cp dist/index.html dist/404.html
 
       - name: Upload Pages artifact
