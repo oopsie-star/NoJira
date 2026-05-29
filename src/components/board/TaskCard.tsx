@@ -1,9 +1,10 @@
 import { Draggable } from '@hello-pangea/dnd'
-import { Calendar, Paperclip } from 'lucide-react'
+import { Calendar, CircleAlert, Paperclip } from 'lucide-react'
 import { IssueTypeBadge, PriorityBadge } from '@/components/common/IssueBadges'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
+import { formatStatusAge, isTaskBlocked } from '@/lib/ops'
 import { useStore } from '@/store'
 import type { Task } from '@/types'
 
@@ -13,8 +14,11 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, index }: TaskCardProps) {
-  const { locale } = useI18n()
+  const { locale, t } = useI18n()
   const setOpenTaskId = useStore((state) => state.setOpenTaskId)
+  const tasks = useStore((state) => state.tasks)
+  const taskLinks = useStore((state) => state.taskLinks)
+  const blocked = isTaskBlocked(task.id, taskLinks, tasks)
 
   return (
     <Draggable draggableId={task.id} index={index}>
@@ -38,6 +42,15 @@ export function TaskCard({ task, index }: TaskCardProps) {
                 style={{ backgroundColor: `${task.epic.color}20`, color: task.epic.color }}
               >
                 {task.epic.title}
+              </span>
+            )}
+            <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
+              {t('board.daysInStatus', { days: formatStatusAge(locale, task) })}
+            </span>
+            {blocked && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700">
+                <CircleAlert size={12} />
+                {t('board.blocked')}
               </span>
             )}
           </div>

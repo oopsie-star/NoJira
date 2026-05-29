@@ -1,17 +1,25 @@
-import { create } from 'zustand'
+﻿import { create } from 'zustand'
+import { isTaskBlocked } from '@/lib/ops'
 import { supabase } from '@/lib/supabase'
 import type {
   Epic,
+  Notification,
+  PortfolioItem,
   Profile,
   Project,
+  ProjectAutomationSettings,
   ProjectInvite,
   ProjectMember,
   ProjectRole,
+  ProjectWebhook,
   Sprint,
   TaskActivity,
   TaskComment,
   Task,
+  TaskLink,
+  TaskLinkType,
   TaskStatus,
+  WebhookEvent,
 } from '@/types'
 
 const TASK_SELECT = `
@@ -49,6 +57,17 @@ const TASK_ACTIVITY_SELECT = `
   actor:profiles(*)
 `
 
+const TASK_LINK_SELECT = `
+  *,
+  source_task:tasks!task_links_source_task_id_fkey(id, key, title, status, assignee_id),
+  target_task:tasks!task_links_target_task_id_fkey(id, key, title, status, assignee_id)
+`
+
+const NOTIFICATION_SELECT = `
+  *,
+  task:tasks(id, key, title, status, assignee_id)
+`
+
 const ACTIVE_PROJECT_STORAGE_KEY = 'nojira-active-project-id'
 
 function replaceTask(tasks: Task[], nextTask: Task) {
@@ -72,6 +91,28 @@ function normalizeProjectMembers(rows: unknown[]) {
     const entry = row as ProjectMember & { profile?: Profile | Profile[] | null }
     return { ...entry, profile: unwrapRelation<Profile>(entry.profile) }
   }) as ProjectMember[]
+}
+
+function normalizeTaskLinks(rows: unknown[]) {
+  return rows.map((row) => {
+    const entry = row as TaskLink & {
+      source_task?: TaskLink['source_task'] | TaskLink['source_task'][] | null
+      target_task?: TaskLink['target_task'] | TaskLink['target_task'][] | null
+    }
+
+    return {
+      ...entry,
+      source_task: unwrapRelation<TaskLink['source_task']>(entry.source_task),
+      target_task: unwrapRelation<TaskLink['target_task']>(entry.target_task),
+    }
+  }) as TaskLink[]
+}
+
+function normalizeNotifications(rows: unknown[]) {
+  return rows.map((row) => {
+    const entry = row as Notification & { task?: Notification['task'] | Notification['task'][] | null }
+    return { ...entry, task: unwrapRelation<Notification['task']>(entry.task) }
+  }) as Notification[]
 }
 
 function uniqueProjects(memberships: ProjectMember[]) {
@@ -122,6 +163,7 @@ function normalizeTextValue(value: unknown) {
 
 function buildTaskUpdateMessages(previousTask: Task, nextTask: Task, changedFields: Partial<Task>) {
   const messages: string[] = []
+  const meaningfulChangedFields = Object.keys(changedFields).filter((field) => field !== 'position')
 
   if (changedFields.status && previousTask.status !== nextTask.status) {
     messages.push(`Status changed from ${normalizeTextValue(previousTask.status)} to ${normalizeTextValue(nextTask.status)}`)
@@ -159,11 +201,50 @@ function buildTaskUpdateMessages(previousTask: Task, nextTask: Task, changedFiel
     messages.push(`Labels changed from ${normalizeTextValue(previousTask.labels)} to ${normalizeTextValue(nextTask.labels)}`)
   }
 
-  if (!messages.length && Object.keys(changedFields).length > 0) {
+  if (!messages.length && meaningfulChangedFields.length > 0) {
     messages.push('Issue details updated')
   }
 
   return messages
+}
+
+function toHex(buffer: ArrayBuffer) {
+  return Array.from(new Uint8Array(buffer))
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+async function signWebhookPayload(secret: string, body: string) {
+  if (!secret.trim() || typeof crypto === 'undefined' || !crypto.subtle) return ''
+
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(body))
+  return toHex(signature)
+}
+
+async function postWebhook(event: WebhookEvent, webhook: ProjectWebhook, payload: unknown) {
+  const body = JSON.stringify(payload)
+  const signature = await signWebhookPayload(webhook.secret, body)
+  const response = await fetch(webhook.endpoint_url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-NoJira-Event': event,
+      ...(signature ? { 'X-NoJira-Signature': signature } : {}),
+    },
+    body,
+  })
+
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`)
+  }
 }
 
 interface AppState {
@@ -172,6 +253,11 @@ interface AppState {
   projectMemberships: ProjectMember[]
   projectMembers: ProjectMember[]
   projectInvites: ProjectInvite[]
+  portfolioItems: PortfolioItem[]
+  automationSettings: ProjectAutomationSettings | null
+  projectWebhooks: ProjectWebhook[]
+  taskLinks: TaskLink[]
+  notifications: Notification[]
   taskComments: TaskComment[]
   taskActivities: TaskActivity[]
   tasks: Task[]
@@ -196,13 +282,22 @@ interface AppState {
   fetchEpics: () => Promise<void>
   fetchMembers: () => Promise<void>
   fetchProjectInvites: () => Promise<void>
+  fetchPortfolioItems: () => Promise<void>
+  fetchAutomationSettings: () => Promise<void>
+  fetchProjectWebhooks: () => Promise<void>
+  fetchTaskLinks: () => Promise<void>
+  fetchNotifications: () => Promise<void>
   fetchTaskContext: (taskId: string) => Promise<void>
   clearTaskContext: () => void
   createProject: (fields: Pick<Project, 'name' | 'description'> & { key?: string }) => Promise<Project | null>
+  createPortfolioItem: (fields: Partial<PortfolioItem>) => Promise<PortfolioItem | null>
   createTask: (fields: Partial<Task>) => Promise<Task | null>
   createSubtask: (parentTaskId: string, title: string) => Promise<Task | null>
   createTaskComment: (taskId: string, body: string) => Promise<void>
+  createTaskLink: (sourceTaskId: string, targetTaskId: string, linkType: TaskLinkType) => Promise<TaskLink | null>
+  createProjectWebhook: (fields: Pick<ProjectWebhook, 'name' | 'endpoint_url' | 'events' | 'secret'>) => Promise<ProjectWebhook | null>
   deleteTaskComment: (commentId: string) => Promise<void>
+  deleteTaskLink: (id: string) => Promise<void>
   updateTask: (id: string, fields: Partial<Task>) => Promise<void>
   deleteTask: (id: string) => Promise<void>
   moveTask: (taskId: string, toStatus: TaskStatus, toIndex: number) => Promise<void>
@@ -213,31 +308,73 @@ interface AppState {
   completeSprint: (id: string) => Promise<void>
   deleteSprint: (id: string) => Promise<void>
   createEpic: (fields: Partial<Epic>) => Promise<Epic | null>
+  updateEpic: (id: string, fields: Partial<Epic>) => Promise<void>
   deleteEpic: (id: string) => Promise<void>
+  updatePortfolioItem: (id: string, fields: Partial<PortfolioItem>) => Promise<void>
+  updateAutomationSettings: (fields: Partial<ProjectAutomationSettings>) => Promise<void>
+  deleteProjectWebhook: (id: string) => Promise<void>
+  markNotificationRead: (id: string) => Promise<void>
+  markAllNotificationsRead: () => Promise<void>
   updateProfile: (id: string, fields: Partial<Profile>) => Promise<void>
   updateProjectMemberRole: (membershipId: string, role: ProjectRole) => Promise<void>
   inviteToProject: (email: string, role: ProjectRole) => Promise<{ emailSent: boolean } | null>
 }
 
-export const useStore = create<AppState>((set, get) => ({
-  profile: null,
-  projects: [],
-  projectMemberships: [],
-  projectMembers: [],
-  projectInvites: [],
-  taskComments: [],
-  taskActivities: [],
-  tasks: [],
-  sprints: [],
-  epics: [],
-  members: [],
-  loadingProjects: false,
-  loadingBoard: false,
-  loadingBacklog: false,
-  activeProjectId: null,
-  activeProjectRole: null,
-  activeSprintId: null,
-  openTaskId: null,
+export const useStore = create<AppState>((set, get) => {
+  const deliverProjectWebhooks = async (event: WebhookEvent, payload: unknown, taskId?: string | null) => {
+    const activeProjectId = get().activeProjectId
+    const profile = get().profile
+    const matchingWebhooks = get().projectWebhooks.filter((webhook) => webhook.is_active && webhook.events.includes(event))
+
+    if (!activeProjectId || matchingWebhooks.length === 0) return
+
+    const failures: string[] = []
+    for (const webhook of matchingWebhooks) {
+      try {
+        await postWebhook(event, webhook, payload)
+      } catch (error) {
+        failures.push(`${webhook.name}: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+
+    if (!failures.length || !profile) return
+
+    await supabase.from('notifications').insert({
+      project_id: activeProjectId,
+      profile_id: profile.id,
+      task_id: taskId ?? null,
+      notification_type: 'system',
+      title: 'Webhook delivery failed',
+      body: failures.join(' | '),
+    })
+
+    await get().fetchNotifications()
+  }
+
+  return ({
+    profile: null,
+    projects: [],
+    projectMemberships: [],
+    projectMembers: [],
+    projectInvites: [],
+    portfolioItems: [],
+    automationSettings: null,
+    projectWebhooks: [],
+    taskLinks: [],
+    notifications: [],
+    taskComments: [],
+    taskActivities: [],
+    tasks: [],
+    sprints: [],
+    epics: [],
+    members: [],
+    loadingProjects: false,
+    loadingBoard: false,
+    loadingBacklog: false,
+    activeProjectId: readStoredActiveProjectId(),
+    activeProjectRole: null,
+    activeSprintId: null,
+    openTaskId: null,
 
   setProfile: (profile) => set({ profile }),
   setOpenTaskId: (openTaskId) => set({ openTaskId }),
@@ -248,16 +385,21 @@ export const useStore = create<AppState>((set, get) => ({
     set({
       activeProjectId,
       activeProjectRole: membership?.project_role ?? null,
-      activeSprintId: null,
-      openTaskId: null,
-      tasks: [],
-      sprints: [],
-      epics: [],
-      members: [],
-      projectMembers: [],
-      projectInvites: [],
-      taskComments: [],
-      taskActivities: [],
+        activeSprintId: null,
+        openTaskId: null,
+        tasks: [],
+        sprints: [],
+        epics: [],
+        portfolioItems: [],
+        automationSettings: null,
+        projectWebhooks: [],
+        taskLinks: [],
+        notifications: [],
+        members: [],
+        projectMembers: [],
+        projectInvites: [],
+        taskComments: [],
+        taskActivities: [],
     })
   },
 
@@ -413,6 +555,90 @@ export const useStore = create<AppState>((set, get) => ({
     if (data) set({ projectInvites: data as ProjectInvite[] })
   },
 
+  fetchPortfolioItems: async () => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) {
+      set({ portfolioItems: [] })
+      return
+    }
+
+    const { data } = await supabase
+      .from('portfolio_items')
+      .select('*')
+      .eq('project_id', activeProjectId)
+      .order('position')
+      .order('created_at')
+
+    set({ portfolioItems: (data ?? []) as PortfolioItem[] })
+  },
+
+  fetchAutomationSettings: async () => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) {
+      set({ automationSettings: null })
+      return
+    }
+
+    const { data } = await supabase
+      .from('project_automation_settings')
+      .select('*')
+      .eq('project_id', activeProjectId)
+      .maybeSingle()
+
+    set({ automationSettings: (data ?? null) as ProjectAutomationSettings | null })
+  },
+
+  fetchProjectWebhooks: async () => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) {
+      set({ projectWebhooks: [] })
+      return
+    }
+
+    const { data } = await supabase
+      .from('project_webhooks')
+      .select('*')
+      .eq('project_id', activeProjectId)
+      .order('created_at', { ascending: false })
+
+    set({ projectWebhooks: (data ?? []) as ProjectWebhook[] })
+  },
+
+  fetchTaskLinks: async () => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) {
+      set({ taskLinks: [] })
+      return
+    }
+
+    const { data } = await supabase
+      .from('task_links')
+      .select(TASK_LINK_SELECT)
+      .eq('project_id', activeProjectId)
+      .order('created_at', { ascending: false })
+
+    set({ taskLinks: normalizeTaskLinks((data ?? []) as unknown[]) })
+  },
+
+  fetchNotifications: async () => {
+    const activeProjectId = get().activeProjectId
+    const profile = get().profile
+    if (!activeProjectId || !profile) {
+      set({ notifications: [] })
+      return
+    }
+
+    const { data } = await supabase
+      .from('notifications')
+      .select(NOTIFICATION_SELECT)
+      .eq('project_id', activeProjectId)
+      .eq('profile_id', profile.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    set({ notifications: normalizeNotifications((data ?? []) as unknown[]) })
+  },
+
   fetchTaskContext: async (taskId) => {
     const currentTask = get().tasks.find((task) => task.id === taskId)
     if (!currentTask) {
@@ -462,10 +688,78 @@ export const useStore = create<AppState>((set, get) => ({
     if (error) throw error
     if (!data) return null
 
-    await get().fetchProjects()
-    get().setActiveProjectId(data.id)
-    await Promise.all([get().fetchMembers(), get().fetchProjectInvites()])
-    return data as Project
+    const nextProject = data as Project
+    const optimisticMembership: ProjectMember = {
+      id: `local-${nextProject.id}`,
+      project_id: nextProject.id,
+      profile_id: profile.id,
+      project_role: 'owner',
+      created_at: nextProject.created_at,
+      project: nextProject,
+      profile,
+    }
+
+    storeActiveProjectId(nextProject.id)
+    set((state) => ({
+      projects: state.projects.some((project) => project.id === nextProject.id)
+        ? state.projects
+        : [...state.projects, nextProject],
+      projectMemberships: state.projectMemberships.some((membership) => membership.project_id === nextProject.id)
+        ? state.projectMemberships
+        : [...state.projectMemberships, optimisticMembership],
+      activeProjectId: nextProject.id,
+      activeProjectRole: optimisticMembership.project_role,
+      activeSprintId: null,
+      openTaskId: null,
+      tasks: [],
+      sprints: [],
+      epics: [],
+      portfolioItems: [],
+      automationSettings: null,
+      projectWebhooks: [],
+      taskLinks: [],
+      notifications: [],
+      members: [profile],
+      projectMembers: [optimisticMembership],
+      projectInvites: [],
+      taskComments: [],
+      taskActivities: [],
+    }))
+
+    void Promise.allSettled([get().fetchProjects(), get().fetchMembers(), get().fetchProjectInvites()])
+    return nextProject
+  },
+
+  createPortfolioItem: async (fields) => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId || !fields.title?.trim()) return null
+
+    const siblings = get().portfolioItems
+      .filter((item) => item.parent_id === (fields.parent_id ?? null))
+      .sort((left, right) => left.position - right.position)
+    const nextPosition = (siblings[siblings.length - 1]?.position ?? 0) + 1000
+
+    const { data, error } = await supabase
+      .from('portfolio_items')
+      .insert({
+        project_id: activeProjectId,
+        parent_id: fields.parent_id ?? null,
+        item_type: fields.item_type ?? 'initiative',
+        title: fields.title.trim(),
+        description: fields.description?.trim() ?? '',
+        color: fields.color ?? '#6554C0',
+        position: fields.position ?? nextPosition,
+      })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    if (!data) return null
+
+    set((state) => ({
+      portfolioItems: [...state.portfolioItems, data as PortfolioItem].sort((left, right) => left.position - right.position),
+    }))
+    return data as PortfolioItem
   },
 
   createTask: async (fields) => {
@@ -502,6 +796,12 @@ export const useStore = create<AppState>((set, get) => ({
       activity_type: fields.parent_task_id ? 'subtask_created' : 'task_created',
       message: fields.parent_task_id ? `Subtask "${(data as Task).title}" created` : 'Issue created',
     })
+
+    await deliverProjectWebhooks('task.created', {
+      event: 'task.created',
+      project_id: activeProjectId,
+      task: data,
+    }, (data as Task).id)
 
     return data as Task
   },
@@ -576,6 +876,84 @@ export const useStore = create<AppState>((set, get) => ({
     })
 
     await get().fetchTaskContext(taskId)
+    await deliverProjectWebhooks('task.updated', {
+      event: 'task.updated',
+      project_id: currentTask.project_id,
+      task: currentTask,
+      comment: trimmedBody,
+    }, currentTask.id)
+  },
+
+  createTaskLink: async (sourceTaskId, targetTaskId, linkType) => {
+    const profile = get().profile
+    const activeProjectId = get().activeProjectId
+    if (!profile || !activeProjectId || sourceTaskId === targetTaskId) return null
+
+    const { data, error } = await supabase
+      .from('task_links')
+      .insert({
+        project_id: activeProjectId,
+        source_task_id: sourceTaskId,
+        target_task_id: targetTaskId,
+        link_type: linkType,
+        created_by: profile.id,
+      })
+      .select(TASK_LINK_SELECT)
+      .single()
+
+    if (error) throw error
+    if (!data) return null
+
+    const nextLink = normalizeTaskLinks([data as unknown])[0]
+    set((state) => ({ taskLinks: [nextLink, ...state.taskLinks] }))
+
+    const sourceTask = get().tasks.find((task) => task.id === sourceTaskId)
+    const targetTask = get().tasks.find((task) => task.id === targetTaskId)
+    if (sourceTask && targetTask) {
+      await supabase.from('task_activities').insert([
+        {
+          project_id: activeProjectId,
+          task_id: sourceTask.id,
+          actor_id: profile.id,
+          activity_type: 'task_updated',
+          message: `${linkType === 'blocks' ? 'Blocks' : linkType === 'duplicates' ? 'Duplicates' : 'Related to'} ${targetTask.key}`,
+        },
+        {
+          project_id: activeProjectId,
+          task_id: targetTask.id,
+          actor_id: profile.id,
+          activity_type: 'task_updated',
+          message: `${linkType === 'blocks' ? 'Blocked by' : linkType === 'duplicates' ? 'Duplicated by' : 'Related to'} ${sourceTask.key}`,
+        },
+      ])
+    }
+
+    return nextLink
+  },
+
+  createProjectWebhook: async (fields) => {
+    const profile = get().profile
+    const activeProjectId = get().activeProjectId
+    if (!profile || !activeProjectId) return null
+
+    const { data, error } = await supabase
+      .from('project_webhooks')
+      .insert({
+        project_id: activeProjectId,
+        name: fields.name.trim(),
+        endpoint_url: fields.endpoint_url.trim(),
+        events: fields.events,
+        secret: fields.secret.trim(),
+        created_by: profile.id,
+      })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    if (!data) return null
+
+    set((state) => ({ projectWebhooks: [data as ProjectWebhook, ...state.projectWebhooks] }))
+    return data as ProjectWebhook
   },
 
   deleteTaskComment: async (commentId) => {
@@ -593,6 +971,16 @@ export const useStore = create<AppState>((set, get) => ({
 
     if (error) {
       set((state) => ({ taskComments: [...state.taskComments, comment].sort((left, right) => left.created_at.localeCompare(right.created_at)) }))
+      throw error
+    }
+  },
+
+  deleteTaskLink: async (id) => {
+    const previousLinks = get().taskLinks
+    set((state) => ({ taskLinks: state.taskLinks.filter((link) => link.id !== id) }))
+    const { error } = await supabase.from('task_links').delete().eq('id', id)
+    if (error) {
+      set({ taskLinks: previousLinks })
       throw error
     }
   },
@@ -632,6 +1020,42 @@ export const useStore = create<AppState>((set, get) => ({
 
       if (get().openTaskId === id) {
         await get().fetchTaskContext(id)
+      }
+
+      const meaningfulChanges = Object.keys(fields).filter((field) => field !== 'position')
+      if (meaningfulChanges.length > 0) {
+        await deliverProjectWebhooks('task.updated', {
+          event: 'task.updated',
+          project_id: nextTask.project_id,
+          changes: fields,
+          task: nextTask,
+        }, nextTask.id)
+      }
+
+      if (previousTask.status !== 'done' && nextTask.status === 'done') {
+        await deliverProjectWebhooks('task.completed', {
+          event: 'task.completed',
+          project_id: nextTask.project_id,
+          task: nextTask,
+        }, nextTask.id)
+
+        const affectedTasks = get().taskLinks
+          .filter((link) => link.link_type === 'blocks' && link.source_task_id === nextTask.id)
+          .map((link) => link.target_task_id)
+
+        for (const targetTaskId of affectedTasks) {
+          if (!isTaskBlocked(targetTaskId, get().taskLinks, get().tasks)) {
+            const targetTask = get().tasks.find((task) => task.id === targetTaskId)
+            if (targetTask) {
+              await deliverProjectWebhooks('task.unblocked', {
+                event: 'task.unblocked',
+                project_id: targetTask.project_id,
+                task: targetTask,
+                unblocked_by: nextTask,
+              }, targetTask.id)
+            }
+          }
+        }
       }
     }
   },
@@ -679,32 +1103,19 @@ export const useStore = create<AppState>((set, get) => ({
         position: (index + 1) * 1000,
       }))
 
-      set((state) => ({
-        tasks: state.tasks.map((item) => {
-          const update = rebalanced.find((entry) => entry.id === item.id)
-          return update ? { ...item, status: update.status, position: update.position } : item
-        }),
-      }))
-
       for (const update of rebalanced) {
-        await supabase
-          .from('tasks')
-          .update({ status: update.status, position: update.position })
-          .eq('id', update.id)
+        if (update.id === taskId) continue
+        await supabase.from('tasks').update({ status: update.status, position: update.position }).eq('id', update.id)
+      }
+
+      const movedTask = rebalanced.find((entry) => entry.id === taskId)
+      if (movedTask) {
+        await get().updateTask(taskId, { status: movedTask.status, position: movedTask.position })
       }
       return
     }
 
-    set((state) => ({
-      tasks: state.tasks.map((item) => (
-        item.id === taskId ? { ...item, status: toStatus, position: nextPosition } : item
-      )),
-    }))
-
-    await supabase
-      .from('tasks')
-      .update({ status: toStatus, position: nextPosition })
-      .eq('id', taskId)
+    await get().updateTask(taskId, { status: toStatus, position: nextPosition })
   },
 
   createSprint: async (fields) => {
@@ -754,7 +1165,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     const { data, error } = await supabase
       .from('epics')
-      .insert({ project_id: activeProjectId, description: '', ...fields })
+      .insert({ project_id: activeProjectId, description: '', status: 'planned', parent_portfolio_item_id: null, ...fields })
       .select()
       .single()
 
@@ -765,9 +1176,107 @@ export const useStore = create<AppState>((set, get) => ({
     return data as Epic
   },
 
+  updateEpic: async (id, fields) => {
+    set((state) => ({
+      epics: state.epics.map((epic) => (epic.id === id ? { ...epic, ...fields } : epic)),
+    }))
+
+    const { data } = await supabase
+      .from('epics')
+      .update(fields)
+      .eq('id', id)
+      .select('*')
+      .single()
+
+    if (data) {
+      set((state) => ({
+        epics: state.epics.map((epic) => (epic.id === id ? data as Epic : epic)),
+      }))
+    }
+  },
+
   deleteEpic: async (id) => {
     set((state) => ({ epics: state.epics.filter((epic) => epic.id !== id) }))
     await supabase.from('epics').delete().eq('id', id)
+  },
+
+  updatePortfolioItem: async (id, fields) => {
+    set((state) => ({
+      portfolioItems: state.portfolioItems.map((item) => (item.id === id ? { ...item, ...fields } : item)),
+    }))
+
+    const { data } = await supabase
+      .from('portfolio_items')
+      .update(fields)
+      .eq('id', id)
+      .select('*')
+      .single()
+
+    if (data) {
+      set((state) => ({
+        portfolioItems: state.portfolioItems
+          .map((item) => (item.id === id ? data as PortfolioItem : item))
+          .sort((left, right) => left.position - right.position),
+      }))
+    }
+  },
+
+  updateAutomationSettings: async (fields) => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) return
+
+    const payload = {
+      project_id: activeProjectId,
+      ...get().automationSettings,
+      ...fields,
+      updated_at: new Date().toISOString(),
+    }
+
+    set({ automationSettings: payload as ProjectAutomationSettings })
+
+    const { data } = await supabase
+      .from('project_automation_settings')
+      .upsert(payload)
+      .select('*')
+      .single()
+
+    if (data) set({ automationSettings: data as ProjectAutomationSettings })
+  },
+
+  deleteProjectWebhook: async (id) => {
+    const previousWebhooks = get().projectWebhooks
+    set((state) => ({ projectWebhooks: state.projectWebhooks.filter((webhook) => webhook.id !== id) }))
+    const { error } = await supabase.from('project_webhooks').delete().eq('id', id)
+    if (error) {
+      set({ projectWebhooks: previousWebhooks })
+      throw error
+    }
+  },
+
+  markNotificationRead: async (id) => {
+    set((state) => ({
+      notifications: state.notifications.map((notification) => (
+        notification.id === id ? { ...notification, is_read: true } : notification
+      )),
+    }))
+    await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+  },
+
+  markAllNotificationsRead: async () => {
+    const activeProjectId = get().activeProjectId
+    const profile = get().profile
+    if (!activeProjectId || !profile) return
+
+    set((state) => ({
+      notifications: state.notifications.map((notification) => ({ ...notification, is_read: true })),
+    }))
+
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('project_id', activeProjectId)
+      .eq('profile_id', profile.id)
+      .eq('is_read', false)
   },
 
   updateProfile: async (id, fields) => {
@@ -844,4 +1353,5 @@ export const useStore = create<AppState>((set, get) => ({
     await Promise.all([get().fetchMembers(), get().fetchProjectInvites(), get().fetchProjects()])
     return { emailSent: !error }
   },
-}))
+  })
+})

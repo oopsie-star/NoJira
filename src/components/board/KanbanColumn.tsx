@@ -18,8 +18,8 @@ export function KanbanColumn({ status, tasks, sprintId }: KanbanColumnProps) {
 
   return (
     <>
-      <section className="flex w-[360px] flex-shrink-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
+      <section className="flex min-h-0 w-[80vw] max-w-[320px] flex-shrink-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm sm:w-[300px] lg:w-[340px] lg:max-w-none">
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <div>
             <p className="text-sm font-semibold text-slate-900">{t(`status.${status}`)}</p>
             <p className="text-xs text-slate-500">{t('kanban.issues', { count: tasks.length })}</p>
@@ -38,7 +38,7 @@ export function KanbanColumn({ status, tasks, sprintId }: KanbanColumnProps) {
               ref={provided.innerRef}
               {...provided.droppableProps}
               className={[
-                'min-h-[520px] flex-1 space-y-3 p-4 transition',
+                'min-h-0 flex-1 space-y-3 overflow-y-auto p-4 transition',
                 snapshot.isDraggingOver ? 'bg-jira-blue-lt/60' : 'bg-slate-50/80',
               ].join(' ')}
             >

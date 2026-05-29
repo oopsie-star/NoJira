@@ -79,12 +79,13 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/35 p-4">
-      <div className="w-full max-w-3xl rounded-[28px] bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/35 p-0 sm:items-center sm:p-4">
+      <div className="flex w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-2xl sm:max-w-3xl sm:rounded-[28px]" style={{ maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 1rem)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        {/* ── Header (sticky) ── */}
+        <div className="flex flex-shrink-0 items-start justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <h2 className="text-xl font-semibold text-slate-900">{t('task.modalTitle')}</h2>
-            <p className="mt-1 text-sm text-slate-500">{t('task.modalSubtitle')}</p>
+            <p className="mt-0.5 text-sm text-slate-500">{t('task.modalSubtitle')}</p>
           </div>
           <button
             type="button"
@@ -95,42 +96,48 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="grid gap-6 px-6 py-5 lg:grid-cols-[1.6fr_1fr]">
-          <div className="space-y-5">
-            <div>
-              <FieldLabel>{t('task.summary')}</FieldLabel>
-              <input
-                autoFocus
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder={t('task.titlePlaceholder')}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-jira-blue focus:ring-4 focus:ring-jira-blue-lt"
-              />
-            </div>
+        {/* ── Scrollable body ── */}
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+              <div className="space-y-4">
+                <div>
+                  <FieldLabel>{t('task.summary')}</FieldLabel>
+                  <input
+                    autoFocus
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    placeholder={t('task.titlePlaceholder')}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-jira-blue focus:ring-4 focus:ring-jira-blue-lt"
+                  />
+                </div>
 
-            <div>
-              <FieldLabel>{t('task.description')}</FieldLabel>
-              <textarea
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                rows={7}
-                placeholder={t('task.descriptionPlaceholder')}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue focus:ring-4 focus:ring-jira-blue-lt"
-              />
-            </div>
+                <div>
+                  <FieldLabel>{t('task.description')}</FieldLabel>
+                  <textarea
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    rows={4}
+                    placeholder={t('task.descriptionPlaceholder')}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue focus:ring-4 focus:ring-jira-blue-lt"
+                  />
+                </div>
 
-            <div>
-              <FieldLabel>{t('task.labels')}</FieldLabel>
-              <input
-                value={labelsInput}
-                onChange={(event) => setLabelsInput(event.target.value)}
-                placeholder={t('task.labelsPlaceholder')}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue focus:ring-4 focus:ring-jira-blue-lt"
-              />
-            </div>
-          </div>
+                <div>
+                  <FieldLabel>{t('task.labels')}</FieldLabel>
+                  <input
+                    value={labelsInput}
+                    onChange={(event) => setLabelsInput(event.target.value)}
+                    placeholder={t('task.labelsPlaceholder')}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue focus:ring-4 focus:ring-jira-blue-lt"
+                  />
+                </div>
+              </div>
 
-          <div className="space-y-4 rounded-[24px] bg-slate-50 p-4">
+              <div className="space-y-3 rounded-[24px] bg-slate-50 p-4">
             <div>
               <FieldLabel>{t('task.issueType')}</FieldLabel>
               <select
@@ -230,8 +237,11 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
               />
             </div>
           </div>
+            </div>{/* end grid */}
+          </div>{/* end scrollable body */}
 
-          <div className="col-span-full flex justify-end gap-3 border-t border-slate-200 pt-5">
+          {/* ── Footer (sticky) ── */}
+          <div className="flex flex-shrink-0 justify-end gap-3 border-t border-slate-200 px-6 py-4">
             {error && (
               <div className="mr-auto rounded-2xl bg-rose-50 px-4 py-2.5 text-sm text-rose-600">
                 {error}

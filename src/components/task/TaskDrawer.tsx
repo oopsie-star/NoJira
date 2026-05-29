@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Calendar, MessageSquare, Plus, Send, Trash2, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Calendar, Link2, MessageSquare, Plus, Send, Timer, Trash2, X } from 'lucide-react'
 import { IssueTypeBadge, PriorityBadge } from '@/components/common/IssueBadges'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { AttachmentUpload } from './AttachmentUpload'
@@ -7,9 +7,10 @@ import { StatusDropdown } from './StatusDropdown'
 import { useAuthContext } from '@/auth/AuthContext'
 import { useI18n } from '@/lib/i18n'
 import { formatDate, formatPerson, parseLabels } from '@/lib/format'
+import { calculateAverageCycleTimeHours, formatCycleTime, formatStatusAge } from '@/lib/ops'
 import { canDeleteAuthoredContent } from '@/lib/permissions'
 import { useStore } from '@/store'
-import type { IssuePriority, IssueType, Task, TaskStatus } from '@/types'
+import type { IssuePriority, IssueType, Task, TaskLinkType, TaskStatus } from '@/types'
 
 function MetaSection({
   title,
@@ -32,19 +33,31 @@ export function TaskDrawer() {
   const epics = useStore((state) => state.epics)
   const sprints = useStore((state) => state.sprints)
   const members = useStore((state) => state.members)
+  const taskLinks = useStore((state) => state.taskLinks)
   const taskComments = useStore((state) => state.taskComments)
   const taskActivities = useStore((state) => state.taskActivities)
   const updateTask = useStore((state) => state.updateTask)
   const deleteTask = useStore((state) => state.deleteTask)
   const createSubtask = useStore((state) => state.createSubtask)
   const createTaskComment = useStore((state) => state.createTaskComment)
+  const createTaskLink = useStore((state) => state.createTaskLink)
   const deleteTaskComment = useStore((state) => state.deleteTaskComment)
+  const deleteTaskLink = useStore((state) => state.deleteTaskLink)
   const fetchTaskContext = useStore((state) => state.fetchTaskContext)
   const clearTaskContext = useStore((state) => state.clearTaskContext)
   const setOpenTaskId = useStore((state) => state.setOpenTaskId)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const { profile } = useAuthContext()
   const { locale, t } = useI18n()
+
+  const [savedFlash, setSavedFlash] = useState(false)
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const flashSaved = useCallback(() => {
+    setSavedFlash(true)
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+    savedTimerRef.current = setTimeout(() => setSavedFlash(false), 1800)
+  }, [])
 
   const task = useMemo(
     () => tasks.find((item) => item.id === openTaskId),
@@ -68,6 +81,24 @@ export function TaskDrawer() {
   const [draftLabels, setDraftLabels] = useState('')
   const [subtaskTitle, setSubtaskTitle] = useState('')
   const [commentBody, setCommentBody] = useState('')
+  const [linkType, setLinkType] = useState<TaskLinkType>('blocks')
+  const [linkedTaskId, setLinkedTaskId] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const relatedLinks = useMemo(
+    () => taskLinks.filter((link) => link.source_task_id === openTaskId || link.target_task_id === openTaskId),
+    [openTaskId, taskLinks]
+  )
+
+  const linkableTasks = useMemo(
+    () => tasks.filter((item) => item.id !== openTaskId && !item.parent_task_id).sort((left, right) => left.title.localeCompare(right.title)),
+    [openTaskId, tasks]
+  )
+
+  const cycleTime = useMemo(
+    () => formatCycleTime(locale, calculateAverageCycleTimeHours([task ?? undefined].filter(Boolean) as Task[])),
+    [locale, task]
+  )
 
   useEffect(() => {
     if (!task) {
@@ -80,12 +111,24 @@ export function TaskDrawer() {
     setDraftLabels(task.labels.join(', '))
     setSubtaskTitle('')
     setCommentBody('')
+    setLinkType('blocks')
+    setLinkedTaskId('')
     void fetchTaskContext(task.id)
   }, [task, fetchTaskContext, clearTaskContext])
 
   if (!task) return null
 
   const currentTask = task
+
+  const isDirty =
+    draftTitle.trim() !== currentTask.title ||
+    draftDescription !== currentTask.description ||
+    parseLabels(draftLabels).join('|') !== currentTask.labels.join('|')
+
+  async function quickUpdate(fields: Partial<Task>) {
+    await updateTask(currentTask.id, fields)
+    flashSaved()
+  }
 
   async function persistDrafts() {
     const nextFields: Partial<Task> = {}
@@ -98,6 +141,16 @@ export function TaskDrawer() {
 
     if (Object.keys(nextFields).length) {
       await updateTask(currentTask.id, nextFields)
+      flashSaved()
+    }
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await persistDrafts()
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -126,6 +179,18 @@ export function TaskDrawer() {
     setCommentBody('')
   }
 
+  async function handleAddLink() {
+    if (!linkedTaskId) return
+    await createTaskLink(currentTask.id, linkedTaskId, linkType)
+    setLinkedTaskId('')
+  }
+
+  function getLinkText(type: TaskLinkType, isIncoming: boolean) {
+    if (type === 'blocks') return t(isIncoming ? 'task.link.blockedBy' : 'task.link.blocks')
+    if (type === 'duplicates') return t(isIncoming ? 'task.link.duplicatedBy' : 'task.link.duplicates')
+    return t('task.link.relates_to')
+  }
+
   const canDelete = canDeleteAuthoredContent(
     activeProjectRole,
     profile?.id,
@@ -137,8 +202,8 @@ export function TaskDrawer() {
     <>
       <div className="fixed inset-0 z-[60] bg-slate-950/25" onClick={handleClose} />
 
-      <aside className="fixed right-0 top-0 z-[70] flex h-screen w-full max-w-[980px] flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+      <aside className="fixed bottom-0 right-0 top-0 z-[70] flex w-full flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl lg:max-w-[980px]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
               {currentTask.key}
@@ -148,6 +213,21 @@ export function TaskDrawer() {
           </div>
 
           <div className="flex items-center gap-2">
+            {savedFlash && !isDirty && (
+              <span className="flex items-center gap-1 text-sm font-medium text-emerald-600 transition-opacity">
+                ✓ {t('common.saved')}
+              </span>
+            )}
+            {isDirty && (
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-jira-blue px-3 py-2 text-sm font-semibold text-white transition hover:bg-jira-blue-dk disabled:opacity-60"
+              >
+                {saving ? '…' : t('common.save')}
+              </button>
+            )}
             {canDelete && (
               <button
                 type="button"
@@ -167,7 +247,7 @@ export function TaskDrawer() {
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[1.6fr_0.9fr]">
+        <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[1.6fr_0.9fr]">
           <div className="min-h-0 overflow-y-auto p-6">
             {parentTask && (
               <button
@@ -183,7 +263,7 @@ export function TaskDrawer() {
               value={draftTitle}
               onChange={(event) => setDraftTitle(event.target.value)}
               onBlur={persistDrafts}
-              className="w-full border-none px-0 text-[30px] font-semibold leading-tight text-slate-900 outline-none"
+              className="w-full border-none px-0 text-2xl font-semibold leading-tight text-slate-900 outline-none sm:text-[30px]"
             />
 
             <div className="mt-6 grid gap-6 sm:grid-cols-2">
@@ -386,14 +466,14 @@ export function TaskDrawer() {
               <MetaSection title={t('task.status')}>
                 <StatusDropdown
                   value={currentTask.status}
-                  onChange={(status: TaskStatus) => updateTask(currentTask.id, { status })}
+                  onChange={(status: TaskStatus) => void quickUpdate({ status })}
                 />
               </MetaSection>
 
               <MetaSection title={t('task.issueType')}>
                 <select
                   value={currentTask.issue_type}
-                  onChange={(event) => updateTask(currentTask.id, { issue_type: event.target.value as IssueType })}
+                  onChange={(event) => void quickUpdate({ issue_type: event.target.value as IssueType })}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
                 >
                   <option value="task">{t('issueType.task')}</option>
@@ -405,7 +485,7 @@ export function TaskDrawer() {
               <MetaSection title={t('task.priority')}>
                 <select
                   value={currentTask.priority}
-                  onChange={(event) => updateTask(currentTask.id, { priority: event.target.value as IssuePriority })}
+                  onChange={(event) => void quickUpdate({ priority: event.target.value as IssuePriority })}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
                 >
                   <option value="lowest">{t('priority.lowest')}</option>
@@ -419,7 +499,7 @@ export function TaskDrawer() {
               <MetaSection title={t('task.assignee')}>
                 <select
                   value={currentTask.assignee_id ?? ''}
-                  onChange={(event) => updateTask(currentTask.id, { assignee_id: event.target.value || null })}
+                  onChange={(event) => void quickUpdate({ assignee_id: event.target.value || null })}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
                 >
                   <option value="">{t('common.unassigned')}</option>
@@ -434,7 +514,7 @@ export function TaskDrawer() {
               <MetaSection title={t('task.reporter')}>
                 <select
                   value={currentTask.reporter_id ?? ''}
-                  onChange={(event) => updateTask(currentTask.id, { reporter_id: event.target.value || null })}
+                  onChange={(event) => void quickUpdate({ reporter_id: event.target.value || null })}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
                 >
                   <option value="">{t('common.unassigned')}</option>
@@ -449,7 +529,7 @@ export function TaskDrawer() {
               <MetaSection title={t('task.sprint')}>
                 <select
                   value={currentTask.sprint_id ?? ''}
-                  onChange={(event) => updateTask(currentTask.id, { sprint_id: event.target.value || null })}
+                  onChange={(event) => void quickUpdate({ sprint_id: event.target.value || null })}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
                 >
                   <option value="">{t('common.backlog')}</option>
@@ -461,10 +541,10 @@ export function TaskDrawer() {
                 </select>
               </MetaSection>
 
-              <MetaSection title={t('task.epic')}>
-                <select
-                  value={currentTask.epic_id ?? ''}
-                  onChange={(event) => updateTask(currentTask.id, { epic_id: event.target.value || null })}
+               <MetaSection title={t('task.epic')}>
+                 <select
+                   value={currentTask.epic_id ?? ''}
+                   onChange={(event) => void quickUpdate({ epic_id: event.target.value || null })}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
                 >
                   <option value="">{t('common.none')}</option>
@@ -473,12 +553,89 @@ export function TaskDrawer() {
                       {epic.key} — {epic.title}
                     </option>
                   ))}
-                </select>
-              </MetaSection>
+                 </select>
+               </MetaSection>
 
-              <MetaSection title={t('task.labels')}>
-                <input
-                  value={draftLabels}
+               <MetaSection title={t('task.links')}>
+                 <div className="space-y-3">
+                   <select
+                     value={linkType}
+                     onChange={(event) => setLinkType(event.target.value as TaskLinkType)}
+                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                   >
+                     <option value="blocks">{t('task.link.blocks')}</option>
+                     <option value="relates_to">{t('task.link.relates_to')}</option>
+                     <option value="duplicates">{t('task.link.duplicates')}</option>
+                   </select>
+
+                   <select
+                     value={linkedTaskId}
+                     onChange={(event) => setLinkedTaskId(event.target.value)}
+                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                   >
+                     <option value="">{t('task.selectIssue')}</option>
+                     {linkableTasks.map((candidate) => (
+                       <option key={candidate.id} value={candidate.id}>
+                         {candidate.key} - {candidate.title}
+                       </option>
+                     ))}
+                   </select>
+
+                   <button
+                     type="button"
+                     disabled={!linkedTaskId}
+                     onClick={handleAddLink}
+                     className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-jira-blue px-4 py-3 text-sm font-semibold text-white transition hover:bg-jira-blue-dk disabled:opacity-60"
+                   >
+                     <Link2 size={15} />
+                     {t('task.addLink')}
+                   </button>
+
+                   <div className="space-y-2">
+                     {relatedLinks.length === 0 ? (
+                       <p className="rounded-2xl bg-white px-4 py-4 text-sm text-slate-500">{t('task.noLinks')}</p>
+                     ) : (
+                       relatedLinks.map((link) => {
+                         const isIncoming = link.target_task_id === currentTask.id
+                         const linkedTask = isIncoming
+                           ? tasks.find((item) => item.id === link.source_task_id) ?? link.source_task
+                           : tasks.find((item) => item.id === link.target_task_id) ?? link.target_task
+                         const canDeleteLink = canDeleteAuthoredContent(activeProjectRole, profile?.id, link.created_by, currentTask.status)
+
+                         return (
+                           <div key={link.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                             <div className="flex items-start justify-between gap-3">
+                               <button
+                                 type="button"
+                                 onClick={() => linkedTask?.id && setOpenTaskId(linkedTask.id)}
+                                 className="min-w-0 text-left"
+                               >
+                                 <p className="truncate text-sm font-semibold text-slate-900">
+                                   {linkedTask?.key ?? '—'} - {linkedTask?.title ?? '—'}
+                                 </p>
+                                 <p className="mt-1 text-xs uppercase tracking-[0.12em] text-slate-400">{getLinkText(link.link_type, isIncoming)}</p>
+                               </button>
+                               {canDeleteLink && (
+                                 <button
+                                   type="button"
+                                   onClick={() => void deleteTaskLink(link.id)}
+                                   className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                                 >
+                                   <Trash2 size={14} />
+                                 </button>
+                               )}
+                             </div>
+                           </div>
+                         )
+                       })
+                     )}
+                   </div>
+                 </div>
+               </MetaSection>
+
+               <MetaSection title={t('task.labels')}>
+                 <input
+                   value={draftLabels}
                   onChange={(event) => setDraftLabels(event.target.value)}
                   onBlur={persistDrafts}
                   placeholder={t('task.labelsPlaceholder')}
@@ -486,21 +643,29 @@ export function TaskDrawer() {
                 />
               </MetaSection>
 
-              <MetaSection title={t('task.dueDate')}>
-                <input
-                  type="date"
+               <MetaSection title={t('task.dueDate')}>
+                 <input
+                   type="date"
                   value={currentTask.due_date ?? ''}
-                  onChange={(event) => updateTask(currentTask.id, { due_date: event.target.value || null })}
+                  onChange={(event) => void quickUpdate({ due_date: event.target.value || null })}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
-                />
-              </MetaSection>
+                 />
+               </MetaSection>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
-                <p><span className="font-semibold text-slate-900">{t('task.created')}:</span> {formatDate(locale, currentTask.created_at)}</p>
-                <p className="mt-2"><span className="font-semibold text-slate-900">{t('task.updated')}:</span> {formatDate(locale, currentTask.updated_at)}</p>
-              </div>
-            </div>
-          </div>
+               <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
+                 <div className="flex items-center gap-2 text-slate-900">
+                   <Timer size={16} />
+                   <p className="font-semibold">{t('task.daysInStatus')}</p>
+                 </div>
+                 <p className="mt-2">{formatStatusAge(locale, currentTask)}</p>
+                 <p className="mt-3"><span className="font-semibold text-slate-900">{t('task.cycleTime')}:</span> {cycleTime}</p>
+                 <p className="mt-2"><span className="font-semibold text-slate-900">{t('task.started')}:</span> {formatDate(locale, currentTask.started_at)}</p>
+                 <p className="mt-2"><span className="font-semibold text-slate-900">{t('task.completed')}:</span> {formatDate(locale, currentTask.completed_at)}</p>
+                 <p className="mt-3"><span className="font-semibold text-slate-900">{t('task.created')}:</span> {formatDate(locale, currentTask.created_at)}</p>
+                 <p className="mt-2"><span className="font-semibold text-slate-900">{t('task.updated')}:</span> {formatDate(locale, currentTask.updated_at)}</p>
+               </div>
+             </div>
+           </div>
         </div>
       </aside>
     </>

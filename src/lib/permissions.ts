@@ -1,7 +1,7 @@
 import type { ProjectRole, TaskStatus } from '@/types'
 
 const MANAGE_PROJECT_ROLES: ProjectRole[] = ['owner', 'admin', 'founder', 'ceo']
-const OVERRIDE_DELETE_ROLES: ProjectRole[] = ['owner', 'admin', 'founder', 'ceo']
+const OVERRIDE_DELETE_ROLES: ProjectRole[] = ['owner', 'founder', 'ceo']
 
 export function canManageProject(role: ProjectRole | null) {
   return Boolean(role && MANAGE_PROJECT_ROLES.includes(role))

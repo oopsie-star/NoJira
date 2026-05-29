@@ -1,9 +1,10 @@
 import { Draggable } from '@hello-pangea/dnd'
-import { Calendar, Paperclip } from 'lucide-react'
+import { Calendar, CircleAlert, Paperclip } from 'lucide-react'
 import { IssueTypeBadge, PriorityBadge } from '@/components/common/IssueBadges'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
+import { formatStatusAge, isTaskBlocked } from '@/lib/ops'
 import { useStore } from '@/store'
 import type { Task } from '@/types'
 
@@ -15,6 +16,9 @@ interface BacklogRowProps {
 export function BacklogRow({ task, index }: BacklogRowProps) {
   const { locale, t } = useI18n()
   const setOpenTaskId = useStore((state) => state.setOpenTaskId)
+  const tasks = useStore((state) => state.tasks)
+  const taskLinks = useStore((state) => state.taskLinks)
+  const blocked = isTaskBlocked(task.id, taskLinks, tasks)
 
   return (
     <Draggable draggableId={task.id} index={index}>
@@ -25,7 +29,7 @@ export function BacklogRow({ task, index }: BacklogRowProps) {
           {...provided.dragHandleProps}
           onClick={() => setOpenTaskId(task.id)}
           className={[
-            'grid cursor-pointer grid-cols-[1.3fr_150px_140px_120px_90px_44px] items-center gap-3 border-b border-slate-200 px-4 py-3 text-sm transition',
+            'grid cursor-pointer grid-cols-[minmax(0,1fr)_32px] items-center gap-3 border-b border-slate-200 px-4 py-3 text-sm transition sm:grid-cols-[minmax(0,1.35fr)_110px_110px_110px_70px_40px]',
             snapshot.isDragging ? 'rounded-2xl border border-slate-200 bg-white shadow-xl' : 'bg-white hover:bg-slate-50',
           ].join(' ')}
         >
@@ -42,13 +46,20 @@ export function BacklogRow({ task, index }: BacklogRowProps) {
                 </span>
               )}
             </div>
-            <p className="mt-2 truncate font-semibold text-slate-900">{task.title}</p>
-            {task.labels.length > 0 && (
-              <p className="mt-1 truncate text-xs text-slate-500">{task.labels.join(', ')}</p>
-            )}
-          </div>
+             <p className="mt-2 truncate font-semibold text-slate-900">{task.title}</p>
+             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+               {task.labels.length > 0 && <span className="truncate">{task.labels.join(', ')}</span>}
+               <span>{t('board.daysInStatus', { days: formatStatusAge(locale, task) })}</span>
+               {blocked && (
+                 <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 font-semibold text-rose-700">
+                   <CircleAlert size={12} />
+                   {t('board.blocked')}
+                 </span>
+               )}
+             </div>
+           </div>
 
-          <div>
+          <div className="hidden sm:block">
             <span
               className={[
                 'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
@@ -63,11 +74,11 @@ export function BacklogRow({ task, index }: BacklogRowProps) {
             </span>
           </div>
 
-          <div>
+          <div className="hidden sm:block">
             <PriorityBadge priority={task.priority} />
           </div>
 
-          <div className="text-sm text-slate-500">
+          <div className="hidden text-sm text-slate-500 sm:block">
             {task.due_date ? (
               <span className="inline-flex items-center gap-1">
                 <Calendar size={14} />
@@ -76,7 +87,7 @@ export function BacklogRow({ task, index }: BacklogRowProps) {
             ) : '—'}
           </div>
 
-          <div className="text-sm text-slate-500">
+          <div className="hidden text-sm text-slate-500 sm:block">
             {task.attachments.length > 0 ? (
               <span className="inline-flex items-center gap-1">
                 <Paperclip size={14} />

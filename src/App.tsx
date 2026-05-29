@@ -6,6 +6,7 @@ const AuthPage = lazy(() => import('@/components/auth/AuthPage').then((module) =
 const BoardPage = lazy(() => import('@/pages/BoardPage').then((module) => ({ default: module.BoardPage })))
 const BacklogPage = lazy(() => import('@/pages/BacklogPage').then((module) => ({ default: module.BacklogPage })))
 const PeoplePage = lazy(() => import('@/pages/PeoplePage').then((module) => ({ default: module.PeoplePage })))
+const OpsPage = lazy(() => import('@/pages/OpsPage').then((module) => ({ default: module.OpsPage })))
 
 function FullPageSpinner() {
   return (
@@ -47,6 +48,10 @@ export function App() {
         <Route
           path="/people"
           element={<ProtectedRoute><PeoplePage /></ProtectedRoute>}
+        />
+        <Route
+          path="/ops"
+          element={<ProtectedRoute><OpsPage /></ProtectedRoute>}
         />
         <Route path="*" element={<Navigate to="/board" replace />} />
       </Routes>

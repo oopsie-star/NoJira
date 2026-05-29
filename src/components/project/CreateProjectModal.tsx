@@ -33,8 +33,8 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/35 p-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-2xl rounded-[28px] bg-white p-6 shadow-2xl">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/35 p-0 sm:items-center sm:p-4">
+      <form onSubmit={handleSubmit} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-[28px] bg-white p-5 shadow-2xl sm:rounded-[28px] sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold text-slate-900">{t('project.create')}</h2>
@@ -87,9 +87,9 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
           {error && (
-            <p className="mr-auto rounded-2xl bg-rose-50 px-4 py-2.5 text-sm text-rose-600">{error}</p>
+            <p className="rounded-2xl bg-rose-50 px-4 py-2.5 text-sm text-rose-600 sm:mr-auto">{error}</p>
           )}
           <button
             type="button"

@@ -1,0 +1,85 @@
+{
+  "buttons": [
+    {
+      "i": 0,
+      "text": "Search… Netlify…CtrlK",
+      "aria": null
+    },
+    {
+      "i": 1,
+      "text": "News",
+      "aria": "News. Open menu"
+    },
+    {
+      "i": 2,
+      "text": "Support",
+      "aria": "Support. Open menu"
+    },
+    {
+      "i": 3,
+      "text": "Pavel Kornilovoopsifymovie@gmail.com",
+      "aria": "User oopsifymovie@gmail.com. Open menu"
+    },
+    {
+      "i": 4,
+      "text": "Sign out",
+      "aria": null
+    },
+    {
+      "i": 5,
+      "text": "Global navigation menu",
+      "aria": "Global navigation menu"
+    },
+    {
+      "i": 6,
+      "text": "",
+      "aria": "Collapse team navigation"
+    },
+    {
+      "i": 8,
+      "text": "Switch teams",
+      "aria": "Switch teams. Open menu"
+    },
+    {
+      "i": 9,
+      "text": "News",
+      "aria": "News. Open menu"
+    },
+    {
+      "i": 10,
+      "text": "Support",
+      "aria": "Support. Open menu"
+    },
+    {
+      "i": 11,
+      "text": "Pavel Kornilov\noopsifymovie@gmail.com",
+      "aria": "User oopsifymovie@gmail.com. Open menu"
+    },
+    {
+      "i": 12,
+      "text": "Sign out",
+      "aria": null
+    },
+    {
+      "i": 13,
+      "text": "Switch projects",
+      "aria": "Switch projects. Open menu"
+    },
+    {
+      "i": 14,
+      "text": "News",
+      "aria": "News. Open menu"
+    },
+    {
+      "i": 15,
+      "text": "Support",
+      "aria": "Support. Open menu"
+    },
+    {
+      "i": 16,
+      "text": "Lock to stop auto publishing",
+      "aria": null
+    }
+  ],
+  "text": "Skip to main content\nN\nNoJira Team\nSwitch teams\nProjects\nBuilds\nExtensions\nMembers\nAudit log\nSecurity Scorecard\nUsage & billing\nTeam settings\nVisual editor dashboard\nUpgrade\nPavel Kornilov\noopsifymovie@gmail.com\nProjects\nnojira-app\nSwitch projects\nNews\nSupport\nProject navigation\nProject overview\nProject configuration\nDeploys\nAgent runs\nLogs & metrics\nObservability\nFunctions\nEdge Functions\nWeb Analytics\nReal User Monitoring\nLog Drains\nAudit log\nWeb security\nDomain management\nForms\nBlobs\nDatabase\nDeploys for nojira-app\n\nnojira-app.netlify.app\n\nLast deployed from Netlify Drop.\n\nAuto publishing is on. Deploys are published automatically.\n\nDeploy settings\nNotifications\nLock to stop auto publishing\nTest your project’s Lighthouse performance\n\nWant to see how your project will perform before you deploy? Install the Lighthouse plugin for build-time Lighthouse scores and reports. Learn more\n\nInstall Lighthouse plugin\nDeploys\n\nProduction Published\nDeploy from GitHub Actions\nToday at 2:54 AM\n\nProduction\nCompleted\nNo deploy message\nToday at 2:51 AM\n\nDeployed in 2s\n\nProduction\nCompleted\nDeploy from GitHub Actions\nToday at 2:46 AM\n\nDeployed in 1s\n\nProduction\nCompleted\nDeploy from GitHub Actions\nToday at 2:42 AM\n\nDeployed in 9s\n\nProduction\nCompleted\nNo deploy message\nToday at 2:35 AM\n\nDeployed in 27s\n\nProduction\nCompleted\nNo deploy message\nToday at 1:46 AM\n\nDeployed in 6s\n\nProduction\nCompleted\nNo deploy message\nToday at 1:44 AM\n\nNeed to update your project?\n\nDrag and drop your project folder, zip file, or a single HTML file to deploy instantly.\n\nOr browse files to upload\n or choose a folder\n.\n\nHigh-Performance Edge\n\nThe premium network for production, high-performance applications. Experience 30-50% faster response time and more global POPs, backed by a 99.99% uptime SLA. Includes DDoS mitigation and six times the bandwidth as our standard network.\n\nUpgrade to Enterprise\n\nDocs\nPricing\nSupport\nBlog\nChangelog\nTerms\n\n© 2026 Netlify"
+}

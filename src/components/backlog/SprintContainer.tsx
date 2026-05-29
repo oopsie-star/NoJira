@@ -31,7 +31,7 @@ export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
   return (
     <>
       <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-start gap-3 border-b border-slate-200 px-5 py-4">
+        <div className="flex flex-wrap items-start gap-3 border-b border-slate-200 px-5 py-3.5">
           <button
             onClick={() => setCollapsed((value) => !value)}
             className="mt-1 rounded-xl p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
@@ -104,12 +104,12 @@ export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
                 {...provided.droppableProps}
                 className={snapshot.isDraggingOver ? 'bg-jira-blue-lt/40' : 'bg-white'}
               >
-                <div className="grid grid-cols-[1.3fr_150px_140px_120px_90px_44px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                <div className="grid grid-cols-[minmax(0,1fr)_32px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 sm:grid-cols-[minmax(0,1.35fr)_110px_110px_110px_70px_40px]">
                   <span>{t('task.summary')}</span>
-                  <span>{t('task.status')}</span>
-                  <span>{t('task.priority')}</span>
-                  <span>{t('task.dueDate')}</span>
-                  <span>{t('task.attachments')}</span>
+                  <span className="hidden sm:block">{t('task.status')}</span>
+                  <span className="hidden sm:block">{t('task.priority')}</span>
+                  <span className="hidden sm:block">{t('task.dueDate')}</span>
+                  <span className="hidden sm:block">{t('task.attachments')}</span>
                   <span>{t('task.assignee')}</span>
                 </div>
                 {tasks.map((task, index) => (

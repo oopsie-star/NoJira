@@ -10,6 +10,8 @@ export function BacklogPage() {
   const fetchSprints = useStore((state) => state.fetchSprints)
   const fetchEpics = useStore((state) => state.fetchEpics)
   const fetchMembers = useStore((state) => state.fetchMembers)
+  const fetchPortfolioItems = useStore((state) => state.fetchPortfolioItems)
+  const fetchTaskLinks = useStore((state) => state.fetchTaskLinks)
   const activeProjectId = useStore((state) => state.activeProjectId)
   const loadingBacklog = useStore((state) => state.loadingBacklog)
 
@@ -19,14 +21,14 @@ export function BacklogPage() {
 
   useEffect(() => {
     if (activeProjectId) {
-      Promise.all([fetchBacklog(), fetchSprints(), fetchEpics(), fetchMembers()])
+      Promise.all([fetchBacklog(), fetchSprints(), fetchEpics(), fetchMembers(), fetchPortfolioItems(), fetchTaskLinks()])
     }
-  }, [activeProjectId, fetchBacklog, fetchSprints, fetchEpics, fetchMembers])
+  }, [activeProjectId, fetchBacklog, fetchSprints, fetchEpics, fetchMembers, fetchPortfolioItems, fetchTaskLinks])
 
   return (
     <GlobalLayout>
       {loadingBacklog && activeProjectId ? (
-        <div className="flex h-64 items-center justify-center">
+        <div className="flex h-full min-h-0 flex-1 items-center justify-center">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-jira-blue border-t-transparent" />
         </div>
       ) : (

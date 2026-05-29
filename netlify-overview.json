@@ -1,0 +1,504 @@
+{
+  "buttons": [
+    "Search… Netlify…CtrlK",
+    "News",
+    "Support",
+    "Pavel Kornilovoopsifymovie@gmail.com",
+    "Sign out",
+    "Global navigation menu",
+    "Switch teams",
+    "News",
+    "Support",
+    "Pavel Kornilov\noopsifymovie@gmail.com",
+    "Sign out",
+    "Switch projects",
+    "News",
+    "Support",
+    "Prompt templates",
+    "Project context",
+    "Upgrade to protect"
+  ],
+  "links": [
+    {
+      "text": "Skip to main content",
+      "href": "https://app.netlify.com/projects/nojira-app/overview#main"
+    },
+    {
+      "text": "Netlify",
+      "href": "https://app.netlify.com/teams/oopsie-star"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/claude-opus-4-8-ai-gateway-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gemini-3-5-flash-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-05-19-nuxt-security-vulnerabilities/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gemini-3-5-flash-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-05-13-agent-runners-workflow-improvements/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-05-08-react-nextjs-security-vulnerabilities/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-05-08-block-project-transfers/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gemini-3-1-flash-lite-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-05-05-gpt-5-5-instant-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-05-01-netlify-logs-cli-command/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/netlify-available-in-stripe-projects/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-29-stripe-projects/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/netlify-database/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-28-netlify-database/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gpt-5-5-ai-gateway-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-23-rename-agent-run/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/netlify-for-agents/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gpt-image-2-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-17-frontend-design-skill-for-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/claude-opus-4-7-ai-gateway-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/pricing-netlify-for-3-billion-builders/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-14-pricing-updates-april-2026/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-14-members-page-sorting-filter-controls/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/stance-on-ai-training-data/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-13-netlify-db-ga-coming-soon/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/you-own-your-content/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/your-builds-just-got-faster/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-08-react-nextjs-dos-vulnerability/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-06-deploy-logs-streaming-is-now-faster/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-03-27-create-and-deploy-anything-netlify-clis-improved-ax/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/better-agent-runs-with-prompt-templates-and-skills/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-03-27-deploy-from-codex-netlify-plugin/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/the-next-js-adapter-api-just-shipped-here-s-what-comes-next/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-03-24-hydrogen-react-router-7/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-03-24-monitor-credit-usage-by-day/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-03-20-invoices-for-enterprise-available-on-billing-page/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/start-a-netlify-project-from-a-prompt/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/blog/start-a-netlify-project-from-a-prompt/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-03-18-prompt-templates/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-03-17-gpt-5-4-nano-mini-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-03-16-internal-builder-role/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-03-11-display-available-credits/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-03-10-astro-6/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-03-06-limit-ai-feature-usage/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gpt-5-4-ai-gateway-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-03-03-agent-runs-deploy-preview-screenshot/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/sponsoring-npmx/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gemini-3-1-flash-lite-preview-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gpt-5-3-instant-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-02-27-agent-runners-linear-integration/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-02-27-php-scan-blocking/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/cache-api-stale-while-revalidate/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gemini-3-1-flash-image-preview-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gpt-5-3-codex-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gemini-3-1-pro-preview-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/claude-sonnet-4-6-ai-gateway-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-02-13-sync-changes-with-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/claude-opus-4-6-ai-gateway-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-01-29-agent-runners-improvements/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-01-26-react-nextjs-dos-vulnerability/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/10-million-developers/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-01-15-react-router-remix-security-vulnerabilities/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-01-16-nodejs-async-hooks-dos-vulnerability/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-01-15-sveltekit-security-vulnerabilities/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gpt-5-2-codex-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-01-08-agent-runner-games/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-01-08-prerenderio-support-updates/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/introducing-observability-stop-guessing-what-s-happening/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/prerendering-an-old-trick-new-again/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/create-deploy-run-ai-across-your-development-workflow/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gemini-3-flash-preview-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gpt-image-1-5-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/ai-gateway-is-now-generally-available/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2025-12-16-ai-gateway-ga/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2025-12-16-observability/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2025-12-16-prerender-extension-ga/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2025-12-11-action-required-two-more-react-nextjs-vulns/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gpt-5-2-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gpt-5-1-codex-max-ai-gateway-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2025-12-03-react-security-vulnerability-response/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2025-12-01-vite-plugin-ai-gateway-support/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Pavel Kornilovoopsifymovie@gmail.com",
+      "href": "https://app.netlify.com/user/settings"
+    },
+    {
+      "text": "User settings",
+      "href": "https://app.netlify.com/user/settings"
+    },
+    {
+      "text": "Netlify Labs",
+      "href": "https://app.netlify.com/user/labs"
+    },
+    {
+      "text": "N\nNoJira Team",
+      "href": "https://app.netlify.com/teams/oopsie-star/overview"
+    },
+    {
+      "text": "NNoJira Team, Free, 1 team memberselected",
+      "href": "https://app.netlify.com/teams/oopsie-star"
+    },
+    {
+      "text": "Create new team",
+      "href": "https://app.netlify.com/teams/new/pricing"
+    },
+    {
+      "text": "Projects",
+      "href": "https://app.netlify.com/teams/oopsie-star/projects"
+    },
+    {
+      "text": "Builds",
+      "href": "https://app.netlify.com/teams/oopsie-star/builds"
+    },
+    {
+      "text": "Extensions",
+      "href": "https://app.netlify.com/teams/oopsie-star/extensions"
+    },
+    {
+      "text": "Members",
+      "href": "https://app.netlify.com/teams/oopsie-star/members"
+    },
+    {
+      "text": "Audit log",
+      "href": "https://app.netlify.com/teams/oopsie-star/log"
+    },
+    {
+      "text": "Security Scorecard",
+      "href": "https://app.netlify.com/teams/oopsie-star/security-scorecard"
+    },
+    {
+      "text": "Usage & billing",
+      "href": "https://app.netlify.com/teams/oopsie-star/billing"
+    },
+    {
+      "text": "Team settings",
+      "href": "https://app.netlify.com/teams/oopsie-star/settings"
+    },
+    {
+      "text": "Visual editor dashboard",
+      "href": "https://create.netlify.com/team/6a18b68c13f98c3e1d11fc1a"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/claude-opus-4-8-ai-gateway-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gemini-3-5-flash-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-05-19-nuxt-security-vulnerabilities/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gemini-3-5-flash-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-05-13-agent-runners-workflow-improvements/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-05-08-react-nextjs-security-vulnerabilities/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-05-08-block-project-transfers/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gemini-3-1-flash-lite-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-05-05-gpt-5-5-instant-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-05-01-netlify-logs-cli-command/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/netlify-available-in-stripe-projects/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-29-stripe-projects/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/netlify-database/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-28-netlify-database/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gpt-5-5-ai-gateway-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-23-rename-agent-run/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/netlify-for-agents/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/gpt-image-2-ai-gateway/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-17-frontend-design-skill-for-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/claude-opus-4-7-ai-gateway-agent-runners/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the blog post",
+      "href": "https://www.netlify.com/blog/pricing-netlify-for-3-billion-builders/?utm_source=in-app-notification&utm_medium=referral"
+    },
+    {
+      "text": "Read the changelog post to learn more",
+      "href": "https://www.netlify.com/changelog/2026-04-14-pricing-updates-april-2026/?utm_source=in-app-notification&utm_medium=referral"
+    }
+  ],
+  "text": "Skip to main content\nN\nNoJira Team\nSwitch teams\nProjects\nBuilds\nExtensions\nMembers\nAudit log\nSecurity Scorecard\nUsage & billing\nTeam settings\nVisual editor dashboard\nUpgrade\nPavel Kornilov\noopsifymovie@gmail.com\nProjects\nnojira-app\nSwitch projects\nNews\nSupport\nProject navigation\nProject overview\nProject configuration\nDeploys\nAgent runs\nLogs & metrics\nObservability\nFunctions\nEdge Functions\nWeb Analytics\nReal User Monitoring\nLog Drains\nAudit log\nWeb security\nDomain management\nForms\nBlobs\nDatabase\nnojira-app\n\nnojira-app.netlify.app\n\nLast deployed from Netlify Drop\n\nPublished at 2:54 AM.\n\nQuick setup\nBuild with an AI agent\nNew\nPrompt templates\nProject context\nLow on credits – 195 credits remaining\nUpgrade team\nStart from Production with\nClaude Agent\nRun task\nThe agent publishes changes in a preview - your live site won't change. Learn more\nProduction deploys\n\nDrag and drop your project folder here to deploy new changes.\n\nOr browse files to upload\n or choose a folder\n.\n\nProduction Published\n\n2:54 AM: Deploy from GitHub Actions\n\nProduction\nCompleted\n\n2:51 AM: No deploy message\n\nProduction\nCompleted\n\n2:46 AM: Deploy from GitHub Actions\n\nProduction\nCompleted\n\n2:42 AM: Deploy from GitHub Actions\n\nProtect and secure access to your project\n\nCustomize how visitors access your project using password protection available on the Pro plan. Learn more\n\nUpgrade to protect\nObservability\n\nRequests vs Errors Over Time\n\nBar chart with undefined bars.\nThis bar chart shows request count from Friday, May 29, 2026 to Friday, May 29, 2026.\nThe chart has 1 X axis displaying Time. Range: May 29 to May 29\nThe chart has 1 Y axis displaying Request Count. Range: 0 to 7\nChart annotations summary\n3:22 AM\n4:23 AM\n7\nEnd of interactive chart.\nLast hour\n8 requests\nErrors\n0.00%\nBandwidth\n166.1 KB\nFunctions\n0.0%\nNon-browser\n0.0%\nDocs\nPricing\nSupport\nBlog\nChangelog\nTerms\n\n© 2026 Netlify"
+}
