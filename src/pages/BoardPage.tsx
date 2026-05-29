@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+﻿import { useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { KanbanBoard } from '@/components/board/KanbanBoard'
@@ -122,7 +122,7 @@ export function BoardPage() {
                       <select
                         value={activeSprintId ?? ''}
                         onChange={(event) => setActiveSprintId(event.target.value || null)}
-                        className="mt-0.5 shrink-0 rounded-xl border border-slate-200 px-2 py-1 text-sm text-slate-700 outline-none transition focus:border-jira-blue"
+                        className="mt-0.5 shrink-0 rounded-xl border border-slate-200 px-2 py-1 text-sm text-slate-700 outline-none transition focus:border-qira-pistachio"
                       >
                         {sprints.map((sprint) => (
                           <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
@@ -164,7 +164,7 @@ export function BoardPage() {
                   <div>
                     <h2 className="text-2xl font-semibold text-slate-900">{t('board.noActiveSprint')}</h2>
                     <p className="mt-2 text-sm text-slate-500">{t('board.openBacklog')}</p>
-                    <Link to="/backlog" className="mt-5 inline-flex rounded-2xl bg-jira-blue px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-jira-blue-dk">
+                    <Link to="/backlog" className="mt-5 inline-flex rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk">
                       {t('board.openBacklog')}
                     </Link>
                   </div>

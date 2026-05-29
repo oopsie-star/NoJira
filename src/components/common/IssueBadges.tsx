@@ -1,10 +1,10 @@
-import { AlertTriangle, BookOpenText, CheckSquare, Circle } from 'lucide-react'
+﻿import { AlertTriangle, BookOpenText, CheckSquare, Circle } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import type { IssuePriority, IssueType, TaskStatus } from '@/types'
 
 const statusClasses: Record<TaskStatus, string> = {
   todo: 'bg-slate-200 text-slate-700',
-  in_progress: 'bg-blue-100 text-jira-blue',
+  in_progress: 'bg-blue-100 text-qira-pistachio',
   done: 'bg-emerald-100 text-emerald-700',
 }
 

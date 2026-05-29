@@ -5,15 +5,18 @@ export type UserRole = 'admin' | 'manager' | 'member' | 'viewer'
 export type ProjectRole = 'owner' | 'admin' | 'founder' | 'ceo' | 'member' | 'viewer'
 
 export interface Profile {
-  id:         string
-  email:      string
-  full_name:  string
-  avatar_url: string | null
-  role:       UserRole
-  job_title:  string
-  department: string
-  locale:     Locale
-  created_at: string
+  id:          string
+  email:       string
+  full_name:   string
+  avatar_url:  string | null
+  role:        UserRole
+  job_title:   string
+  department:  string
+  locale:      Locale
+  created_at:  string
+  approved:    boolean
+  approved_at: string | null
+  approved_by: string | null
 }
 
 // ─── Domain ───────────────────────────────────────────────────────────────────

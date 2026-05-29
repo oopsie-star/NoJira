@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+﻿import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { useAuthContext } from '@/auth/AuthContext'
 import { getErrorMessage } from '@/lib/errors'
@@ -111,7 +111,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
                     value={title}
                     onChange={(event) => setTitle(event.target.value)}
                     placeholder={t('task.titlePlaceholder')}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-jira-blue focus:ring-4 focus:ring-jira-blue-lt"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-qira-pistachio focus:ring-4 focus:ring-qira-pistachio-lt"
                   />
                 </div>
 
@@ -122,7 +122,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
                     onChange={(event) => setDescription(event.target.value)}
                     rows={4}
                     placeholder={t('task.descriptionPlaceholder')}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue focus:ring-4 focus:ring-jira-blue-lt"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio focus:ring-4 focus:ring-qira-pistachio-lt"
                   />
                 </div>
 
@@ -132,7 +132,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
                     value={labelsInput}
                     onChange={(event) => setLabelsInput(event.target.value)}
                     placeholder={t('task.labelsPlaceholder')}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue focus:ring-4 focus:ring-jira-blue-lt"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio focus:ring-4 focus:ring-qira-pistachio-lt"
                   />
                 </div>
               </div>
@@ -143,7 +143,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
               <select
                 value={issueType}
                 onChange={(event) => setIssueType(event.target.value as IssueType)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
               >
                 <option value="task">{t('issueType.task')}</option>
                 <option value="story">{t('issueType.story')}</option>
@@ -156,7 +156,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
               <select
                 value={status}
                 onChange={(event) => setStatus(event.target.value as TaskStatus)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
               >
                 <option value="todo">{t('status.todo')}</option>
                 <option value="in_progress">{t('status.in_progress')}</option>
@@ -169,7 +169,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
               <select
                 value={priority}
                 onChange={(event) => setPriority(event.target.value as IssuePriority)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
               >
                 <option value="lowest">{t('priority.lowest')}</option>
                 <option value="low">{t('priority.low')}</option>
@@ -184,7 +184,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
               <select
                 value={assigneeId}
                 onChange={(event) => setAssigneeId(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
               >
                 <option value="">{t('common.unassigned')}</option>
                 {members.map((member) => (
@@ -200,7 +200,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
               <select
                 value={sprintId}
                 onChange={(event) => setSprintId(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
               >
                 <option value="">{t('common.backlog')}</option>
                 {sprints.filter((sprint) => sprint.status !== 'completed').map((sprint) => (
@@ -216,7 +216,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
               <select
                 value={epicId}
                 onChange={(event) => setEpicId(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
               >
                 <option value="">{t('common.none')}</option>
                 {epics.map((epic) => (
@@ -233,7 +233,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
                 type="date"
                 value={dueDate}
                 onChange={(event) => setDueDate(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
               />
             </div>
           </div>
@@ -257,7 +257,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
             <button
               type="submit"
               disabled={!title.trim() || loading}
-              className="rounded-2xl bg-jira-blue px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-jira-blue-dk disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? t('auth.wait') : t('common.create')}
             </button>

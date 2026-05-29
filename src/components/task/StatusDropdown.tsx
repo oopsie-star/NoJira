@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { StatusBadge } from '@/components/common/IssueBadges'
 import { useI18n } from '@/lib/i18n'
@@ -50,7 +50,7 @@ export function StatusDropdown({ value, onChange }: StatusDropdownProps) {
               <div>
                 <StatusBadge status={status} />
               </div>
-              {status === value && <Check size={16} className="text-jira-blue" />}
+              {status === value && <Check size={16} className="text-qira-pistachio" />}
             </button>
           ))}
           <p className="px-3 pt-2 text-xs text-slate-500">{t('task.status')}</p>

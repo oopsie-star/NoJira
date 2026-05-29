@@ -55,7 +55,7 @@ function ProjectSwitcher() {
               }}
               className={[
                 'flex w-full items-start justify-between rounded-xl px-3 py-3 text-left transition',
-                project.id === activeProjectId ? 'bg-jira-blue-lt text-jira-blue' : 'hover:bg-slate-100',
+                project.id === activeProjectId ? 'bg-qira-pistachio-lt text-qira-pistachio' : 'hover:bg-slate-100',
               ].join(' ')}
             >
               <div className="min-w-0">
@@ -145,7 +145,7 @@ function NotificationMenu() {
             <button
               type="button"
               onClick={() => void markAllNotificationsRead()}
-              className="text-xs font-semibold text-jira-blue transition hover:text-jira-blue-dk"
+              className="text-xs font-semibold text-qira-pistachio transition hover:text-qira-pistachio-dk"
             >
               {t('nav.markAllRead')}
             </button>
@@ -162,7 +162,7 @@ function NotificationMenu() {
                   onClick={() => void handleOpenNotification(notification.id, notification.task_id)}
                   className={[
                     'mb-2 w-full rounded-2xl border px-4 py-3 text-left transition last:mb-0',
-                    notification.is_read ? 'border-slate-200 bg-white hover:bg-slate-50' : 'border-jira-blue/20 bg-jira-blue-lt/40 hover:bg-jira-blue-lt/60',
+                    notification.is_read ? 'border-slate-200 bg-white hover:bg-slate-50' : 'border-qira-pistachio/20 bg-qira-pistachio-lt/40 hover:bg-qira-pistachio-lt/60',
                   ].join(' ')}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -175,7 +175,7 @@ function NotificationMenu() {
                         </p>
                       )}
                     </div>
-                    {!notification.is_read && <Check size={16} className="mt-0.5 flex-shrink-0 text-jira-blue" />}
+                    {!notification.is_read && <Check size={16} className="mt-0.5 flex-shrink-0 text-qira-pistachio" />}
                   </div>
                 </button>
               ))
@@ -255,7 +255,7 @@ function HeaderMenu() {
                   onClick={() => void handleLocaleChange(item)}
                   className={[
                     'flex-1 rounded-xl px-3 py-2 text-sm font-medium transition',
-                    locale === item ? 'bg-jira-blue text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+                    locale === item ? 'bg-qira-pistachio text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
                   ].join(' ')}
                 >
                   {item === 'en' ? t('common.english') : t('common.russian')}
@@ -294,7 +294,7 @@ export function TopNavbar({ onToggleSidebar }: { onToggleSidebar: () => void }) 
 
   return (
     <>
-      <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-jira-blue px-3 shadow-sm sm:h-14 sm:px-4">
+      <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-qira-anthracite px-3 shadow-sm sm:h-14 sm:px-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Hamburger — mobile only */}
           <button
@@ -318,7 +318,7 @@ export function TopNavbar({ onToggleSidebar }: { onToggleSidebar: () => void }) 
               <UserAvatar key={member.id} profile={member.profile ?? null} size={30} muted={!member.profile} />
             ))}
             {projectMembers.length > 5 && (
-              <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-jira-blue bg-white text-[10px] font-semibold text-slate-600">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-qira-anthracite bg-white text-[10px] font-semibold text-slate-600">
                 +{projectMembers.length - 5}
               </span>
             )}

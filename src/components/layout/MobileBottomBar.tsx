@@ -26,7 +26,7 @@ export function MobileBottomBar() {
             aria-label={t(key)}
             className={({ isActive }) => [
               'flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium transition',
-              isActive ? 'bg-jira-blue-lt text-jira-blue' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
+              isActive ? 'bg-qira-pistachio-lt text-qira-pistachio' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
             ].join(' ')}
           >
             <Icon size={18} />

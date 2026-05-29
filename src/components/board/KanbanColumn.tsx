@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { Droppable } from '@hello-pangea/dnd'
 import { Plus } from 'lucide-react'
 import { TaskCard } from './TaskCard'
@@ -39,7 +39,7 @@ export function KanbanColumn({ status, tasks, sprintId }: KanbanColumnProps) {
               {...provided.droppableProps}
               className={[
                 'min-h-0 flex-1 space-y-3 overflow-y-auto p-4 transition',
-                snapshot.isDraggingOver ? 'bg-jira-blue-lt/60' : 'bg-slate-50/80',
+                snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/60' : 'bg-slate-50/80',
               ].join(' ')}
             >
               {tasks.map((task, index) => (

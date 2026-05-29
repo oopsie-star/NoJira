@@ -38,8 +38,8 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
     ].join(' ')}>
       <div className="border-b border-slate-200 px-4 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-jira-blue text-sm font-bold text-white shadow-sm">
-            NJ
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-qira-pistachio text-sm font-bold text-white shadow-sm">
+            Q
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-slate-900">{activeProject?.name ?? t('app.name')}</p>
@@ -68,7 +68,7 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
             className={({ isActive }) => [
               'mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
               isActive
-                ? 'bg-jira-blue-lt text-jira-blue shadow-sm'
+                ? 'bg-qira-pistachio-lt text-qira-pistachio shadow-sm'
                 : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
             ].join(' ')}
           >
@@ -105,7 +105,7 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
                 className={[
                   'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition',
                   project.id === activeProjectId
-                  ? 'bg-jira-blue-lt font-semibold text-jira-blue'
+                  ? 'bg-qira-pistachio-lt font-semibold text-qira-pistachio'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
               ].join(' ')}
             >

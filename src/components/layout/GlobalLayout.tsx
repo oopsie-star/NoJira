@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { LeftSidebar } from './LeftSidebar'
 import { MobileBottomBar } from './MobileBottomBar'
 import { TopNavbar } from './TopNavbar'
+import { useAuthContext } from '@/auth/AuthContext'
 import { useStore } from '@/store'
 
 interface GlobalLayoutProps {
@@ -9,13 +10,17 @@ interface GlobalLayoutProps {
 }
 
 export function GlobalLayout({ children }: GlobalLayoutProps) {
+  const { profile } = useAuthContext()
   const fetchProjects = useStore((state) => state.fetchProjects)
   const fetchMembers = useStore((state) => state.fetchMembers)
   const fetchProjectWebhooks = useStore((state) => state.fetchProjectWebhooks)
   const fetchTaskLinks = useStore((state) => state.fetchTaskLinks)
+  const fetchPendingMembers = useStore((state) => state.fetchPendingMembers)
   const activeProjectId = useStore((state) => state.activeProjectId)
   const profileId = useStore((state) => state.profile?.id)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const isAdmin = profile?.email === 'opsifymovie@gmail.com' || profile?.role === 'admin'
 
   useEffect(() => {
     fetchProjects()
@@ -26,6 +31,10 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
       void Promise.all([fetchMembers(), fetchProjectWebhooks(), fetchTaskLinks()])
     }
   }, [activeProjectId, fetchMembers, fetchProjectWebhooks, fetchTaskLinks])
+
+  useEffect(() => {
+    if (isAdmin) void fetchPendingMembers()
+  }, [isAdmin, fetchPendingMembers])
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#F7F8F9]">

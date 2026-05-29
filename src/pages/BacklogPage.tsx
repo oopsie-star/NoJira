@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+﻿import { useEffect } from 'react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { BacklogView } from '@/components/backlog/BacklogView'
 import { TaskDrawer } from '@/components/task/TaskDrawer'
@@ -29,7 +29,7 @@ export function BacklogPage() {
     <GlobalLayout>
       {loadingBacklog && activeProjectId ? (
         <div className="flex h-full min-h-0 flex-1 items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-jira-blue border-t-transparent" />
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-qira-pistachio border-t-transparent" />
         </div>
       ) : (
         <BacklogView />

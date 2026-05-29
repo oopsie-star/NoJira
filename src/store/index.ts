@@ -68,7 +68,7 @@ const NOTIFICATION_SELECT = `
   task:tasks(id, key, title, status, assignee_id)
 `
 
-const ACTIVE_PROJECT_STORAGE_KEY = 'nojira-active-project-id'
+const ACTIVE_PROJECT_STORAGE_KEY = 'qira-active-project-id'
 
 function replaceTask(tasks: Task[], nextTask: Task) {
   return tasks.map((task) => (task.id === nextTask.id ? nextTask : task))
@@ -236,8 +236,8 @@ async function postWebhook(event: WebhookEvent, webhook: ProjectWebhook, payload
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-NoJira-Event': event,
-      ...(signature ? { 'X-NoJira-Signature': signature } : {}),
+      'X-Qira-Event': event,
+      ...(signature ? { 'X-Qira-Signature': signature } : {}),
     },
     body,
   })
@@ -264,6 +264,7 @@ interface AppState {
   sprints: Sprint[]
   epics: Epic[]
   members: Profile[]
+  pendingMembers: Profile[]
   loadingProjects: boolean
   loadingBoard: boolean
   loadingBacklog: boolean
@@ -318,6 +319,8 @@ interface AppState {
   updateProfile: (id: string, fields: Partial<Profile>) => Promise<void>
   updateProjectMemberRole: (membershipId: string, role: ProjectRole) => Promise<void>
   inviteToProject: (email: string, role: ProjectRole) => Promise<{ emailSent: boolean } | null>
+  fetchPendingMembers: () => Promise<void>
+  approveMember: (profileId: string) => Promise<void>
 }
 
 export const useStore = create<AppState>((set, get) => {
@@ -368,6 +371,7 @@ export const useStore = create<AppState>((set, get) => {
     sprints: [],
     epics: [],
     members: [],
+    pendingMembers: [],
     loadingProjects: false,
     loadingBoard: false,
     loadingBacklog: false,
@@ -1352,6 +1356,25 @@ export const useStore = create<AppState>((set, get) => {
 
     await Promise.all([get().fetchMembers(), get().fetchProjectInvites(), get().fetchProjects()])
     return { emailSent: !error }
+  },
+
+  fetchPendingMembers: async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('approved', false)
+      .order('created_at', { ascending: false })
+    if (data) set({ pendingMembers: data as Profile[] })
+  },
+
+  approveMember: async (profileId) => {
+    const adminProfile = get().profile
+    await supabase
+      .from('profiles')
+      .update({ approved: true, approved_at: new Date().toISOString(), approved_by: adminProfile?.id })
+      .eq('id', profileId)
+    await get().fetchPendingMembers()
+    get().fetchMembers()
   },
   })
 })

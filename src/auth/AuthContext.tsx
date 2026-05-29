@@ -9,13 +9,14 @@ import { useStore } from '@/store'
 import type { Profile } from '@/types'
 
 interface AuthContextValue {
-  session:        Session | null
-  profile:        Profile | null
-  isLoading:      boolean
-  signIn:         (email: string, password: string) => Promise<string | null>
-  signUp:         (email: string, password: string, fullName: string) => Promise<string | null>
+  session:          Session | null
+  profile:          Profile | null
+  isLoading:        boolean
+  isPendingApproval: boolean
+  signIn:           (email: string, password: string) => Promise<string | null>
+  signUp:           (email: string, password: string, fullName: string) => Promise<string | null>
   signInWithGoogle: () => Promise<string | null>
-  signOut:        () => Promise<void>
+  signOut:          () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -118,9 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut()
   }, [])
 
+  const isPendingApproval = !!(session && profile && !profile.approved)
+
   const value = useMemo(
-    () => ({ session, profile, isLoading, signIn, signUp, signInWithGoogle, signOut }),
-    [session, profile, isLoading, signIn, signUp, signInWithGoogle, signOut]
+    () => ({ session, profile, isLoading, isPendingApproval, signIn, signUp, signInWithGoogle, signOut }),
+    [session, profile, isLoading, isPendingApproval, signIn, signUp, signInWithGoogle, signOut]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

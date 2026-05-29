@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+﻿import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Copy, Trash2 } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { useI18n } from '@/lib/i18n'
@@ -146,7 +146,7 @@ export function OpsPage() {
                       type="checkbox"
                       checked={Boolean(automationSettings?.[option.key])}
                       onChange={(event) => void updateAutomationSettings({ [option.key]: event.target.checked })}
-                      className="h-5 w-5 rounded border-slate-300 text-jira-blue focus:ring-jira-blue"
+                      className="h-5 w-5 rounded border-slate-300 text-qira-pistachio focus:ring-qira-pistachio"
                     />
                   </label>
                 ))}
@@ -160,19 +160,19 @@ export function OpsPage() {
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   placeholder={t('ops.webhookName')}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue"
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio"
                 />
                 <input
                   value={endpointUrl}
                   onChange={(event) => setEndpointUrl(event.target.value)}
                   placeholder={t('ops.webhookUrl')}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue"
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio"
                 />
                 <input
                   value={secret}
                   onChange={(event) => setSecret(event.target.value)}
                   placeholder={t('ops.webhookSecret')}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue"
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio"
                 />
 
                 <div>
@@ -185,7 +185,7 @@ export function OpsPage() {
                         onClick={() => toggleEvent(item)}
                         className={[
                           'rounded-full px-3 py-1.5 text-xs font-semibold transition',
-                          events.includes(item) ? 'bg-jira-blue text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+                          events.includes(item) ? 'bg-qira-pistachio text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
                         ].join(' ')}
                       >
                         {item}
@@ -197,7 +197,7 @@ export function OpsPage() {
                 <div className="flex justify-end">
                   <button
                     type="submit"
-                    className="rounded-2xl bg-jira-blue px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-jira-blue-dk"
+                    className="rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
                   >
                     {t('ops.createWebhook')}
                   </button>

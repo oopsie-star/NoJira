@@ -46,20 +46,20 @@ function CreateSprintModal({ onClose }: { onClose: () => void }) {
           <div className="space-y-4">
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.name')}</label>
-            <input autoFocus autoComplete="off" value={name} onChange={(event) => setName(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue" />
+            <input autoFocus autoComplete="off" value={name} onChange={(event) => setName(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.goal')}</label>
-            <textarea value={goal} onChange={(event) => setGoal(event.target.value)} rows={3} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue" />
+            <textarea value={goal} onChange={(event) => setGoal(event.target.value)} rows={3} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.start')}</label>
-              <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue" />
+              <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.end')}</label>
-              <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue" />
+              <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
             </div>
           </div>
           </div>
@@ -67,7 +67,7 @@ function CreateSprintModal({ onClose }: { onClose: () => void }) {
         <div className="flex flex-shrink-0 justify-end gap-3 border-t border-slate-200 px-6 py-4">
           {error && <p className="mr-auto rounded-2xl bg-rose-50 px-4 py-2.5 text-sm text-rose-600">{error}</p>}
           <button type="button" onClick={onClose} className="rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">{t('common.cancel')}</button>
-          <button type="submit" className="rounded-2xl bg-jira-blue px-4 py-2.5 text-sm font-semibold text-white hover:bg-jira-blue-dk">{t('common.create')}</button>
+          <button type="submit" className="rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white hover:bg-qira-pistachio-dk">{t('common.create')}</button>
         </div>
       </form>
     </div>
@@ -112,16 +112,16 @@ function CreateRoadmapModal({ onClose }: { onClose: () => void }) {
           <div className="space-y-4">
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.name')}</label>
-            <input autoFocus autoComplete="off" value={title} onChange={(event) => setTitle(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue" />
+            <input autoFocus autoComplete="off" value={title} onChange={(event) => setTitle(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.description')}</label>
-            <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue" />
+            <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('backlog.roadmapType')}</label>
-              <select value={itemType} onChange={(event) => setItemType(event.target.value as PortfolioItemType)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue">
+              <select value={itemType} onChange={(event) => setItemType(event.target.value as PortfolioItemType)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio">
                 {PORTFOLIO_ITEM_OPTIONS.map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
@@ -129,7 +129,7 @@ function CreateRoadmapModal({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('backlog.parentItem')}</label>
-              <select value={parentId} onChange={(event) => setParentId(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue">
+              <select value={parentId} onChange={(event) => setParentId(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio">
                 <option value="">{t('backlog.noParent')}</option>
                 {portfolioItems.map((item) => (
                   <option key={item.id} value={item.id}>{item.key} - {item.title}</option>
@@ -142,7 +142,7 @@ function CreateRoadmapModal({ onClose }: { onClose: () => void }) {
         <div className="flex flex-shrink-0 justify-end gap-3 border-t border-slate-200 px-6 py-4">
           {error && <p className="mr-auto rounded-2xl bg-rose-50 px-4 py-2.5 text-sm text-rose-600">{error}</p>}
           <button type="button" onClick={onClose} className="rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">{t('common.cancel')}</button>
-          <button type="submit" className="rounded-2xl bg-jira-blue px-4 py-2.5 text-sm font-semibold text-white hover:bg-jira-blue-dk">{t('common.create')}</button>
+          <button type="submit" className="rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white hover:bg-qira-pistachio-dk">{t('common.create')}</button>
         </div>
       </form>
     </div>
@@ -186,16 +186,16 @@ function CreateEpicModal({ onClose }: { onClose: () => void }) {
           <div className="space-y-4">
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.name')}</label>
-            <input autoFocus autoComplete="off" value={title} onChange={(event) => setTitle(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue" />
+            <input autoFocus autoComplete="off" value={title} onChange={(event) => setTitle(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.description')}</label>
-            <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue" />
+            <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('backlog.parentItem')}</label>
-              <select value={parentPortfolioItemId} onChange={(event) => setParentPortfolioItemId(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-jira-blue">
+              <select value={parentPortfolioItemId} onChange={(event) => setParentPortfolioItemId(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio">
                 <option value="">{t('backlog.noParent')}</option>
                 {portfolioItems.map((item) => (
                   <option key={item.id} value={item.id}>{item.key} - {item.title}</option>
@@ -222,7 +222,7 @@ function CreateEpicModal({ onClose }: { onClose: () => void }) {
         <div className="flex flex-shrink-0 justify-end gap-3 border-t border-slate-200 px-6 py-4">
           {error && <p className="mr-auto rounded-2xl bg-rose-50 px-4 py-2.5 text-sm text-rose-600">{error}</p>}
           <button type="button" onClick={onClose} className="rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">{t('common.cancel')}</button>
-          <button type="submit" className="rounded-2xl bg-jira-blue px-4 py-2.5 text-sm font-semibold text-white hover:bg-jira-blue-dk">{t('common.create')}</button>
+          <button type="submit" className="rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white hover:bg-qira-pistachio-dk">{t('common.create')}</button>
         </div>
       </form>
     </div>
@@ -275,7 +275,7 @@ function EpicCard({
           value={epic.status}
           disabled={!canManage}
           onChange={(event) => void updateEpic(epic.id, { status: event.target.value as Epic['status'] })}
-          className="rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-jira-blue disabled:bg-slate-50"
+          className="rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-qira-pistachio disabled:bg-slate-50"
         >
           {EPIC_STATUS_OPTIONS.map((status) => (
             <option key={status} value={status}>{t(`common.status.${status === 'done' ? 'completed' : status}`)}</option>
@@ -285,7 +285,7 @@ function EpicCard({
           value={epic.parent_portfolio_item_id ?? ''}
           disabled={!canManage}
           onChange={(event) => void updateEpic(epic.id, { parent_portfolio_item_id: event.target.value || null })}
-          className="rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-jira-blue disabled:bg-slate-50"
+          className="rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-qira-pistachio disabled:bg-slate-50"
         >
           <option value="">{t('backlog.noParent')}</option>
           {portfolioItems.map((item) => (
@@ -440,12 +440,12 @@ export function BacklogView() {
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder={t('backlog.searchPlaceholder')}
-                  className="min-w-[140px] flex-1 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                  className="min-w-[140px] flex-1 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 />
                 <span className="hidden rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600 sm:block">
                   {t('backlog.issueCount', { count: rootTasks.length })}
                 </span>
-                <button onClick={() => setShowCreateTask(true)} className="inline-flex items-center gap-1.5 rounded-2xl bg-jira-blue px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-jira-blue-dk">
+                <button onClick={() => setShowCreateTask(true)} className="inline-flex items-center gap-1.5 rounded-2xl bg-qira-pistachio px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk">
                   <Plus size={15} />
                   {t('backlog.createIssue')}
                 </button>
@@ -522,7 +522,7 @@ export function BacklogView() {
 
                     <Droppable droppableId="backlog" type="BACKLOG_TASK">
                       {(provided, snapshot) => (
-                        <div ref={provided.innerRef} {...provided.droppableProps} className={snapshot.isDraggingOver ? 'bg-jira-blue-lt/40' : 'bg-white'}>
+                        <div ref={provided.innerRef} {...provided.droppableProps} className={snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/40' : 'bg-white'}>
                           <div className="grid grid-cols-[minmax(0,1.35fr)_110px_110px_110px_70px_40px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                             <span>{t('task.summary')}</span>
                             <span>{t('task.status')}</span>

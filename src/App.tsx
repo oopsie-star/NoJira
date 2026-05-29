@@ -7,20 +7,30 @@ const BoardPage = lazy(() => import('@/pages/BoardPage').then((module) => ({ def
 const BacklogPage = lazy(() => import('@/pages/BacklogPage').then((module) => ({ default: module.BacklogPage })))
 const PeoplePage = lazy(() => import('@/pages/PeoplePage').then((module) => ({ default: module.PeoplePage })))
 const OpsPage = lazy(() => import('@/pages/OpsPage').then((module) => ({ default: module.OpsPage })))
+const PendingApprovalPage = lazy(() => import('@/pages/PendingApprovalPage').then((module) => ({ default: module.PendingApprovalPage })))
 
 function FullPageSpinner() {
   return (
     <div className="flex h-screen items-center justify-center bg-white">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-jira-blue border-t-transparent" />
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-qira-pistachio border-t-transparent" />
     </div>
   )
 }
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { session, isLoading } = useAuthContext()
+  const { session, profile, isLoading, isPendingApproval } = useAuthContext()
   if (isLoading) return <FullPageSpinner />
   if (!session) return <Navigate to="/auth" replace />
+  if (isPendingApproval) return <Navigate to="/pending-approval" replace />
   return <>{children}</>
+}
+
+function PendingApprovalRoute() {
+  const { session, profile, isLoading } = useAuthContext()
+  if (isLoading) return <FullPageSpinner />
+  if (!session) return <Navigate to="/auth" replace />
+  if (profile?.approved) return <Navigate to="/board" replace />
+  return <PendingApprovalPage />
 }
 
 export function App() {
@@ -37,6 +47,7 @@ export function App() {
             <AuthPage />
           }
         />
+        <Route path="/pending-approval" element={<PendingApprovalRoute />} />
         <Route
           path="/board"
           element={<ProtectedRoute><BoardPage /></ProtectedRoute>}

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { CheckCircle } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { useAuthContext } from '@/auth/AuthContext'
@@ -41,12 +42,12 @@ function InviteForm() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder={t('people.inviteEmail')}
-          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
         />
         <select
           value={role}
           onChange={(event) => setRole(event.target.value as ProjectRole)}
-          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
         >
           <option value="admin">{t('projectRole.admin')}</option>
           <option value="founder">{t('projectRole.founder')}</option>
@@ -57,7 +58,7 @@ function InviteForm() {
         <button
           type="submit"
           disabled={!email.trim() || loading}
-          className="rounded-2xl bg-jira-blue px-4 py-3 text-sm font-semibold text-white transition hover:bg-jira-blue-dk disabled:opacity-60"
+          className="rounded-2xl bg-qira-pistachio px-4 py-3 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
         >
           {t('people.inviteAction')}
         </button>
@@ -78,14 +79,18 @@ export function PeoplePage() {
   const fetchProjects = useStore((state) => state.fetchProjects)
   const fetchMembers = useStore((state) => state.fetchMembers)
   const fetchProjectInvites = useStore((state) => state.fetchProjectInvites)
+  const fetchPendingMembers = useStore((state) => state.fetchPendingMembers)
+  const approveMember = useStore((state) => state.approveMember)
   const activeProjectId = useStore((state) => state.activeProjectId)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const projects = useStore((state) => state.projects)
   const projectMembers = useStore((state) => state.projectMembers)
   const projectInvites = useStore((state) => state.projectInvites)
+  const pendingMembers = useStore((state) => state.pendingMembers)
   const updateProfile = useStore((state) => state.updateProfile)
   const updateProjectMemberRole = useStore((state) => state.updateProjectMemberRole)
 
+  const isAdmin = profile?.email === 'opsifymovie@gmail.com' || profile?.role === 'admin'
   const canManage = canManageProject(activeProjectRole)
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
 
@@ -99,6 +104,10 @@ export function PeoplePage() {
     }
   }, [activeProjectId, fetchMembers, fetchProjectInvites])
 
+  useEffect(() => {
+    if (isAdmin) fetchPendingMembers()
+  }, [isAdmin, fetchPendingMembers])
+
   return (
     <GlobalLayout>
       <div className="flex h-full min-h-0 flex-1 flex-col gap-4 p-4 sm:p-5">
@@ -110,6 +119,32 @@ export function PeoplePage() {
             {activeProject ? `${activeProject.name} • ` : ''}{t('people.memberCount', { count: projectMembers.length })}
           </div>
         </section>
+
+        {isAdmin && pendingMembers.length > 0 && (
+          <section className="rounded-[28px] bg-amber-50 p-6 shadow-sm">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-700">Ожидают одобрения ({pendingMembers.length})</h2>
+            <div className="mt-4 space-y-3">
+              {pendingMembers.map((pending) => (
+                <div key={pending.id} className="flex items-center justify-between rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <UserAvatar profile={pending} size={36} />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{pending.full_name || pending.email}</p>
+                      <p className="text-xs text-slate-500">{pending.email}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => approveMember(pending.id)}
+                    className="flex items-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
+                  >
+                    <CheckCircle size={16} />
+                    Одобрить
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {!activeProjectId ? (
           <section className="rounded-[28px] bg-white p-12 text-center shadow-sm">

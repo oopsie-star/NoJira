@@ -58,9 +58,9 @@ export function AuthPage() {
   return (
     <div className="min-h-screen bg-[#F4F5F7] px-4 py-8">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <section className="hidden rounded-[32px] bg-jira-blue p-10 text-white shadow-2xl lg:block">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/70">NoJira</p>
-          <h1 className="mt-4 text-5xl font-semibold leading-tight">Jira-inspired project control without the clutter.</h1>
+        <section className="hidden rounded-[32px] bg-qira-anthracite p-10 text-white shadow-2xl lg:block">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/70">Qira</p>
+          <h1 className="mt-4 text-5xl font-semibold leading-tight">Your team's projects. Structured, fast, and clear.</h1>
           <p className="mt-5 max-w-xl text-lg leading-8 text-white/80">{t('auth.subtitle')}</p>
 
           <div className="mt-10 grid gap-4">
@@ -79,7 +79,7 @@ export function AuthPage() {
 
         <section className="rounded-[32px] bg-white p-8 shadow-xl">
           <div className="mb-8">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">NoJira</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Qira</p>
             <h2 className="mt-2 text-3xl font-semibold text-slate-900">{tab === 'signin' ? t('auth.signIn') : t('auth.signUp')}</h2>
             <p className="mt-2 text-sm text-slate-500">{t('auth.subtitle')}</p>
           </div>
@@ -130,7 +130,7 @@ export function AuthPage() {
                   required
                   value={fullName}
                   onChange={(event) => setFullName(event.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-jira-blue"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-qira-pistachio"
                 />
               </div>
             )}
@@ -144,7 +144,7 @@ export function AuthPage() {
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-jira-blue"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-qira-pistachio"
               />
             </div>
 
@@ -157,7 +157,7 @@ export function AuthPage() {
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-jira-blue"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-qira-pistachio"
               />
             </div>
 
@@ -176,7 +176,7 @@ export function AuthPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-2xl bg-jira-blue px-4 py-3 text-sm font-semibold text-white transition hover:bg-jira-blue-dk disabled:opacity-60"
+              className="w-full rounded-2xl bg-qira-pistachio px-4 py-3 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
             >
               {loading ? t('auth.wait') : tab === 'signin' ? t('auth.signIn') : t('auth.createAccount')}
             </button>

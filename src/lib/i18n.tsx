@@ -14,8 +14,7 @@ const STORAGE_KEY = 'jira-light-locale'
 
 const translations = {
   en: {
-    'app.name': 'NoJira',
-    'common.cancel': 'Cancel',
+    'app.name': 'Qira',
     'common.create': 'Create',
     'common.save': 'Save',
     'common.saved': 'Saved',
@@ -238,7 +237,7 @@ const translations = {
     'projectRole.viewer': 'Viewer',
   },
   ru: {
-    'app.name': 'NoJira',
+    'app.name': 'Qira',
     'common.cancel': 'Отмена',
     'common.create': 'Создать',
     'common.save': 'Сохранить',

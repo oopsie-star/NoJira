@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+﻿import { useState, type FormEvent } from 'react'
 import { X } from 'lucide-react'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
@@ -58,7 +58,7 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
               autoFocus
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-jira-blue focus:ring-4 focus:ring-jira-blue-lt"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-qira-pistachio focus:ring-4 focus:ring-qira-pistachio-lt"
             />
           </div>
 
@@ -70,7 +70,7 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
               value={projectKey}
               onChange={(event) => setProjectKey(event.target.value.toUpperCase())}
               placeholder={t('project.keyPlaceholder')}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-jira-blue focus:ring-4 focus:ring-jira-blue-lt"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-qira-pistachio focus:ring-4 focus:ring-qira-pistachio-lt"
             />
           </div>
 
@@ -82,7 +82,7 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
               rows={4}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-jira-blue focus:ring-4 focus:ring-jira-blue-lt"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-qira-pistachio focus:ring-4 focus:ring-qira-pistachio-lt"
             />
           </div>
         </div>
@@ -101,7 +101,7 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
           <button
             type="submit"
             disabled={!name.trim() || loading}
-            className="rounded-2xl bg-jira-blue px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-jira-blue-dk disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? t('auth.wait') : t('project.create')}
           </button>

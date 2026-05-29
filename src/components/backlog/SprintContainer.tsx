@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
 import { Droppable } from '@hello-pangea/dnd'
 import { BacklogRow } from './BacklogRow'
@@ -48,7 +48,7 @@ export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
                   ? 'bg-emerald-100 text-emerald-700'
                   : sprint.status === 'completed'
                     ? 'bg-slate-200 text-slate-600'
-                    : 'bg-blue-100 text-jira-blue',
+                    : 'bg-blue-100 text-qira-pistachio',
               ].join(' ')}>
                 {t(`common.status.${sprint.status}`)}
               </span>
@@ -79,7 +79,7 @@ export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
             {canManageSprint && sprint.status === 'planned' && (
               <button
                 onClick={() => startSprint(sprint.id)}
-                className="rounded-xl bg-jira-blue px-3 py-2 text-sm font-semibold text-white transition hover:bg-jira-blue-dk"
+                className="rounded-xl bg-qira-pistachio px-3 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
               >
                 {t('backlog.startSprint')}
               </button>
@@ -102,7 +102,7 @@ export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
               <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className={snapshot.isDraggingOver ? 'bg-jira-blue-lt/40' : 'bg-white'}
+                className={snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/40' : 'bg-white'}
               >
                 <div className="grid grid-cols-[minmax(0,1fr)_32px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 sm:grid-cols-[minmax(0,1.35fr)_110px_110px_110px_70px_40px]">
                   <span>{t('task.summary')}</span>

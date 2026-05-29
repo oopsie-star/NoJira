@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Calendar, Link2, MessageSquare, Plus, Send, Timer, Trash2, X } from 'lucide-react'
 import { IssueTypeBadge, PriorityBadge } from '@/components/common/IssueBadges'
 import { UserAvatar } from '@/components/common/UserAvatar'
@@ -223,7 +223,7 @@ export function TaskDrawer() {
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-jira-blue px-3 py-2 text-sm font-semibold text-white transition hover:bg-jira-blue-dk disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-qira-pistachio px-3 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
               >
                 {saving ? '…' : t('common.save')}
               </button>
@@ -297,7 +297,7 @@ export function TaskDrawer() {
                   onBlur={persistDrafts}
                   rows={10}
                   placeholder={t('task.emptyDescription')}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 />
               </MetaSection>
             </div>
@@ -315,13 +315,13 @@ export function TaskDrawer() {
                   value={subtaskTitle}
                   onChange={(event) => setSubtaskTitle(event.target.value)}
                   placeholder={t('task.subtaskPlaceholder')}
-                  className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                  className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 />
                 <button
                   type="button"
                   onClick={handleCreateSubtask}
                   disabled={!subtaskTitle.trim()}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-jira-blue px-4 py-3 text-sm font-semibold text-white transition hover:bg-jira-blue-dk disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-3 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
                 >
                   <Plus size={16} />
                   {t('task.createSubtask')}
@@ -385,7 +385,7 @@ export function TaskDrawer() {
                     type="button"
                     onClick={handleAddComment}
                     disabled={!commentBody.trim()}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-jira-blue px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-jira-blue-dk disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
                   >
                     <Send size={15} />
                     {t('task.addComment')}
@@ -474,7 +474,7 @@ export function TaskDrawer() {
                 <select
                   value={currentTask.issue_type}
                   onChange={(event) => void quickUpdate({ issue_type: event.target.value as IssueType })}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 >
                   <option value="task">{t('issueType.task')}</option>
                   <option value="story">{t('issueType.story')}</option>
@@ -486,7 +486,7 @@ export function TaskDrawer() {
                 <select
                   value={currentTask.priority}
                   onChange={(event) => void quickUpdate({ priority: event.target.value as IssuePriority })}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 >
                   <option value="lowest">{t('priority.lowest')}</option>
                   <option value="low">{t('priority.low')}</option>
@@ -500,7 +500,7 @@ export function TaskDrawer() {
                 <select
                   value={currentTask.assignee_id ?? ''}
                   onChange={(event) => void quickUpdate({ assignee_id: event.target.value || null })}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 >
                   <option value="">{t('common.unassigned')}</option>
                   {members.map((member) => (
@@ -515,7 +515,7 @@ export function TaskDrawer() {
                 <select
                   value={currentTask.reporter_id ?? ''}
                   onChange={(event) => void quickUpdate({ reporter_id: event.target.value || null })}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 >
                   <option value="">{t('common.unassigned')}</option>
                   {members.map((member) => (
@@ -530,7 +530,7 @@ export function TaskDrawer() {
                 <select
                   value={currentTask.sprint_id ?? ''}
                   onChange={(event) => void quickUpdate({ sprint_id: event.target.value || null })}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 >
                   <option value="">{t('common.backlog')}</option>
                   {sprints.map((sprint) => (
@@ -545,7 +545,7 @@ export function TaskDrawer() {
                  <select
                    value={currentTask.epic_id ?? ''}
                    onChange={(event) => void quickUpdate({ epic_id: event.target.value || null })}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 >
                   <option value="">{t('common.none')}</option>
                   {epics.map((epic) => (
@@ -561,7 +561,7 @@ export function TaskDrawer() {
                    <select
                      value={linkType}
                      onChange={(event) => setLinkType(event.target.value as TaskLinkType)}
-                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                    >
                      <option value="blocks">{t('task.link.blocks')}</option>
                      <option value="relates_to">{t('task.link.relates_to')}</option>
@@ -571,7 +571,7 @@ export function TaskDrawer() {
                    <select
                      value={linkedTaskId}
                      onChange={(event) => setLinkedTaskId(event.target.value)}
-                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                    >
                      <option value="">{t('task.selectIssue')}</option>
                      {linkableTasks.map((candidate) => (
@@ -585,7 +585,7 @@ export function TaskDrawer() {
                      type="button"
                      disabled={!linkedTaskId}
                      onClick={handleAddLink}
-                     className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-jira-blue px-4 py-3 text-sm font-semibold text-white transition hover:bg-jira-blue-dk disabled:opacity-60"
+                     className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-3 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
                    >
                      <Link2 size={15} />
                      {t('task.addLink')}
@@ -639,7 +639,7 @@ export function TaskDrawer() {
                   onChange={(event) => setDraftLabels(event.target.value)}
                   onBlur={persistDrafts}
                   placeholder={t('task.labelsPlaceholder')}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 />
               </MetaSection>
 
@@ -648,7 +648,7 @@ export function TaskDrawer() {
                    type="date"
                   value={currentTask.due_date ?? ''}
                   onChange={(event) => void quickUpdate({ due_date: event.target.value || null })}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                  />
                </MetaSection>
 

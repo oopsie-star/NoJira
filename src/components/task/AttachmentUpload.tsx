@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
+﻿import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { FileText, Loader2, Upload, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { getErrorMessage } from '@/lib/errors'
@@ -135,7 +135,7 @@ export function AttachmentUpload({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="text-sm font-medium text-jira-blue hover:text-jira-blue-dk"
+          className="text-sm font-medium text-qira-pistachio hover:text-qira-pistachio-dk"
         >
           {t('common.create')}
         </button>
@@ -174,7 +174,7 @@ export function AttachmentUpload({
                   href={signedUrl ?? '#'}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-4 text-sm text-jira-blue"
+                  className="flex items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-4 text-sm text-qira-pistachio"
                 >
                   <FileText size={16} />
                   {getFilename(path)}
@@ -200,12 +200,12 @@ export function AttachmentUpload({
         onDrop={handleDrop}
         className={[
           'rounded-2xl border-2 border-dashed px-4 py-8 text-center transition',
-          dragOver ? 'border-jira-blue bg-jira-blue-lt' : 'border-slate-200 bg-slate-50',
+          dragOver ? 'border-qira-pistachio bg-qira-pistachio-lt' : 'border-slate-200 bg-slate-50',
         ].join(' ')}
       >
         {uploading ? (
           <div className="flex justify-center">
-            <Loader2 size={18} className="animate-spin text-jira-blue" />
+            <Loader2 size={18} className="animate-spin text-qira-pistachio" />
           </div>
         ) : (
           <>

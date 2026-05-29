@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { DragDropContext, type DropResult } from '@hello-pangea/dnd'
 import { KanbanColumn } from './KanbanColumn'
 import { useI18n } from '@/lib/i18n'
@@ -105,13 +105,13 @@ export function KanbanBoard() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t('board.searchPlaceholder')}
-            className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-jira-blue sm:px-4 sm:py-3"
+            className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio sm:px-4 sm:py-3"
           />
 
           <select
             value={epicFilter}
             onChange={(event) => setEpicFilter(event.target.value)}
-            className="hidden rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue sm:block"
+            className="hidden rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio sm:block"
           >
             <option value="">{t('board.epicFilter')} — {t('common.all')}</option>
             {epics.map((epic) => (
@@ -122,7 +122,7 @@ export function KanbanBoard() {
           <select
             value={assigneeFilter}
             onChange={(event) => setAssigneeFilter(event.target.value)}
-            className="hidden rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-jira-blue sm:block"
+            className="hidden rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio sm:block"
           >
             <option value="">{t('board.assigneeFilter')} — {t('common.all')}</option>
             {members.map((member) => (
@@ -144,7 +144,7 @@ export function KanbanBoard() {
               ))}
               className={[
                 'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition',
-                quickFilters.includes(filter.id) ? 'bg-jira-blue text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+                quickFilters.includes(filter.id) ? 'bg-qira-pistachio text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
               ].join(' ')}
             >
               {filter.label}

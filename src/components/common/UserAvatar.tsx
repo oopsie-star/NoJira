@@ -1,4 +1,4 @@
-import type { Profile } from '@/types'
+﻿import type { Profile } from '@/types'
 
 function getInitials(name: string) {
   return name
@@ -33,7 +33,7 @@ export function UserAvatar({ profile, size = 28, muted = false }: UserAvatarProp
     <span
       style={{ width: size, height: size, fontSize: Math.max(11, size * 0.38) }}
       className={`inline-flex items-center justify-center rounded-full font-semibold text-white ${
-        muted ? 'bg-slate-400' : 'bg-jira-blue'
+        muted ? 'bg-slate-400' : 'bg-qira-pistachio'
       }`}
     >
       {getInitials(label)}
