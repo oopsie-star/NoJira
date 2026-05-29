@@ -154,7 +154,7 @@ export function BoardPage() {
               </div>
             </section>
 
-            <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="min-h-0 flex-1 overflow-auto">
               {loadingBoard ? (
                 <BoardSkeleton />
               ) : activeSprint ? (

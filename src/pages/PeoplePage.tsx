@@ -111,12 +111,19 @@ export function PeoplePage() {
   return (
     <GlobalLayout>
       <div className="flex h-full min-h-0 flex-1 flex-col gap-4 p-4 sm:p-5">
-        <section className="rounded-[28px] bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{t('nav.people')}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-slate-900">{t('people.title')}</h1>
-          <p className="mt-2 text-sm text-slate-500">{t('people.subtitle')}</p>
-          <div className="mt-4 inline-flex rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            {activeProject ? `${activeProject.name} • ` : ''}{t('people.memberCount', { count: projectMembers.length })}
+        <section className="shrink-0 rounded-[28px] bg-white px-5 py-3.5 shadow-sm">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <h1 className="text-base font-semibold text-slate-900">{t('people.title')}</h1>
+            <span className="text-slate-300">·</span>
+            <span className="text-sm text-slate-500">{t('people.subtitle')}</span>
+            {activeProject && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span className="rounded-full bg-qira-pistachio-lt px-3 py-0.5 text-sm font-semibold text-qira-pistachio">
+                  {activeProject.name} · {t('people.memberCount', { count: projectMembers.length })}
+                </span>
+              </>
+            )}
           </div>
         </section>
 

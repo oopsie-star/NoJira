@@ -119,14 +119,16 @@ export function OpsPage() {
   return (
     <GlobalLayout>
       <div className="flex h-full min-h-0 flex-1 flex-col gap-4 p-4 sm:p-5">
-        <section className="rounded-[28px] bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{t('nav.ops')}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-slate-900">{t('ops.title')}</h1>
-          <p className="mt-2 text-sm text-slate-500">{t('ops.subtitle')}</p>
+        <section className="shrink-0 rounded-[28px] bg-white px-5 py-3.5 shadow-sm">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <h1 className="text-base font-semibold text-slate-900">{t('ops.title')}</h1>
+            <span className="text-slate-300">·</span>
+            <span className="text-sm text-slate-500">{t('ops.subtitle')}</span>
+          </div>
         </section>
 
         <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-          <div className="flex min-h-0 flex-col gap-4 overflow-hidden">
+          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
             <section className="rounded-[28px] bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
