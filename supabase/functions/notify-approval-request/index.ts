@@ -36,6 +36,7 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
 const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 const appBaseUrl = Deno.env.get('APP_BASE_URL') ?? 'https://oopsie-star.github.io/NoJira/'
 const resendUserAgent = 'qira-approval-notifier/1.0'
+const sandboxNotePrefix = 'sandbox:'
 
 function json(status: number, payload: FunctionResult) {
   return new Response(JSON.stringify(payload), {
@@ -57,6 +58,15 @@ function isAdminRole(role: string | null | undefined) {
 
 function usesResendDevSender(address: string) {
   return address.toLowerCase().includes('@resend.dev')
+}
+
+function buildSandboxRecipient(profileId: string) {
+  const label = profileId.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'approval'
+  return `delivered+approval-${label}@resend.dev`
+}
+
+function buildSandboxNote(deliveredTo: string, intendedRecipient: string) {
+  return `${sandboxNotePrefix}${deliveredTo}|${intendedRecipient}`
 }
 
 function secondsSince(timestamp: string | null) {
@@ -172,7 +182,7 @@ Deno.serve(async (request) => {
   if (!payload.force && targetProfile.approval_email_sent_at) {
     return json(200, {
       status: 'already_sent',
-      message: null,
+      message: targetProfile.approval_email_last_error,
       sentAt: targetProfile.approval_email_sent_at,
     })
   }
@@ -209,26 +219,45 @@ Deno.serve(async (request) => {
     })
   }
 
-  if (usesResendDevSender(approvalEmailFrom)) {
+  const sandboxMode = usesResendDevSender(approvalEmailFrom)
+
+  if (sandboxMode) {
     console.warn(
-      '[notify-approval-request] APPROVAL_EMAIL_FROM uses resend.dev. Resend only delivers resend.dev test sends to the account email, so real admin notifications usually require a verified sender domain.',
+      '[notify-approval-request] APPROVAL_EMAIL_FROM uses resend.dev. Redirecting this approval request to a Resend sandbox inbox.',
       { approvalEmailFrom, adminApprovalEmail }
     )
   }
 
   const safeName = targetProfile.full_name?.trim() || targetProfile.email
   const approvalLink = `${appBaseUrl.replace(/\/$/, '')}/people`
-  const subject = `Qira approval request: ${safeName}`
-  const html = `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e2a35;">
-      <h2 style="margin: 0 0 16px;">New Qira access request</h2>
-      <p><strong>Name:</strong> ${safeName}</p>
-      <p><strong>Email:</strong> ${targetProfile.email}</p>
-      <p><strong>Requested at:</strong> ${new Date().toLocaleString('en-GB', { timeZone: 'UTC' })} UTC</p>
-      <p>Open Qira People and approve the account when appropriate.</p>
-      <p><a href="${approvalLink}" style="display: inline-block; padding: 10px 16px; border-radius: 10px; background: #6B9E6B; color: #ffffff; text-decoration: none;">Review pending approvals</a></p>
-    </div>
-  `
+  const sandboxRecipient = sandboxMode ? buildSandboxRecipient(targetProfile.id) : adminApprovalEmail
+  const sandboxNote = sandboxMode ? buildSandboxNote(sandboxRecipient, adminApprovalEmail) : null
+  const subject = sandboxMode
+    ? 'Qira approval request (sandbox)'
+    : `Qira approval request: ${safeName}`
+  const html = sandboxMode
+    ? `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e2a35;">
+        <h2 style="margin: 0 0 16px;">Qira approval request captured in sandbox mode</h2>
+        <p>This test message was redirected to a Resend sandbox inbox because <strong>${approvalEmailFrom}</strong> uses the <strong>resend.dev</strong> test domain.</p>
+        <p><strong>Sandbox inbox:</strong> ${sandboxRecipient}</p>
+        <p>Open Qira People and review pending approvals there.</p>
+        <p><a href="${approvalLink}" style="display: inline-block; padding: 10px 16px; border-radius: 10px; background: #6B9E6B; color: #ffffff; text-decoration: none;">Review pending approvals</a></p>
+      </div>
+    `
+    : `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e2a35;">
+        <h2 style="margin: 0 0 16px;">New Qira access request</h2>
+        <p><strong>Name:</strong> ${safeName}</p>
+        <p><strong>Email:</strong> ${targetProfile.email}</p>
+        <p><strong>Requested at:</strong> ${new Date().toLocaleString('en-GB', { timeZone: 'UTC' })} UTC</p>
+        <p>Open Qira People and approve the account when appropriate.</p>
+        <p><a href="${approvalLink}" style="display: inline-block; padding: 10px 16px; border-radius: 10px; background: #6B9E6B; color: #ffffff; text-decoration: none;">Review pending approvals</a></p>
+      </div>
+    `
+  const text = sandboxMode
+    ? `Qira approval request captured in sandbox mode.\n\nSandbox inbox: ${sandboxRecipient}\nOpen Qira People: ${approvalLink}`
+    : `New Qira access request\n\nName: ${safeName}\nEmail: ${targetProfile.email}\nOpen Qira People: ${approvalLink}`
 
   const resendResponse = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -239,10 +268,10 @@ Deno.serve(async (request) => {
     },
     body: JSON.stringify({
       from: approvalEmailFrom,
-      to: [adminApprovalEmail],
+      to: [sandboxRecipient],
       subject,
       html,
-      text: `New Qira access request\n\nName: ${safeName}\nEmail: ${targetProfile.email}\nOpen Qira People: ${approvalLink}`,
+      text,
     }),
   })
 
@@ -270,19 +299,21 @@ Deno.serve(async (request) => {
   await updateApprovalEmailState(adminClient, targetProfile.id, {
     approval_email_last_attempt_at: attemptAt,
     approval_email_attempts: nextAttempts,
-    approval_email_last_error: null,
+    approval_email_last_error: sandboxNote,
     approval_email_sent_at: attemptAt,
   })
 
   console.info('[notify-approval-request] Approval email sent', {
     profileId: targetProfile.id,
     adminApprovalEmail,
+    deliveredTo: sandboxRecipient,
+    sandboxMode,
     sentAt: attemptAt,
   })
 
   return json(200, {
-    status: 'sent',
-    message: null,
+    status: sandboxMode ? 'sandbox_sent' : 'sent',
+    message: sandboxNote,
     sentAt: attemptAt,
   })
 })

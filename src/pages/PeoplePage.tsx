@@ -3,6 +3,7 @@ import { CheckCircle } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { useAuthContext } from '@/auth/AuthContext'
+import { parseSandboxDeliveryNote } from '@/lib/approvalNotifications'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { canManageProject } from '@/lib/permissions'
@@ -74,6 +75,7 @@ function InviteForm() {
 }
 
 function getApprovalEmailStateLabel(profile: Profile, t: (key: string) => string) {
+  if (parseSandboxDeliveryNote(profile.approval_email_last_error)) return t('people.approvalEmailSandbox')
   if (profile.approval_email_sent_at) return t('people.approvalEmailSent')
   if (profile.approval_email_last_error) return t('people.approvalEmailFailed')
   return t('people.approvalEmailPending')
@@ -148,50 +150,64 @@ export function PeoplePage() {
           <section className="rounded-[28px] bg-amber-50 p-6 shadow-sm">
             <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-700">{t('people.pendingApprovals')} ({pendingMembers.length})</h2>
             <div className="mt-4 space-y-3">
-              {pendingMembers.map((pending) => (
-                <div key={pending.id} className="flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-white px-4 py-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <UserAvatar profile={pending} size={36} />
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900">{pending.full_name || pending.email}</p>
-                      <p className="text-xs text-slate-500">{pending.email}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                        <span className={`rounded-full px-2.5 py-1 font-semibold ${
-                          pending.approval_email_sent_at
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : pending.approval_email_last_error
-                              ? 'bg-rose-50 text-rose-700'
-                              : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {getApprovalEmailStateLabel(pending, t)}
-                        </span>
-                        {pending.approval_email_attempts > 0 && (
-                          <span className="text-slate-400">#{pending.approval_email_attempts}</span>
-                        )}
-                        {pending.approval_email_last_error && (
-                          <span className="truncate text-rose-600">{pending.approval_email_last_error}</span>
-                        )}
+              {pendingMembers.map((pending) => {
+                const sandboxInfo = parseSandboxDeliveryNote(pending.approval_email_last_error)
+
+                return (
+                  <div key={pending.id} className="flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <UserAvatar profile={pending} size={36} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900">{pending.full_name || pending.email}</p>
+                        <p className="text-xs text-slate-500">{pending.email}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                          <span className={`rounded-full px-2.5 py-1 font-semibold ${
+                            sandboxInfo
+                              ? 'bg-sky-50 text-sky-700'
+                              : pending.approval_email_sent_at
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : pending.approval_email_last_error
+                                  ? 'bg-rose-50 text-rose-700'
+                                  : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {getApprovalEmailStateLabel(pending, t)}
+                          </span>
+                          {pending.approval_email_attempts > 0 && (
+                            <span className="text-slate-400">#{pending.approval_email_attempts}</span>
+                          )}
+                          {sandboxInfo && (
+                            <span className="truncate text-sky-700">
+                              {t('people.approvalEmailSandboxNote', {
+                                deliveredTo: sandboxInfo.deliveredTo,
+                                adminEmail: sandboxInfo.intendedRecipient ?? '—',
+                              })}
+                            </span>
+                          )}
+                          {!sandboxInfo && pending.approval_email_last_error && (
+                            <span className="truncate text-rose-600">{pending.approval_email_last_error}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        onClick={() => void handleApprovalEmailRetry(pending.id)}
+                        disabled={retryingProfileId === pending.id}
+                        className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {retryingProfileId === pending.id ? t('people.approvalEmailRetrying') : t('people.retryApprovalEmail')}
+                      </button>
+                      <button
+                        onClick={() => approveMember(pending.id)}
+                        className="flex items-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
+                      >
+                        <CheckCircle size={16} />
+                        Одобрить
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <button
-                      onClick={() => void handleApprovalEmailRetry(pending.id)}
-                      disabled={retryingProfileId === pending.id}
-                      className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {retryingProfileId === pending.id ? t('people.approvalEmailRetrying') : t('people.retryApprovalEmail')}
-                    </button>
-                    <button
-                      onClick={() => approveMember(pending.id)}
-                      className="flex items-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
-                    >
-                      <CheckCircle size={16} />
-                      Одобрить
-                    </button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </section>
         )}

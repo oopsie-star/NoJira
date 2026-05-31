@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LogOut, Clock } from 'lucide-react'
 import { useAuthContext } from '@/auth/AuthContext'
+import { parseSandboxDeliveryNote } from '@/lib/approvalNotifications'
 import { useI18n } from '@/lib/i18n'
 import { useStore, type ApprovalNotificationResponse } from '@/store'
 
@@ -9,6 +10,10 @@ export function PendingApprovalPage() {
   const { t } = useI18n()
   const triggerApprovalNotification = useStore((state) => state.triggerApprovalNotification)
   const [notificationState, setNotificationState] = useState<ApprovalNotificationResponse | null>(null)
+  const sandboxInfo = useMemo(
+    () => parseSandboxDeliveryNote(notificationState?.message),
+    [notificationState?.message]
+  )
 
   useEffect(() => {
     if (!profile || profile.approved) return
@@ -38,6 +43,13 @@ export function PendingApprovalPage() {
       }
     }
 
+    if (notificationState.status === 'sandbox_sent' || sandboxInfo) {
+      return {
+        label: t('pendingApproval.statusSandbox'),
+        tone: 'bg-sky-50 text-sky-700',
+      }
+    }
+
     if (notificationState.status === 'sent' || notificationState.status === 'already_sent') {
       return {
         label: t('pendingApproval.statusSent'),
@@ -56,7 +68,7 @@ export function PendingApprovalPage() {
       label: notificationState.message ? `${t('pendingApproval.statusError')} ${notificationState.message}` : t('pendingApproval.statusRetry'),
       tone: 'bg-amber-50 text-amber-700',
     }
-  }, [notificationState, t])
+  }, [notificationState, sandboxInfo, t])
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-qira-cream px-4">
@@ -74,6 +86,14 @@ export function PendingApprovalPage() {
         <div className={`mt-3 inline-flex max-w-full items-center justify-center rounded-full px-4 py-1.5 text-xs font-semibold ${statusCopy.tone}`}>
           {statusCopy.label}
         </div>
+        {sandboxInfo && (
+          <p className="mt-3 rounded-2xl bg-sky-50 px-4 py-3 text-left text-xs text-sky-700">
+            {t('pendingApproval.sandboxNote', {
+              deliveredTo: sandboxInfo.deliveredTo,
+              adminEmail: sandboxInfo.intendedRecipient ?? '—',
+            })}
+          </p>
+        )}
         <button
           onClick={() => signOut()}
           className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
