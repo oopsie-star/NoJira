@@ -1,4 +1,5 @@
 ﻿import { create } from 'zustand'
+import { FunctionsHttpError } from '@supabase/supabase-js'
 import { isTaskBlocked } from '@/lib/ops'
 import { supabase } from '@/lib/supabase'
 import type {
@@ -74,6 +75,28 @@ export interface ApprovalNotificationResponse {
   status: string
   message: string | null
   sentAt: string | null
+}
+
+async function getFunctionErrorMessage(error: unknown) {
+  if (error instanceof FunctionsHttpError && error.context instanceof Response) {
+    try {
+      const payload = await error.context.clone().json() as { message?: string | null, error?: string | null }
+      if (payload.message) return payload.message
+      if (payload.error) return payload.error
+    } catch {
+      // Fall through to text parsing.
+    }
+
+    try {
+      const text = (await error.context.clone().text()).trim()
+      if (text) return text
+    } catch {
+      // Fall through to the generic error message.
+    }
+  }
+
+  if (error instanceof Error) return error.message
+  return String(error)
 }
 
 function replaceTask(tasks: Task[], nextTask: Task) {
@@ -1396,7 +1419,7 @@ export const useStore = create<AppState>((set, get) => {
     if (error) {
       return {
         status: 'error',
-        message: error.message,
+        message: await getFunctionErrorMessage(error),
         sentAt: null,
       }
     }

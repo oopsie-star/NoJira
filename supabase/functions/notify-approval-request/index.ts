@@ -28,13 +28,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const approvalEmailFrom = Deno.env.get('APPROVAL_EMAIL_FROM') ?? 'Qira <onboarding@resend.dev>'
+const approvalEmailFrom = Deno.env.get('APPROVAL_EMAIL_FROM')?.trim() ?? ''
 const approvalEmailCooldownSeconds = Number(Deno.env.get('APPROVAL_EMAIL_COOLDOWN_SECONDS') ?? '60')
-const adminApprovalEmail = Deno.env.get('ADMIN_APPROVAL_EMAIL') ?? ''
-const resendApiKey = Deno.env.get('RESEND_API_KEY') ?? ''
+const adminApprovalEmail = Deno.env.get('ADMIN_APPROVAL_EMAIL')?.trim() ?? ''
+const resendApiKey = Deno.env.get('RESEND_API_KEY')?.trim() ?? ''
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
 const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 const appBaseUrl = Deno.env.get('APP_BASE_URL') ?? 'https://oopsie-star.github.io/NoJira/'
+const resendUserAgent = 'qira-approval-notifier/1.0'
 
 function json(status: number, payload: FunctionResult) {
   return new Response(JSON.stringify(payload), {
@@ -52,6 +53,10 @@ function truncateError(message: string) {
 
 function isAdminRole(role: string | null | undefined) {
   return role === 'admin'
+}
+
+function usesResendDevSender(address: string) {
+  return address.toLowerCase().includes('@resend.dev')
 }
 
 function secondsSince(timestamp: string | null) {
@@ -183,8 +188,14 @@ Deno.serve(async (request) => {
   const attemptAt = new Date().toISOString()
   const nextAttempts = (targetProfile.approval_email_attempts ?? 0) + 1
 
-  if (!adminApprovalEmail || !resendApiKey) {
-    const message = 'Approval email delivery is not configured yet.'
+  if (!approvalEmailFrom || !adminApprovalEmail || !resendApiKey) {
+    const missing = [
+      !approvalEmailFrom ? 'APPROVAL_EMAIL_FROM' : null,
+      !adminApprovalEmail ? 'ADMIN_APPROVAL_EMAIL' : null,
+      !resendApiKey ? 'RESEND_API_KEY' : null,
+    ].filter(Boolean).join(', ')
+    const message = `Approval email delivery is not configured yet. Missing: ${missing}.`
+    console.error('[notify-approval-request] Missing email configuration', { missing })
     await updateApprovalEmailState(adminClient, targetProfile.id, {
       approval_email_last_attempt_at: attemptAt,
       approval_email_attempts: nextAttempts,
@@ -198,8 +209,15 @@ Deno.serve(async (request) => {
     })
   }
 
+  if (usesResendDevSender(approvalEmailFrom)) {
+    console.warn(
+      '[notify-approval-request] APPROVAL_EMAIL_FROM uses resend.dev. Resend only delivers resend.dev test sends to the account email, so real admin notifications usually require a verified sender domain.',
+      { approvalEmailFrom, adminApprovalEmail }
+    )
+  }
+
   const safeName = targetProfile.full_name?.trim() || targetProfile.email
-  const approvalLink = `${appBaseUrl.replace(/\/$/, '')}/pending-approval`
+  const approvalLink = `${appBaseUrl.replace(/\/$/, '')}/people`
   const subject = `Qira approval request: ${safeName}`
   const html = `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e2a35;">
@@ -208,7 +226,7 @@ Deno.serve(async (request) => {
       <p><strong>Email:</strong> ${targetProfile.email}</p>
       <p><strong>Requested at:</strong> ${new Date().toLocaleString('en-GB', { timeZone: 'UTC' })} UTC</p>
       <p>Open Qira People and approve the account when appropriate.</p>
-      <p><a href="${approvalLink}" style="display: inline-block; padding: 10px 16px; border-radius: 10px; background: #6B9E6B; color: #ffffff; text-decoration: none;">Open Qira</a></p>
+      <p><a href="${approvalLink}" style="display: inline-block; padding: 10px 16px; border-radius: 10px; background: #6B9E6B; color: #ffffff; text-decoration: none;">Review pending approvals</a></p>
     </div>
   `
 
@@ -217,18 +235,25 @@ Deno.serve(async (request) => {
     headers: {
       Authorization: `Bearer ${resendApiKey}`,
       'Content-Type': 'application/json',
+      'User-Agent': resendUserAgent,
     },
     body: JSON.stringify({
       from: approvalEmailFrom,
       to: [adminApprovalEmail],
       subject,
       html,
-      text: `New Qira access request\n\nName: ${safeName}\nEmail: ${targetProfile.email}\nOpen Qira: ${approvalLink}`,
+      text: `New Qira access request\n\nName: ${safeName}\nEmail: ${targetProfile.email}\nOpen Qira People: ${approvalLink}`,
     }),
   })
 
   if (!resendResponse.ok) {
     const errorBody = truncateError(await resendResponse.text())
+    console.error('[notify-approval-request] Resend send failed', {
+      status: resendResponse.status,
+      approvalEmailFrom,
+      adminApprovalEmail,
+      errorBody,
+    })
     await updateApprovalEmailState(adminClient, targetProfile.id, {
       approval_email_last_attempt_at: attemptAt,
       approval_email_attempts: nextAttempts,
@@ -247,6 +272,12 @@ Deno.serve(async (request) => {
     approval_email_attempts: nextAttempts,
     approval_email_last_error: null,
     approval_email_sent_at: attemptAt,
+  })
+
+  console.info('[notify-approval-request] Approval email sent', {
+    profileId: targetProfile.id,
+    adminApprovalEmail,
+    sentAt: attemptAt,
   })
 
   return json(200, {
