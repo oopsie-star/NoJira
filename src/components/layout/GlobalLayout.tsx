@@ -22,7 +22,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
   const profileId = useStore((state) => state.profile?.id)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const isAdmin = profile?.email === 'opsifymovie@gmail.com' || profile?.role === 'admin'
+  const isAdmin = profile?.role === 'admin'
 
   useEffect(() => {
     fetchProjects()

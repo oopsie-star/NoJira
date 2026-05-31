@@ -15,7 +15,14 @@ CREATE TABLE public.profiles (
   department text NOT NULL DEFAULT '',
   locale     text NOT NULL DEFAULT 'en'
              CHECK (locale IN ('en', 'ru')),
-  created_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  approved    boolean NOT NULL DEFAULT false,
+  approved_at timestamptz,
+  approved_by uuid REFERENCES public.profiles(id),
+  approval_email_sent_at timestamptz,
+  approval_email_last_attempt_at timestamptz,
+  approval_email_attempts integer NOT NULL DEFAULT 0,
+  approval_email_last_error text
 );
 
 CREATE TABLE public.projects (
@@ -130,6 +137,21 @@ AS $$
     FROM public.project_members pm
     WHERE pm.project_id = project_uuid
       AND pm.profile_id = auth.uid()
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.profiles p
+    WHERE p.id = auth.uid()
+      AND p.role = 'admin'
   );
 $$;
 
@@ -357,13 +379,18 @@ ALTER TABLE public.task_activities ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY profiles_select ON public.profiles
   FOR SELECT USING (
-    auth.uid() = id OR public.shares_project_with(id)
+    auth.uid() = id OR public.shares_project_with(id) OR public.is_admin()
   );
 
 CREATE POLICY profiles_update_self ON public.profiles
   FOR UPDATE
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
+
+CREATE POLICY profiles_update_admin ON public.profiles
+  FOR UPDATE
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
 CREATE POLICY projects_select ON public.projects
   FOR SELECT USING (created_by = auth.uid() OR public.is_project_member(id));

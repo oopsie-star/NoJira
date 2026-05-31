@@ -7,7 +7,7 @@ import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { canManageProject } from '@/lib/permissions'
 import { useStore } from '@/store'
-import type { Locale, ProjectRole } from '@/types'
+import type { Locale, Profile, ProjectRole } from '@/types'
 
 function InviteForm() {
   const { t } = useI18n()
@@ -73,6 +73,12 @@ function InviteForm() {
   )
 }
 
+function getApprovalEmailStateLabel(profile: Profile, t: (key: string) => string) {
+  if (profile.approval_email_sent_at) return t('people.approvalEmailSent')
+  if (profile.approval_email_last_error) return t('people.approvalEmailFailed')
+  return t('people.approvalEmailPending')
+}
+
 export function PeoplePage() {
   const { profile } = useAuthContext()
   const { t } = useI18n()
@@ -81,6 +87,7 @@ export function PeoplePage() {
   const fetchProjectInvites = useStore((state) => state.fetchProjectInvites)
   const fetchPendingMembers = useStore((state) => state.fetchPendingMembers)
   const approveMember = useStore((state) => state.approveMember)
+  const triggerApprovalNotification = useStore((state) => state.triggerApprovalNotification)
   const activeProjectId = useStore((state) => state.activeProjectId)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const projects = useStore((state) => state.projects)
@@ -90,7 +97,8 @@ export function PeoplePage() {
   const updateProfile = useStore((state) => state.updateProfile)
   const updateProjectMemberRole = useStore((state) => state.updateProjectMemberRole)
 
-  const isAdmin = profile?.email === 'opsifymovie@gmail.com' || profile?.role === 'admin'
+  const [retryingProfileId, setRetryingProfileId] = useState<string | null>(null)
+  const isAdmin = profile?.role === 'admin'
   const canManage = canManageProject(activeProjectRole)
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
 
@@ -107,6 +115,15 @@ export function PeoplePage() {
   useEffect(() => {
     if (isAdmin) fetchPendingMembers()
   }, [isAdmin, fetchPendingMembers])
+
+  async function handleApprovalEmailRetry(profileId: string) {
+    setRetryingProfileId(profileId)
+    try {
+      await triggerApprovalNotification({ profileId, force: true })
+    } finally {
+      setRetryingProfileId(null)
+    }
+  }
 
   return (
     <GlobalLayout>
@@ -129,24 +146,50 @@ export function PeoplePage() {
 
         {isAdmin && pendingMembers.length > 0 && (
           <section className="rounded-[28px] bg-amber-50 p-6 shadow-sm">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-700">Ожидают одобрения ({pendingMembers.length})</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-700">{t('people.pendingApprovals')} ({pendingMembers.length})</h2>
             <div className="mt-4 space-y-3">
               {pendingMembers.map((pending) => (
-                <div key={pending.id} className="flex items-center justify-between rounded-2xl border border-amber-200 bg-white px-4 py-3">
-                  <div className="flex items-center gap-3">
+                <div key={pending.id} className="flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                  <div className="flex min-w-0 items-center gap-3">
                     <UserAvatar profile={pending} size={36} />
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm font-semibold text-slate-900">{pending.full_name || pending.email}</p>
                       <p className="text-xs text-slate-500">{pending.email}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                        <span className={`rounded-full px-2.5 py-1 font-semibold ${
+                          pending.approval_email_sent_at
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : pending.approval_email_last_error
+                              ? 'bg-rose-50 text-rose-700'
+                              : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {getApprovalEmailStateLabel(pending, t)}
+                        </span>
+                        {pending.approval_email_attempts > 0 && (
+                          <span className="text-slate-400">#{pending.approval_email_attempts}</span>
+                        )}
+                        {pending.approval_email_last_error && (
+                          <span className="truncate text-rose-600">{pending.approval_email_last_error}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => approveMember(pending.id)}
-                    className="flex items-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
-                  >
-                    <CheckCircle size={16} />
-                    Одобрить
-                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => void handleApprovalEmailRetry(pending.id)}
+                      disabled={retryingProfileId === pending.id}
+                      className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {retryingProfileId === pending.id ? t('people.approvalEmailRetrying') : t('people.retryApprovalEmail')}
+                    </button>
+                    <button
+                      onClick={() => approveMember(pending.id)}
+                      className="flex items-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
+                    >
+                      <CheckCircle size={16} />
+                      Одобрить
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

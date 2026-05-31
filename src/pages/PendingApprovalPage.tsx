@@ -1,8 +1,62 @@
+import { useEffect, useMemo, useState } from 'react'
 import { LogOut, Clock } from 'lucide-react'
 import { useAuthContext } from '@/auth/AuthContext'
+import { useI18n } from '@/lib/i18n'
+import { useStore, type ApprovalNotificationResponse } from '@/store'
 
 export function PendingApprovalPage() {
   const { signOut, profile } = useAuthContext()
+  const { t } = useI18n()
+  const triggerApprovalNotification = useStore((state) => state.triggerApprovalNotification)
+  const [notificationState, setNotificationState] = useState<ApprovalNotificationResponse | null>(null)
+
+  useEffect(() => {
+    if (!profile || profile.approved) return
+
+    const hasDeliveryState = Boolean(profile.approval_email_sent_at || profile.approval_email_last_attempt_at)
+    if (hasDeliveryState) {
+      setNotificationState({
+        status: profile.approval_email_sent_at ? 'sent' : 'retry',
+        message: profile.approval_email_last_error,
+        sentAt: profile.approval_email_sent_at,
+      })
+    }
+
+    void triggerApprovalNotification().then((result) => {
+      if (result) setNotificationState(result)
+    })
+  }, [
+    profile,
+    triggerApprovalNotification,
+  ])
+
+  const statusCopy = useMemo(() => {
+    if (!notificationState) {
+      return {
+        label: t('pendingApproval.statusIdle'),
+        tone: 'bg-slate-100 text-slate-600',
+      }
+    }
+
+    if (notificationState.status === 'sent' || notificationState.status === 'already_sent') {
+      return {
+        label: t('pendingApproval.statusSent'),
+        tone: 'bg-emerald-50 text-emerald-700',
+      }
+    }
+
+    if (notificationState.status === 'queued' || notificationState.status === 'cooldown') {
+      return {
+        label: t('pendingApproval.statusQueued'),
+        tone: 'bg-slate-100 text-slate-600',
+      }
+    }
+
+    return {
+      label: notificationState.message ? `${t('pendingApproval.statusError')} ${notificationState.message}` : t('pendingApproval.statusRetry'),
+      tone: 'bg-amber-50 text-amber-700',
+    }
+  }, [notificationState, t])
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-qira-cream px-4">
@@ -10,22 +64,22 @@ export function PendingApprovalPage() {
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-qira-pistachio-lt text-qira-pistachio">
           <Clock size={32} />
         </div>
-        <h1 className="mt-6 text-2xl font-bold text-qira-anthracite">Ожидайте подтверждения</h1>
+        <h1 className="mt-6 text-2xl font-bold text-qira-anthracite">{t('pendingApproval.title')}</h1>
         <p className="mt-3 text-sm text-slate-500">
-          Ваш аккаунт <strong>{profile?.email}</strong> зарегистрирован и ожидает одобрения администратором.
+          {t('pendingApproval.body', { email: profile?.email ?? '—' })}
         </p>
         <p className="mt-2 text-sm text-slate-500">
-          Как только администратор подтвердит вашу учётную запись, вы получите доступ к Qira.
+          {t('pendingApproval.note')}
         </p>
-        <div className="mt-2 inline-block rounded-full bg-amber-50 px-4 py-1.5 text-xs font-semibold text-amber-700">
-          Ожидание одобрения от opsifymovie@gmail.com
+        <div className={`mt-3 inline-flex max-w-full items-center justify-center rounded-full px-4 py-1.5 text-xs font-semibold ${statusCopy.tone}`}>
+          {statusCopy.label}
         </div>
         <button
           onClick={() => signOut()}
           className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
         >
           <LogOut size={16} />
-          Выйти из аккаунта
+          {t('pendingApproval.signOut')}
         </button>
       </div>
     </div>

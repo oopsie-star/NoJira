@@ -17,6 +17,10 @@ export interface Profile {
   approved:    boolean
   approved_at: string | null
   approved_by: string | null
+  approval_email_sent_at:         string | null
+  approval_email_last_attempt_at: string | null
+  approval_email_attempts:        number
+  approval_email_last_error:      string | null
 }
 
 // ─── Domain ───────────────────────────────────────────────────────────────────

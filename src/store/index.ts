@@ -70,6 +70,12 @@ const NOTIFICATION_SELECT = `
 
 const ACTIVE_PROJECT_STORAGE_KEY = 'qira-active-project-id'
 
+export interface ApprovalNotificationResponse {
+  status: string
+  message: string | null
+  sentAt: string | null
+}
+
 function replaceTask(tasks: Task[], nextTask: Task) {
   return tasks.map((task) => (task.id === nextTask.id ? nextTask : task))
 }
@@ -321,6 +327,7 @@ interface AppState {
   inviteToProject: (email: string, role: ProjectRole) => Promise<{ emailSent: boolean } | null>
   fetchPendingMembers: () => Promise<void>
   approveMember: (profileId: string) => Promise<void>
+  triggerApprovalNotification: (options?: { profileId?: string, force?: boolean }) => Promise<ApprovalNotificationResponse | null>
 }
 
 export const useStore = create<AppState>((set, get) => {
@@ -1376,6 +1383,33 @@ export const useStore = create<AppState>((set, get) => {
       .eq('id', profileId)
     await get().fetchPendingMembers()
     get().fetchMembers()
+  },
+
+  triggerApprovalNotification: async (options) => {
+    const { data, error } = await supabase.functions.invoke<ApprovalNotificationResponse>('notify-approval-request', {
+      body: {
+        targetProfileId: options?.profileId ?? null,
+        force: options?.force ?? false,
+      },
+    })
+
+    if (error) {
+      return {
+        status: 'error',
+        message: error.message,
+        sentAt: null,
+      }
+    }
+
+    if (options?.profileId) {
+      await get().fetchPendingMembers()
+    }
+
+    return data ?? {
+      status: 'error',
+      message: 'Empty function response.',
+      sentAt: null,
+    }
   },
   })
 })
