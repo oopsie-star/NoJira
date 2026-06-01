@@ -233,8 +233,8 @@ function EpicSection({
   }
 
   return (
-    <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-4">
+    <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -259,7 +259,7 @@ function EpicSection({
             </div>
           </div>
 
-          <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto xl:flex-col">
+          <div className="grid w-full gap-2 sm:grid-cols-2 xl:w-[272px] xl:grid-cols-1">
             <select
               value={epic.status}
               disabled={!canEdit}
@@ -315,7 +315,7 @@ function EpicSection({
         </div>
       </div>
 
-      <div className="grid gap-4 p-4 2xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+      <div className="grid gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
         <div className="rounded-[24px] bg-slate-50 p-3">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -491,7 +491,7 @@ export function BacklogView() {
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <div className="flex min-h-full min-w-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden p-4 sm:p-5">
+      <div className="flex min-h-full min-w-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 sm:gap-4 sm:p-4">
         {!activeProjectId ? (
           <section className="rounded-[28px] bg-white p-12 text-center shadow-sm">
             <h2 className="text-2xl font-semibold text-slate-900">{t('project.noProjects')}</h2>
@@ -499,33 +499,33 @@ export function BacklogView() {
           </section>
         ) : (
           <>
-            <section className="shrink-0 rounded-[28px] bg-white px-4 py-3 shadow-sm sm:px-5">
+            <section className="shrink-0 rounded-[24px] bg-white px-3 py-3 shadow-sm sm:px-4">
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder={t('backlog.searchPlaceholder')}
-                  className="min-w-[140px] flex-1 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
+                  className="min-w-[140px] basis-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio lg:basis-auto lg:flex-1"
                 />
                 <span className="hidden rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600 sm:block">
                   {t('backlog.issueCount', { count: rootTasks.length })}
                 </span>
-                <button onClick={() => openTaskModal()} className="inline-flex items-center gap-1.5 rounded-2xl bg-qira-pistachio px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk">
+                <button onClick={() => openTaskModal()} className="inline-flex min-w-[160px] flex-1 items-center justify-center gap-1.5 rounded-2xl bg-qira-pistachio px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk sm:flex-none">
                   <Plus size={15} />
                   {t('backlog.createIssue')}
                 </button>
                 {canCollaborate && (
                   <>
-                    <button onClick={() => openSprintModal()} className="rounded-2xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">{t('backlog.createSprint')}</button>
-                    <button onClick={() => setShowEpicModal(true)} className="rounded-2xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">{t('backlog.createEpic')}</button>
+                    <button onClick={() => openSprintModal()} className="min-w-[148px] flex-1 rounded-2xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:flex-none">{t('backlog.createSprint')}</button>
+                    <button onClick={() => setShowEpicModal(true)} className="min-w-[148px] flex-1 rounded-2xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:flex-none">{t('backlog.createEpic')}</button>
                   </>
                 )}
               </div>
             </section>
 
-            <div className="grid min-h-0 flex-1 gap-4 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
+            <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] xl:gap-4">
               <section className="min-h-0 space-y-4">
-                <div className="rounded-[28px] bg-white p-5 shadow-sm">
+                <div className="rounded-[24px] bg-white p-4 shadow-sm">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h2 className="text-lg font-semibold text-slate-900">{t('backlog.epicHierarchy')}</h2>
@@ -557,7 +557,7 @@ export function BacklogView() {
               </section>
 
               <div className="min-h-0 space-y-4">
-                <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+                <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
                     <div>
                       <h2 className="text-lg font-semibold text-slate-900">{t('backlog.standaloneSprints')}</h2>
@@ -589,7 +589,7 @@ export function BacklogView() {
                   </div>
                 </section>
 
-                <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+                <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
                   <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                     <div>
                       <h2 className="text-lg font-semibold text-slate-900">{t('backlog.unplanned')}</h2>

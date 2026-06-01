@@ -29,14 +29,14 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
   return (
     <>
     <aside className={[
-      'flex w-[252px] flex-shrink-0 flex-col border-r border-slate-200 bg-white',
+      'flex w-[228px] flex-shrink-0 flex-col border-r border-slate-200 bg-white xl:w-[236px]',
       // Mobile: fixed slide-in overlay
       'fixed inset-y-0 left-0 z-40 transition-transform duration-300 ease-out',
       open ? 'translate-x-0' : '-translate-x-full',
       // Desktop: static, always visible, no animation
       'lg:static lg:z-auto lg:translate-x-0 lg:transition-none',
     ].join(' ')}>
-      <div className="border-b border-slate-200 px-4 py-4">
+      <div className="border-b border-slate-200 px-3.5 py-3.5 xl:px-4 xl:py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-qira-pistachio text-sm font-bold text-white shadow-sm">
             Q
@@ -59,7 +59,7 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
         </div>
       </div>
 
-      <nav className="p-2.5">
+      <nav className="p-2">
         {NAV_ITEMS.map(({ to, key, Icon }) => (
           <NavLink
             key={to}
@@ -78,7 +78,7 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
         ))}
       </nav>
 
-      <div className="min-h-0 flex-1 overflow-y-auto border-t border-slate-200 px-3 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto border-t border-slate-200 px-2.5 py-3">
         <div className="mb-2 flex items-center justify-between px-2">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('project.all')}</p>
           <button
@@ -124,7 +124,7 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
         </div>
       </div>
 
-      <div className="p-2.5">
+      <div className="p-2">
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
             {t('project.current')}

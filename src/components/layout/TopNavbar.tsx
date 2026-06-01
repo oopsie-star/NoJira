@@ -34,7 +34,7 @@ function ProjectSwitcher() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((value) => !value)}
-        className="flex min-w-0 max-w-[58vw] items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-left text-white transition hover:bg-white/15 sm:max-w-none sm:min-w-[200px] sm:gap-3 sm:rounded-xl"
+        className="flex min-w-0 max-w-[52vw] items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-left text-white transition hover:bg-white/15 sm:max-w-none sm:min-w-[176px] sm:gap-3 sm:rounded-xl xl:min-w-[200px]"
       >
         <div className="min-w-0">
           <p className="hidden text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70 sm:block">{t('project.current')}</p>
@@ -220,7 +220,7 @@ function HeaderMenu() {
         className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-2.5 py-1.5 text-white transition hover:bg-white/15"
       >
         <UserAvatar profile={profile} size={30} />
-        <div className="hidden text-left md:block">
+        <div className="hidden text-left xl:block">
           <p className="text-sm font-medium leading-none">{profile.full_name || profile.email}</p>
           <p className="mt-1 text-xs text-white/70">{t(`role.${profile.role}`)}</p>
         </div>
@@ -294,7 +294,7 @@ export function TopNavbar({ onToggleSidebar }: { onToggleSidebar: () => void }) 
 
   return (
     <>
-      <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-qira-anthracite px-3 shadow-sm sm:h-14 sm:px-4">
+      <header className="flex h-14 items-center justify-between border-b border-slate-200 bg-qira-anthracite px-2.5 shadow-sm sm:px-3 lg:px-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Hamburger — mobile only */}
           <button
@@ -312,8 +312,8 @@ export function TopNavbar({ onToggleSidebar }: { onToggleSidebar: () => void }) 
           <ProjectSwitcher />
         </div>
 
-        <div className="flex flex-shrink-0 items-center gap-1.5 sm:gap-2">
-          <div className="hidden items-center -space-x-2 lg:flex">
+        <div className="flex flex-shrink-0 items-center gap-1 sm:gap-1.5 lg:gap-2">
+          <div className="hidden items-center -space-x-2 xl:flex">
             {projectMembers.slice(0, 5).map((member) => (
               <UserAvatar key={member.id} profile={member.profile ?? null} size={30} muted={!member.profile} />
             ))}
@@ -328,7 +328,7 @@ export function TopNavbar({ onToggleSidebar }: { onToggleSidebar: () => void }) 
 
           <button
             onClick={() => setProjectOpen(true)}
-            className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/15 md:inline-flex"
+            className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/15 xl:inline-flex"
           >
             <FolderPlus size={16} />
             {t('project.create')}
@@ -341,7 +341,7 @@ export function TopNavbar({ onToggleSidebar }: { onToggleSidebar: () => void }) 
               className="inline-flex items-center justify-center gap-2 rounded-full bg-white p-2.5 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-100 sm:rounded-xl sm:px-3 sm:py-2"
             >
               <Plus size={18} />
-              <span className="hidden sm:inline">{t('nav.create')}</span>
+              <span className="hidden lg:inline">{t('nav.create')}</span>
             </button>
           )}
           <HeaderMenu />
