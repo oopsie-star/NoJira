@@ -1,41 +1,68 @@
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, Plus, ShieldAlert, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
 import { Droppable } from '@hello-pangea/dnd'
 import { BacklogRow } from './BacklogRow'
+import { BacklogStatusSummary } from './BacklogStatusSummary'
+import { SectionMenu, type SectionMenuItem } from './SectionMenu'
 import { CreateTaskModal } from '@/components/task/CreateTaskModal'
 import { useAuthContext } from '@/auth/AuthContext'
+import { formatDate } from '@/lib/format'
 import { useI18n } from '@/lib/i18n'
 import { canManageProject } from '@/lib/permissions'
 import { useStore } from '@/store'
-import type { Sprint, Task } from '@/types'
+import type { Sprint, Task, TaskStatus } from '@/types'
 
 interface SprintContainerProps {
   sprint: Sprint
   tasks: Task[]
+  mobile?: boolean
+  defaultCollapsed?: boolean
 }
 
-export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
+function getStatusCounts(tasks: Task[]): Record<TaskStatus, number> {
+  return tasks.reduce<Record<TaskStatus, number>>(
+    (counts, task) => {
+      counts[task.status] += 1
+      return counts
+    },
+    { todo: 0, in_progress: 0, done: 0 }
+  )
+}
+
+export function SprintContainer({
+  sprint,
+  tasks,
+  mobile = false,
+  defaultCollapsed = false,
+}: SprintContainerProps) {
   const { profile } = useAuthContext()
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
   const epics = useStore((state) => state.epics)
-  const updateSprint = useStore((state) => state.updateSprint)
   const startSprint = useStore((state) => state.startSprint)
   const completeSprint = useStore((state) => state.completeSprint)
   const deleteSprint = useStore((state) => state.deleteSprint)
   const requestEntityDeletion = useStore((state) => state.requestEntityDeletion)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const [showCreate, setShowCreate] = useState(false)
   const [requestingDelete, setRequestingDelete] = useState(false)
   const [deletingSprint, setDeletingSprint] = useState(false)
 
-  const doneCount = useMemo(
-    () => tasks.filter((task) => task.status === 'done').length,
-    [tasks]
+  const epic = useMemo(
+    () => (sprint.epic_id ? epics.find((item) => item.id === sprint.epic_id) ?? null : null),
+    [epics, sprint.epic_id]
   )
-  const progress = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0
+  const statusCounts = useMemo(() => getStatusCounts(tasks), [tasks])
   const canManageSprint = canManageProject(activeProjectRole)
   const isSuperAdmin = profile?.role === 'admin'
+
+  const dateLabel = useMemo(() => {
+    if (!sprint.start_date && !sprint.end_date) return null
+    if (sprint.start_date && sprint.end_date) {
+      return `${formatDate(locale, sprint.start_date)} - ${formatDate(locale, sprint.end_date)}`
+    }
+    return sprint.start_date ? formatDate(locale, sprint.start_date) : formatDate(locale, sprint.end_date)
+  }, [locale, sprint.end_date, sprint.start_date])
 
   async function handleDeleteSprint() {
     if (!window.confirm(t('backlog.deleteSprintConfirm', { name: sprint.name }))) return
@@ -56,138 +83,123 @@ export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
     }
   }
 
+  const actionItems: SectionMenuItem[] = [
+    { label: t('backlog.createIssue'), onSelect: () => setShowCreate(true) },
+    ...(canManageSprint && sprint.status === 'planned'
+      ? [{ label: t('backlog.startSprint'), onSelect: () => startSprint(sprint.id) }]
+      : []),
+    ...(canManageSprint && sprint.status === 'active'
+      ? [{ label: t('backlog.completeSprint'), onSelect: () => completeSprint(sprint.id) }]
+      : []),
+    isSuperAdmin
+      ? {
+          label: t('backlog.deleteSprint'),
+          onSelect: handleDeleteSprint,
+          danger: true,
+          disabled: deletingSprint,
+        }
+      : {
+          label: requestingDelete ? t('backlog.deletionRequestSending') : t('backlog.requestDelete'),
+          onSelect: handleRequestDeleteSprint,
+          disabled: requestingDelete,
+        },
+  ]
+
   return (
     <>
-      <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-start gap-3 border-b border-slate-200 px-5 py-3.5">
-          <button
-            onClick={() => setCollapsed((value) => !value)}
-            className="mt-1 rounded-xl p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-          >
-            {collapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
-          </button>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-semibold text-slate-900">{sprint.name}</h2>
-              <span className={[
-                'rounded-full px-2.5 py-1 text-xs font-semibold',
-                sprint.status === 'active'
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : sprint.status === 'completed'
-                    ? 'bg-slate-200 text-slate-600'
-                    : 'bg-blue-100 text-qira-pistachio',
-              ].join(' ')}>
-                {t(`common.status.${sprint.status}`)}
-              </span>
-              {sprint.epic_id && (
-                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
-                  {epics.find((epic) => epic.id === sprint.epic_id)?.title ?? t('task.epic')}
-                </span>
-              )}
-              <span className="text-sm text-slate-500">{t('backlog.issueCount', { count: tasks.length })}</span>
-            </div>
-            {sprint.goal && (
-              <p className="mt-2 break-words text-sm text-slate-500">
-                <span className="font-semibold text-slate-700">{t('backlog.goal')}:</span> {sprint.goal}
-              </p>
-            )}
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <div className="h-2 w-full max-w-44 overflow-hidden rounded-full bg-slate-200">
-                <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
-              </div>
-              <span className="text-sm text-slate-500">{t('backlog.progress')}: {progress}%</span>
-            </div>
-            {canManageSprint && (
-              <div className="mt-3 max-w-sm">
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  {t('backlog.parentEpic')}
-                </label>
-                <select
-                  value={sprint.epic_id ?? ''}
-                  onChange={(event) => void updateSprint(sprint.id, { epic_id: event.target.value || null })}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
-                >
-                  <option value="">{t('common.none')}</option>
-                  {epics.map((epic) => (
-                    <option key={epic.id} value={epic.id}>
-                      {epic.key} — {epic.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-          <div className="ml-auto flex flex-wrap items-center gap-2">
+      <section className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-3 py-3 sm:px-4">
+          <div className="flex items-start gap-3">
             <button
-              onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              type="button"
+              onClick={() => setCollapsed((value) => !value)}
+              className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+              aria-label={collapsed ? t('backlog.expandSection') : t('backlog.collapseSection')}
             >
-              <Plus size={16} />
-              {t('backlog.createIssue')}
+              {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
             </button>
 
-            {canManageSprint && sprint.status === 'planned' && (
-              <button
-                onClick={() => startSprint(sprint.id)}
-                className="rounded-xl bg-qira-pistachio px-3 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
-              >
-                {t('backlog.startSprint')}
-              </button>
-            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-base">{sprint.name}</h2>
+                <span className={[
+                  'rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                  sprint.status === 'active'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : sprint.status === 'completed'
+                      ? 'bg-slate-200 text-slate-600'
+                      : 'bg-blue-100 text-qira-pistachio',
+                ].join(' ')}>
+                  {t(`common.status.${sprint.status}`)}
+                </span>
+                {epic && (
+                  <span
+                    className="truncate rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                    style={{ backgroundColor: `${epic.color}20`, color: epic.color }}
+                  >
+                    {epic.title}
+                  </span>
+                )}
+                <span className="text-xs text-slate-500">{t('backlog.issueCount', { count: tasks.length })}</span>
+              </div>
 
-            {canManageSprint && sprint.status === 'active' && (
-              <button
-                onClick={() => completeSprint(sprint.id)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-              >
-                {t('backlog.completeSprint')}
-              </button>
-            )}
+              {(dateLabel || sprint.goal) && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                  {dateLabel && <span>{dateLabel}</span>}
+                  {sprint.goal && <span className="line-clamp-1">{sprint.goal}</span>}
+                </div>
+              )}
+            </div>
 
-            {isSuperAdmin ? (
-              <button
-                type="button"
-                onClick={() => void handleDeleteSprint()}
-                disabled={deletingSprint}
-                className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
-              >
-                <Trash2 size={15} />
-                {t('backlog.deleteSprint')}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleRequestDeleteSprint()}
-                disabled={requestingDelete}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
-              >
-                <ShieldAlert size={15} />
-                {requestingDelete ? t('backlog.deletionRequestSending') : t('backlog.requestDelete')}
-              </button>
-            )}
+            <div className="flex shrink-0 items-center gap-2">
+              <BacklogStatusSummary counts={statusCounts} />
+              <SectionMenu items={actionItems} label={t('backlog.moreActions')} />
+            </div>
           </div>
         </div>
 
         {!collapsed && (
-          <Droppable droppableId={`sprint-${sprint.id}`} type="BACKLOG_TASK">
-            {(provided, snapshot) => (
-              <div
-                ref={provided.innerRef}
-                {...provided.droppableProps}
-                className={[
-                  'space-y-3 p-3',
-                  snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/40' : 'bg-white',
-                ].join(' ')}
+          <>
+            <Droppable droppableId={`sprint-${sprint.id}`} type="BACKLOG_TASK">
+              {(provided, snapshot) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                  className={[
+                    'space-y-2 p-2 sm:p-3',
+                    snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/30' : 'bg-white',
+                  ].join(' ')}
+                >
+                  {tasks.length === 0 && (
+                    <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-sm text-slate-500">
+                      {t('backlog.noSprintTasks')}
+                    </p>
+                  )}
+                  {tasks.map((task, index) => (
+                    <BacklogRow
+                      key={task.id}
+                      task={task}
+                      index={index}
+                      mobile={mobile}
+                      dragDisabled={mobile}
+                    />
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+
+            <div className="border-t border-slate-200 px-2 py-2 sm:px-3">
+              <button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                className="inline-flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
               >
-                {tasks.map((task, index) => (
-                  <BacklogRow key={task.id} task={task} index={index} />
-                ))}
-                {provided.placeholder}
-              </div>
-            )}
-          </Droppable>
+                <Plus size={15} />
+                {t('backlog.createIssue')}
+              </button>
+            </div>
+          </>
         )}
       </section>
 

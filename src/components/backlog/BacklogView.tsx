@@ -1,14 +1,57 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { DragDropContext, Droppable, type DropResult } from '@hello-pangea/dnd'
-import { Plus, ShieldAlert, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
 import { BacklogRow } from './BacklogRow'
+import { BacklogStatusSummary } from './BacklogStatusSummary'
+import { SectionMenu, type SectionMenuItem } from './SectionMenu'
 import { SprintContainer } from './SprintContainer'
+import { UserAvatar } from '@/components/common/UserAvatar'
 import { CreateTaskModal } from '@/components/task/CreateTaskModal'
 import { useAuthContext } from '@/auth/AuthContext'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
-import { EPIC_COLORS, EPIC_STATUS_OPTIONS, type Epic, type Sprint, type Task } from '@/types'
+import { isTaskBlocked } from '@/lib/ops'
+import { EPIC_COLORS, EPIC_STATUS_OPTIONS, type Epic, type Profile, type Sprint, type Task, type TaskStatus } from '@/types'
 import { useStore } from '@/store'
+
+const DUE_SOON_MS = 3 * 24 * 60 * 60 * 1000
+
+type QuickFilterId = 'mine' | 'blocked' | 'bugs' | 'high' | 'dueSoon' | 'unassigned'
+
+function getStatusCounts(tasks: Task[]): Record<TaskStatus, number> {
+  return tasks.reduce<Record<TaskStatus, number>>(
+    (counts, task) => {
+      counts[task.status] += 1
+      return counts
+    },
+    { todo: 0, in_progress: 0, done: 0 }
+  )
+}
+
+function useIsMobileViewport() {
+  const [isMobile, setIsMobile] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  ))
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+
+    const mediaQuery = window.matchMedia('(max-width: 767px)')
+    const update = (event?: MediaQueryListEvent) => setIsMobile(event ? event.matches : mediaQuery.matches)
+
+    update()
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', update)
+      return () => mediaQuery.removeEventListener('change', update)
+    }
+
+    mediaQuery.addListener(update)
+    return () => mediaQuery.removeListener(update)
+  }, [])
+
+  return isMobile
+}
 
 function CreateSprintModal({
   initialEpicId,
@@ -165,261 +208,328 @@ function CreateEpicModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-function EpicSection({
-  epic,
-  tasks,
-  sprints,
-  canEdit,
-  onCreateTask,
-  onCreateSprint,
-}: {
-  epic: Epic
-  tasks: Task[]
-  sprints: Sprint[]
-  canEdit: boolean
-  onCreateTask: (initialValues?: Partial<Task>) => void
-  onCreateSprint: (epicId: string) => void
-}) {
-  const { profile } = useAuthContext()
+interface QuickFilterOption {
+  id: QuickFilterId
+  label: string
+}
+
+interface FiltersSheetProps {
+  open: boolean
+  onClose: () => void
+  epicFilter: string
+  assigneeFilter: string
+  setEpicFilter: (value: string) => void
+  setAssigneeFilter: (value: string) => void
+  quickFilters: QuickFilterId[]
+  toggleQuickFilter: (value: QuickFilterId) => void
+  clearFilters: () => void
+  epics: Epic[]
+  members: Profile[]
+  quickFilterOptions: QuickFilterOption[]
+}
+
+function FiltersSheet({
+  open,
+  onClose,
+  epicFilter,
+  assigneeFilter,
+  setEpicFilter,
+  setAssigneeFilter,
+  quickFilters,
+  toggleQuickFilter,
+  clearFilters,
+  epics,
+  members,
+  quickFilterOptions,
+}: FiltersSheetProps) {
   const { t } = useI18n()
-  const updateEpic = useStore((state) => state.updateEpic)
-  const deleteEpic = useStore((state) => state.deleteEpic)
-  const requestEntityDeletion = useStore((state) => state.requestEntityDeletion)
-  const [requestingDelete, setRequestingDelete] = useState(false)
-  const [deletingEpic, setDeletingEpic] = useState(false)
 
-  const epicSprints = useMemo(
-    () => sprints.filter((sprint) => sprint.epic_id === epic.id),
-    [epic.id, sprints]
-  )
-  const sprintIdSet = useMemo(
-    () => new Set(epicSprints.map((sprint) => sprint.id)),
-    [epicSprints]
-  )
-  const directTasks = useMemo(
-    () => tasks.filter((task) => task.epic_id === epic.id && !task.sprint_id),
-    [epic.id, tasks]
-  )
-  const nestedSprintTasks = useMemo(
-    () => tasks.filter((task) => task.sprint_id && sprintIdSet.has(task.sprint_id)),
-    [sprintIdSet, tasks]
-  )
-  const allEpicTasks = useMemo(
-    () => [...directTasks, ...nestedSprintTasks],
-    [directTasks, nestedSprintTasks]
-  )
-  const progress = allEpicTasks.length
-    ? Math.round((allEpicTasks.filter((task) => task.status === 'done').length / allEpicTasks.length) * 100)
-    : 0
-  const isSuperAdmin = profile?.role === 'admin'
-
-  async function handleDeleteEpic() {
-    if (!window.confirm(t('backlog.deleteEpicConfirm', { name: epic.title }))) return
-    setDeletingEpic(true)
-    try {
-      await deleteEpic(epic.id)
-    } finally {
-      setDeletingEpic(false)
-    }
-  }
-
-  async function handleRequestDeleteEpic() {
-    setRequestingDelete(true)
-    try {
-      await requestEntityDeletion('epic', epic.id, `${epic.key} — ${epic.title}`)
-    } finally {
-      setRequestingDelete(false)
-    }
-  }
+  if (!open) return null
 
   return (
-    <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: epic.color }} />
-              <h2 className="min-w-0 break-words text-lg font-semibold text-slate-900">{epic.title}</h2>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{epic.key}</span>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                {t('backlog.issueCount', { count: allEpicTasks.length })}
-              </span>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                {t('backlog.sprintCount', { count: epicSprints.length })}
-              </span>
-            </div>
-            {epic.description && (
-              <p className="mt-2 break-words text-sm text-slate-500">{epic.description}</p>
-            )}
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <div className="h-2 w-full max-w-48 overflow-hidden rounded-full bg-slate-200">
-                <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, backgroundColor: epic.color }} />
-              </div>
-              <span className="text-sm text-slate-500">{t('backlog.progress')}: {progress}%</span>
-            </div>
+    <>
+      <div className="fixed inset-0 z-[70] bg-slate-950/35" onClick={onClose} />
+      <div className="fixed inset-x-0 bottom-0 z-[80] rounded-t-[28px] bg-white px-4 pb-4 pt-3 shadow-2xl md:left-1/2 md:top-1/2 md:w-full md:max-w-xl md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-[28px] md:px-6 md:pb-6 md:pt-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">{t('backlog.filters')}</h3>
+            <p className="text-sm text-slate-500">{t('board.quickFilters')}</p>
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            aria-label={t('backlog.closeFilters')}
+          >
+            <X size={16} />
+          </button>
+        </div>
 
-          <div className="grid w-full gap-2 sm:grid-cols-2 xl:w-[272px] xl:grid-cols-1">
+        <div className="mt-5 space-y-4">
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('board.epicFilter')}</label>
             <select
-              value={epic.status}
-              disabled={!canEdit}
-              onChange={(event) => void updateEpic(epic.id, { status: event.target.value as Epic['status'] })}
-              className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio disabled:bg-slate-50"
+              value={epicFilter}
+              onChange={(event) => setEpicFilter(event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
             >
-              {EPIC_STATUS_OPTIONS.map((status) => (
-                <option key={status} value={status}>{t(`common.status.${status === 'done' ? 'completed' : status}`)}</option>
+              <option value="">{t('board.epicFilter')} — {t('common.all')}</option>
+              {epics.map((epic) => (
+                <option key={epic.id} value={epic.id}>{epic.title}</option>
               ))}
             </select>
-            {canEdit && (
-              <>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('board.assigneeFilter')}</label>
+            <select
+              value={assigneeFilter}
+              onChange={(event) => setAssigneeFilter(event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
+            >
+              <option value="">{t('board.assigneeFilter')} — {t('common.all')}</option>
+              {members.map((member) => (
+                <option key={member.id} value={member.id}>{member.full_name || member.email}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('board.quickFilters')}</label>
+            <div className="flex flex-wrap gap-2">
+              {quickFilterOptions.map((filter) => (
                 <button
+                  key={filter.id}
                   type="button"
-                  onClick={() => onCreateTask({ epic_id: epic.id })}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  onClick={() => toggleQuickFilter(filter.id)}
+                  className={[
+                    'rounded-full px-3 py-1.5 text-xs font-semibold transition',
+                    quickFilters.includes(filter.id) ? 'bg-qira-pistachio text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+                  ].join(' ')}
                 >
-                  <Plus size={15} />
-                  {t('backlog.createIssue')}
+                  {filter.label}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => onCreateSprint(epic.id)}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-3 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
-                >
-                  <Plus size={15} />
-                  {t('backlog.createSprintInEpic')}
-                </button>
-              </>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+          >
+            {t('board.quick.clear')}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl bg-qira-pistachio px-4 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
+          >
+            {t('backlog.done')}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+interface TaskListSectionProps {
+  sectionKey: string
+  title: string
+  subtitle?: string
+  itemCount: number
+  statusCounts: Record<TaskStatus, number>
+  tasks: Task[]
+  droppableId: string
+  emptyLabel: string
+  createLabel: string
+  onCreate: () => void
+  actions?: SectionMenuItem[]
+  mobile?: boolean
+  defaultCollapsed?: boolean
+  titleBadges?: ReactNode
+  headerControl?: ReactNode
+}
+
+function TaskListSection({
+  sectionKey,
+  title,
+  subtitle,
+  itemCount,
+  statusCounts,
+  tasks,
+  droppableId,
+  emptyLabel,
+  createLabel,
+  onCreate,
+  actions = [],
+  mobile = false,
+  defaultCollapsed = false,
+  titleBadges,
+  headerControl,
+}: TaskListSectionProps) {
+  const { t } = useI18n()
+  const [collapsed, setCollapsed] = useState(defaultCollapsed)
+
+  return (
+    <section key={sectionKey} className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 px-3 py-3 sm:px-4">
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={() => setCollapsed((value) => !value)}
+            className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            aria-label={collapsed ? t('backlog.expandSection') : t('backlog.collapseSection')}
+          >
+            {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+          </button>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-base">{title}</h2>
+              {titleBadges}
+              <span className="text-xs text-slate-500">{t('backlog.issueCount', { count: itemCount })}</span>
+            </div>
+            {subtitle && (
+              <p className="mt-1.5 text-xs text-slate-500">{subtitle}</p>
             )}
-            {isSuperAdmin ? (
-              <button
-                type="button"
-                onClick={() => void handleDeleteEpic()}
-                disabled={deletingEpic}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-200 px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
-              >
-                <Trash2 size={15} />
-                {t('backlog.deleteEpic')}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleRequestDeleteEpic()}
-                disabled={requestingDelete}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
-              >
-                <ShieldAlert size={15} />
-                {requestingDelete ? t('backlog.deletionRequestSending') : t('backlog.requestDelete')}
-              </button>
-            )}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <BacklogStatusSummary counts={statusCounts} />
+            {headerControl}
+            <SectionMenu items={actions} label={t('backlog.moreActions')} />
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-        <div className="rounded-[24px] bg-slate-50 p-3">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">{t('backlog.directEpicTasks')}</h3>
-              <p className="mt-1 text-sm text-slate-500">{t('backlog.issueCount', { count: directTasks.length })}</p>
-            </div>
-            {canEdit && (
-              <button
-                type="button"
-                onClick={() => onCreateTask({ epic_id: epic.id })}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white"
-              >
-                {t('backlog.createIssue')}
-              </button>
-            )}
-          </div>
-
-          <Droppable droppableId={`epic-${epic.id}`} type="BACKLOG_TASK">
+      {!collapsed && (
+        <>
+          <Droppable droppableId={droppableId} type="BACKLOG_TASK">
             {(provided, snapshot) => (
               <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
                 className={[
-                  'min-h-[120px] space-y-3 rounded-[20px] border border-dashed border-slate-200 p-3 transition',
-                  snapshot.isDraggingOver ? 'border-qira-pistachio bg-qira-pistachio-lt/30' : 'bg-white',
+                  'space-y-2 p-2 sm:p-3',
+                  snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/30' : 'bg-white',
                 ].join(' ')}
               >
-                {directTasks.length === 0 && (
-                  <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">{t('backlog.noDirectEpicTasks')}</p>
+                {tasks.length === 0 && (
+                  <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-sm text-slate-500">
+                    {emptyLabel}
+                  </p>
                 )}
-                {directTasks.map((task, index) => (
-                  <BacklogRow key={task.id} task={task} index={index} />
+                {tasks.map((task, index) => (
+                  <BacklogRow
+                    key={task.id}
+                    task={task}
+                    index={index}
+                    mobile={mobile}
+                    dragDisabled={mobile}
+                  />
                 ))}
                 {provided.placeholder}
               </div>
             )}
           </Droppable>
-        </div>
 
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">{t('backlog.epicSprints')}</h3>
-              <p className="mt-1 text-sm text-slate-500">{t('backlog.sprintCount', { count: epicSprints.length })}</p>
-            </div>
-            {canEdit && (
-              <button
-                type="button"
-                onClick={() => onCreateSprint(epic.id)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-              >
-                {t('backlog.createSprintInEpic')}
-              </button>
-            )}
+          <div className="border-t border-slate-200 px-2 py-2 sm:px-3">
+            <button
+              type="button"
+              onClick={onCreate}
+              className="inline-flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+            >
+              <Plus size={15} />
+              {createLabel}
+            </button>
           </div>
-
-          {epicSprints.length === 0 ? (
-            <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">{t('backlog.noEpicSprints')}</p>
-          ) : (
-            epicSprints.map((sprint) => (
-              <SprintContainer
-                key={sprint.id}
-                sprint={sprint}
-                tasks={tasks.filter((task) => task.sprint_id === sprint.id)}
-              />
-            ))
-          )}
-        </div>
-      </div>
+        </>
+      )}
     </section>
   )
 }
 
 export function BacklogView() {
+  const { profile } = useAuthContext()
   const { t } = useI18n()
   const tasks = useStore((state) => state.tasks)
   const sprints = useStore((state) => state.sprints)
   const epics = useStore((state) => state.epics)
+  const members = useStore((state) => state.members)
+  const taskLinks = useStore((state) => state.taskLinks)
   const updateTask = useStore((state) => state.updateTask)
+  const updateEpic = useStore((state) => state.updateEpic)
+  const deleteEpic = useStore((state) => state.deleteEpic)
+  const requestEntityDeletion = useStore((state) => state.requestEntityDeletion)
   const activeProjectId = useStore((state) => state.activeProjectId)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
+  const profileId = useStore((state) => state.profile?.id ?? null)
 
   const [search, setSearch] = useState('')
+  const [epicFilter, setEpicFilter] = useState('')
+  const [assigneeFilter, setAssigneeFilter] = useState('')
+  const [quickFilters, setQuickFilters] = useState<QuickFilterId[]>([])
+  const [showFilters, setShowFilters] = useState(false)
   const [showSprintModal, setShowSprintModal] = useState(false)
   const [showEpicModal, setShowEpicModal] = useState(false)
   const [showCreateTask, setShowCreateTask] = useState(false)
   const [taskSeed, setTaskSeed] = useState<Partial<Task> | null>(null)
   const [sprintSeedEpicId, setSprintSeedEpicId] = useState<string | null>(null)
+  const isMobile = useIsMobileViewport()
 
   const canCollaborate = Boolean(activeProjectRole)
+  const isSuperAdmin = profile?.role === 'admin'
 
-  const filteredTasks = useMemo(() => {
+  const quickFilterMap = useMemo(() => ({
+    mine: (task: Task) => Boolean(profileId && task.assignee_id === profileId),
+    blocked: (task: Task) => isTaskBlocked(task.id, taskLinks, tasks),
+    bugs: (task: Task) => task.issue_type === 'bug',
+    high: (task: Task) => task.priority === 'high' || task.priority === 'highest',
+    dueSoon: (task: Task) => Boolean(
+      task.due_date
+      && task.status !== 'done'
+      && new Date(task.due_date).getTime() - Date.now() <= DUE_SOON_MS
+    ),
+    unassigned: (task: Task) => !task.assignee_id,
+  }), [profileId, taskLinks, tasks])
+
+  const quickFilterOptions = useMemo<QuickFilterOption[]>(() => ([
+    { id: 'mine', label: t('board.quick.me') },
+    { id: 'blocked', label: t('board.quick.blocked') },
+    { id: 'bugs', label: t('board.quick.bugs') },
+    { id: 'high', label: t('board.quick.high') },
+    { id: 'dueSoon', label: t('board.quick.dueSoon') },
+    { id: 'unassigned', label: t('board.quick.unassigned') },
+  ]), [t])
+
+  const rootTasks = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return !query
-      ? tasks
-      : tasks.filter((task) =>
-          [task.key, task.title, task.description, ...task.labels].join(' ').toLowerCase().includes(query)
-        )
-  }, [tasks, search])
+    const activeQuickFilters = quickFilters
+      .map((filterId) => quickFilterMap[filterId])
+      .filter(Boolean)
 
-  const rootTasks = useMemo(
-    () => filteredTasks.filter((task) => !task.parent_task_id).sort((left, right) => left.position - right.position),
-    [filteredTasks]
-  )
+    return tasks
+      .filter((task) => {
+        if (task.parent_task_id) return false
+
+        const matchesQuery = !query || [
+          task.key,
+          task.title,
+          task.description,
+          ...task.labels,
+        ].join(' ').toLowerCase().includes(query)
+
+        const matchesEpic = !epicFilter || task.epic_id === epicFilter
+        const matchesAssignee = !assigneeFilter || task.assignee_id === assigneeFilter
+        const matchesQuickFilters = activeQuickFilters.every((predicate) => predicate(task))
+
+        return matchesQuery && matchesEpic && matchesAssignee && matchesQuickFilters
+      })
+      .sort((left, right) => left.position - right.position)
+  }, [assigneeFilter, epicFilter, quickFilterMap, quickFilters, search, tasks])
 
   const sortedEpics = useMemo(
     () => epics.slice().sort((left, right) => left.created_at.localeCompare(right.created_at)),
@@ -427,19 +537,76 @@ export function BacklogView() {
   )
 
   const sortedSprints = useMemo(
-    () => sprints.slice().sort((left, right) => left.created_at.localeCompare(right.created_at)),
+    () => sprints
+      .slice()
+      .sort((left, right) => {
+        const statusOrder: Record<Sprint['status'], number> = { active: 0, planned: 1, completed: 2 }
+        return statusOrder[left.status] - statusOrder[right.status] || left.created_at.localeCompare(right.created_at)
+      }),
     [sprints]
   )
 
-  const standaloneSprints = useMemo(
-    () => sortedSprints.filter((sprint) => !sprint.epic_id),
-    [sortedSprints]
+  const hasActiveFilters = Boolean(search.trim() || epicFilter || assigneeFilter || quickFilters.length)
+
+  const sprintSections = useMemo(
+    () => sortedSprints
+      .map((sprint) => ({
+        sprint,
+        tasks: rootTasks.filter((task) => task.sprint_id === sprint.id),
+      }))
+      .filter(({ tasks }) => !hasActiveFilters || tasks.length > 0),
+    [hasActiveFilters, rootTasks, sortedSprints]
   )
 
   const backlogTasks = useMemo(
     () => rootTasks.filter((task) => !task.sprint_id && !task.epic_id),
     [rootTasks]
   )
+
+  const epicSections = useMemo(
+    () => sortedEpics
+      .map((epic) => {
+        const directTasks = rootTasks.filter((task) => task.epic_id === epic.id && !task.sprint_id)
+        const linkedSprintCount = sortedSprints.filter((sprint) => sprint.epic_id === epic.id).length
+        return {
+          epic,
+          directTasks,
+          linkedSprintCount,
+          statusCounts: getStatusCounts(directTasks),
+        }
+      })
+      .filter(({ directTasks }) => !hasActiveFilters || directTasks.length > 0),
+    [hasActiveFilters, rootTasks, sortedEpics, sortedSprints]
+  )
+
+  const firstExpandedSectionKey = useMemo(() => {
+    const orderedKeys = [
+      ...sprintSections.map(({ sprint }) => `sprint-${sprint.id}`),
+      'backlog',
+      ...epicSections.map(({ epic }) => `epic-${epic.id}`),
+    ]
+
+    return orderedKeys.find((key) => {
+      if (key === 'backlog') return backlogTasks.length > 0 || orderedKeys.length === 1
+      return true
+    }) ?? 'backlog'
+  }, [backlogTasks.length, epicSections, sprintSections])
+
+  const activeFilterCount = Number(Boolean(epicFilter)) + Number(Boolean(assigneeFilter)) + quickFilters.length
+
+  function toggleQuickFilter(filterId: QuickFilterId) {
+    setQuickFilters((current) => (
+      current.includes(filterId)
+        ? current.filter((value) => value !== filterId)
+        : [...current, filterId]
+    ))
+  }
+
+  function clearFilters() {
+    setEpicFilter('')
+    setAssigneeFilter('')
+    setQuickFilters([])
+  }
 
   function openTaskModal(initialValues?: Partial<Task>) {
     setTaskSeed(initialValues ?? null)
@@ -489,6 +656,18 @@ export function BacklogView() {
     }
   }
 
+  async function handleDeleteEpic(epic: Epic) {
+    if (!window.confirm(t('backlog.deleteEpicConfirm', { name: epic.title }))) return
+    await deleteEpic(epic.id)
+  }
+
+  async function handleRequestDeleteEpic(epic: Epic) {
+    await requestEntityDeletion('epic', epic.id, `${epic.key} — ${epic.title}`)
+  }
+
+  const showGlobalEmptyState = sprintSections.length === 0 && backlogTasks.length === 0 && epicSections.length === 0
+  const memberPreview = members.slice(0, 4)
+
   return (
     <DragDropContext onDragEnd={onDragEnd}>
       <div className="flex min-h-full min-w-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 sm:gap-4 sm:p-4">
@@ -499,130 +678,255 @@ export function BacklogView() {
           </section>
         ) : (
           <>
-            <section className="shrink-0 rounded-[24px] bg-white px-3 py-3 shadow-sm sm:px-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={t('backlog.searchPlaceholder')}
-                  className="min-w-[140px] basis-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio lg:basis-auto lg:flex-1"
-                />
-                <span className="hidden rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600 sm:block">
-                  {t('backlog.issueCount', { count: rootTasks.length })}
-                </span>
-                <button onClick={() => openTaskModal()} className="inline-flex min-w-[160px] flex-1 items-center justify-center gap-1.5 rounded-2xl bg-qira-pistachio px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk sm:flex-none">
-                  <Plus size={15} />
-                  {t('backlog.createIssue')}
-                </button>
-                {canCollaborate && (
-                  <>
-                    <button onClick={() => openSprintModal()} className="min-w-[148px] flex-1 rounded-2xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:flex-none">{t('backlog.createSprint')}</button>
-                    <button onClick={() => setShowEpicModal(true)} className="min-w-[148px] flex-1 rounded-2xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:flex-none">{t('backlog.createEpic')}</button>
-                  </>
-                )}
-              </div>
-            </section>
-
-            <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] xl:gap-4">
-              <section className="min-h-0 space-y-4">
-                <div className="rounded-[24px] bg-white p-4 shadow-sm">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h2 className="text-lg font-semibold text-slate-900">{t('backlog.epicHierarchy')}</h2>
-                      <p className="mt-1 text-sm text-slate-500">{t('backlog.epicHierarchyHint')}</p>
-                    </div>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-                      {sortedEpics.length}
-                    </span>
-                  </div>
-                </div>
-
-                {sortedEpics.length === 0 ? (
-                  <section className="rounded-[28px] bg-white p-8 text-sm text-slate-500 shadow-sm">
-                    {t('backlog.noEpicHierarchy')}
-                  </section>
-                ) : (
-                  sortedEpics.map((epic) => (
-                    <EpicSection
-                      key={epic.id}
-                      epic={epic}
-                      tasks={rootTasks}
-                      sprints={sortedSprints}
-                      canEdit={canCollaborate}
-                      onCreateTask={openTaskModal}
-                      onCreateSprint={openSprintModal}
+            <section className="shrink-0 rounded-[20px] border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-4">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="relative min-w-0 flex-1">
+                    <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder={t('backlog.searchPlaceholder')}
+                      className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                     />
-                  ))
-                )}
-              </section>
+                  </div>
 
-              <div className="min-h-0 space-y-4">
-                <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-                    <div>
-                      <h2 className="text-lg font-semibold text-slate-900">{t('backlog.standaloneSprints')}</h2>
-                      <p className="mt-1 text-sm text-slate-500">{t('backlog.sprintCount', { count: standaloneSprints.length })}</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters(true)}
+                    className="inline-flex h-11 shrink-0 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    <SlidersHorizontal size={16} />
+                    {!isMobile && <span>{t('backlog.filters')}</span>}
+                    {activeFilterCount > 0 && (
+                      <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-slate-900 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <span className="hidden rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 lg:inline-flex">
+                    {t('backlog.issueCount', { count: rootTasks.length })}
+                  </span>
+
+                  {memberPreview.length > 0 && (
+                    <div className="hidden items-center -space-x-2 lg:flex">
+                      {memberPreview.map((member) => (
+                        <div key={member.id} className="rounded-full ring-2 ring-white">
+                          <UserAvatar profile={member} size={30} muted={!member} />
+                        </div>
+                      ))}
+                      {members.length > memberPreview.length && (
+                        <span className="ml-2 inline-flex h-8 min-w-[32px] items-center justify-center rounded-full bg-slate-100 px-2 text-xs font-semibold text-slate-600">
+                          +{members.length - memberPreview.length}
+                        </span>
+                      )}
                     </div>
-                    {canCollaborate && (
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => openTaskModal()}
+                    className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-qira-pistachio px-3 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
+                  >
+                    <Plus size={15} />
+                    <span>{isMobile ? t('common.create') : t('backlog.createIssue')}</span>
+                  </button>
+
+                  {canCollaborate && !isMobile && (
+                    <>
                       <button
                         type="button"
                         onClick={() => openSprintModal()}
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                        className="inline-flex h-11 shrink-0 items-center rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
                       >
                         {t('backlog.createSprint')}
                       </button>
-                    )}
-                  </div>
-
-                  <div className="space-y-4 p-4">
-                    {standaloneSprints.length === 0 ? (
-                      <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">{t('backlog.noStandaloneSprints')}</p>
-                    ) : (
-                      standaloneSprints.map((sprint) => (
-                        <SprintContainer
-                          key={sprint.id}
-                          sprint={sprint}
-                          tasks={rootTasks.filter((task) => task.sprint_id === sprint.id)}
-                        />
-                      ))
-                    )}
-                  </div>
-                </section>
-
-                <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-                  <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                    <div>
-                      <h2 className="text-lg font-semibold text-slate-900">{t('backlog.unplanned')}</h2>
-                      <p className="text-sm text-slate-500">{t('backlog.issueCount', { count: backlogTasks.length })}</p>
-                    </div>
-                  </div>
-
-                  <Droppable droppableId="backlog" type="BACKLOG_TASK">
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        className={[
-                          'space-y-3 p-3',
-                          snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/40' : 'bg-white',
-                        ].join(' ')}
+                      <button
+                        type="button"
+                        onClick={() => setShowEpicModal(true)}
+                        className="inline-flex h-11 shrink-0 items-center rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
                       >
-                        {backlogTasks.length === 0 && (
-                          <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">{t('backlog.noBacklogTasks')}</p>
-                        )}
-                        {backlogTasks.map((task, index) => (
-                          <BacklogRow key={task.id} task={task} index={index} />
-                        ))}
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-                </section>
+                        {t('backlog.createEpic')}
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+                  {isMobile && canCollaborate && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => openSprintModal()}
+                        className="shrink-0 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                      >
+                        {t('backlog.createSprint')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowEpicModal(true)}
+                        className="shrink-0 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                      >
+                        {t('backlog.createEpic')}
+                      </button>
+                    </>
+                  )}
+
+                  {quickFilterOptions.map((filter) => (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      onClick={() => toggleQuickFilter(filter.id)}
+                      className={[
+                        'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition',
+                        quickFilters.includes(filter.id) ? 'bg-qira-pistachio text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+                      ].join(' ')}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                  {quickFilters.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setQuickFilters([])}
+                      className="shrink-0 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700"
+                    >
+                      {t('board.quick.clear')}
+                    </button>
+                  )}
+                </div>
               </div>
+            </section>
+
+            <div className="space-y-3">
+              {showGlobalEmptyState ? (
+                <section className="rounded-[20px] border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500 shadow-sm">
+                  <p>{t('backlog.noVisibleIssues')}</p>
+                  <button
+                    type="button"
+                    onClick={() => openTaskModal()}
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg px-2 py-2 font-medium text-slate-700 transition hover:bg-slate-100"
+                  >
+                    <Plus size={15} />
+                    {t('backlog.createIssue')}
+                  </button>
+                </section>
+              ) : (
+                <>
+                  {sprintSections.map(({ sprint, tasks: sprintTasks }) => (
+                    <SprintContainer
+                      key={sprint.id}
+                      sprint={sprint}
+                      tasks={sprintTasks}
+                      mobile={isMobile}
+                      defaultCollapsed={isMobile && firstExpandedSectionKey !== `sprint-${sprint.id}`}
+                    />
+                  ))}
+
+                  <TaskListSection
+                    sectionKey="backlog"
+                    title={t('backlog.title')}
+                    itemCount={backlogTasks.length}
+                    statusCounts={getStatusCounts(backlogTasks)}
+                    tasks={backlogTasks}
+                    droppableId="backlog"
+                    emptyLabel={t('backlog.noBacklogTasks')}
+                    createLabel={t('backlog.createIssue')}
+                    onCreate={() => openTaskModal()}
+                    actions={[{ label: t('backlog.createIssue'), onSelect: () => openTaskModal() }]}
+                    mobile={isMobile}
+                    defaultCollapsed={isMobile && firstExpandedSectionKey !== 'backlog'}
+                  />
+
+                  {epicSections.map(({ epic, directTasks, linkedSprintCount, statusCounts }) => {
+                    const actions: SectionMenuItem[] = []
+
+                    if (canCollaborate) {
+                      actions.push(
+                        { label: t('backlog.createIssue'), onSelect: () => openTaskModal({ epic_id: epic.id }) },
+                        { label: t('backlog.createSprintInEpic'), onSelect: () => openSprintModal(epic.id) },
+                      )
+                    }
+
+                    if (isSuperAdmin) {
+                      actions.push({
+                        label: t('backlog.deleteEpic'),
+                        onSelect: () => handleDeleteEpic(epic),
+                        danger: true,
+                      })
+                    } else {
+                      actions.push({
+                        label: t('backlog.requestDelete'),
+                        onSelect: () => handleRequestDeleteEpic(epic),
+                      })
+                    }
+
+                    return (
+                      <TaskListSection
+                        key={epic.id}
+                        sectionKey={`epic-${epic.id}`}
+                        title={epic.title}
+                        subtitle={linkedSprintCount > 0 ? t('backlog.linkedSprints', { count: linkedSprintCount }) : undefined}
+                        itemCount={directTasks.length}
+                        statusCounts={statusCounts}
+                        tasks={directTasks}
+                        droppableId={`epic-${epic.id}`}
+                        emptyLabel={t('backlog.noDirectEpicTasks')}
+                        createLabel={t('backlog.createIssue')}
+                        onCreate={() => openTaskModal({ epic_id: epic.id })}
+                        actions={actions}
+                        mobile={isMobile}
+                        defaultCollapsed={isMobile && firstExpandedSectionKey !== `epic-${epic.id}`}
+                        titleBadges={(
+                          <>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                              {epic.key}
+                            </span>
+                            {linkedSprintCount > 0 && (
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                                {t('backlog.sprintCount', { count: linkedSprintCount })}
+                              </span>
+                            )}
+                          </>
+                        )}
+                        headerControl={canCollaborate ? (
+                          <select
+                            value={epic.status}
+                            onChange={(event) => void updateEpic(epic.id, { status: event.target.value as Epic['status'] })}
+                            className="hidden rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 outline-none transition focus:border-qira-pistachio md:block"
+                          >
+                            {EPIC_STATUS_OPTIONS.map((status) => (
+                              <option key={status} value={status}>
+                                {t(`common.status.${status === 'done' ? 'completed' : status}`)}
+                              </option>
+                            ))}
+                          </select>
+                        ) : undefined}
+                      />
+                    )
+                  })}
+                </>
+              )}
             </div>
           </>
         )}
       </div>
+
+      <FiltersSheet
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        epicFilter={epicFilter}
+        assigneeFilter={assigneeFilter}
+        setEpicFilter={setEpicFilter}
+        setAssigneeFilter={setAssigneeFilter}
+        quickFilters={quickFilters}
+        toggleQuickFilter={toggleQuickFilter}
+        clearFilters={clearFilters}
+        epics={sortedEpics}
+        members={members}
+        quickFilterOptions={quickFilterOptions}
+      />
 
       {showSprintModal && <CreateSprintModal initialEpicId={sprintSeedEpicId} onClose={closeSprintModal} />}
       {showEpicModal && <CreateEpicModal onClose={() => setShowEpicModal(false)} />}

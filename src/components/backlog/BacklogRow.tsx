@@ -1,19 +1,33 @@
 import { Draggable } from '@hello-pangea/dnd'
-import { Calendar, CircleAlert, Paperclip } from 'lucide-react'
-import { IssueTypeBadge, PriorityBadge } from '@/components/common/IssueBadges'
+import { AlertTriangle, BookOpenText, Calendar, CheckSquare, CircleAlert, GripVertical, MoreHorizontal, Paperclip } from 'lucide-react'
+import { PriorityBadge, StatusBadge } from '@/components/common/IssueBadges'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
-import { formatStatusAge, isTaskBlocked } from '@/lib/ops'
+import { isTaskBlocked } from '@/lib/ops'
 import { useStore } from '@/store'
-import type { Task } from '@/types'
+import type { IssueType, Task } from '@/types'
 
 interface BacklogRowProps {
   task: Task
   index: number
+  mobile?: boolean
+  dragDisabled?: boolean
 }
 
-export function BacklogRow({ task, index }: BacklogRowProps) {
+const issueTypeClasses: Record<IssueType, string> = {
+  task: 'bg-slate-100 text-slate-700',
+  story: 'bg-indigo-100 text-indigo-700',
+  bug: 'bg-rose-100 text-rose-700',
+}
+
+function IssueTypeIcon({ type }: { type: IssueType }) {
+  if (type === 'story') return <BookOpenText size={14} />
+  if (type === 'bug') return <AlertTriangle size={14} />
+  return <CheckSquare size={14} />
+}
+
+export function BacklogRow({ task, index, mobile = false, dragDisabled = false }: BacklogRowProps) {
   const { locale, t } = useI18n()
   const setOpenTaskId = useStore((state) => state.setOpenTaskId)
   const tasks = useStore((state) => state.tasks)
@@ -21,83 +35,110 @@ export function BacklogRow({ task, index }: BacklogRowProps) {
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
 
   return (
-    <Draggable draggableId={task.id} index={index}>
-      {(provided, snapshot) => (
-        <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          onClick={() => setOpenTaskId(task.id)}
-          className={[
-            'cursor-pointer rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm transition',
-            snapshot.isDragging ? 'shadow-xl ring-2 ring-qira-pistachio/20' : 'hover:bg-slate-50',
-          ].join(' ')}
-        >
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <IssueTypeBadge type={task.issue_type} />
-                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{task.key}</span>
-                <span
-                  className={[
-                    'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
-                    task.status === 'done'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : task.status === 'in_progress'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-slate-100 text-slate-700',
-                  ].join(' ')}
-                >
-                  {t(`status.${task.status}`)}
-                </span>
-                {task.epic && (
-                  <span
-                    className="rounded-full px-2 py-1 text-[11px] font-semibold"
-                    style={{ backgroundColor: `${task.epic.color}20`, color: task.epic.color }}
+    <Draggable draggableId={task.id} index={index} isDragDisabled={dragDisabled}>
+      {(provided, snapshot) => {
+        const dragHandleProps = dragDisabled ? undefined : provided.dragHandleProps
+
+        return (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            className={[
+              'flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition',
+              mobile ? 'min-h-[68px]' : 'min-h-[52px]',
+              snapshot.isDragging ? 'shadow-xl ring-2 ring-qira-pistachio/20' : 'hover:border-slate-300 hover:bg-slate-50/80',
+            ].join(' ')}
+          >
+            <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${issueTypeClasses[task.issue_type]}`}>
+              <IssueTypeIcon type={task.issue_type} />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setOpenTaskId(task.id)}
+              className="min-w-0 flex-1 text-left"
+            >
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                      {task.key}
+                    </span>
+                    {!mobile && task.epic && (
+                      <span
+                        className="truncate rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        style={{ backgroundColor: `${task.epic.color}20`, color: task.epic.color }}
+                      >
+                        {task.epic.title}
+                      </span>
+                    )}
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
+                      {task.title}
+                    </p>
+                  </div>
+
+                  <div className={`mt-1.5 flex flex-wrap items-center gap-2 ${mobile ? '' : 'pr-2'}`}>
+                    {mobile && task.epic && (
+                      <span
+                        className="truncate rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        style={{ backgroundColor: `${task.epic.color}20`, color: task.epic.color }}
+                      >
+                        {task.epic.title}
+                      </span>
+                    )}
+                    <StatusBadge status={task.status} />
+                    <PriorityBadge priority={task.priority} />
+                    {task.due_date && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+                        <Calendar size={11} />
+                        {formatDate(locale, task.due_date)}
+                      </span>
+                    )}
+                    {task.attachments.length > 0 && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+                        <Paperclip size={11} />
+                        {task.attachments.length}
+                      </span>
+                    )}
+                    {blocked && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700">
+                        <CircleAlert size={11} />
+                        {t('board.blocked')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {mobile && (
+                  <div className="flex shrink-0 items-center gap-2">
+                    <UserAvatar profile={task.assignee} size={28} muted={!task.assignee} />
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400">
+                      <MoreHorizontal size={15} />
+                    </span>
+                  </div>
+                )}
+              </div>
+            </button>
+
+            {!mobile && (
+              <div className="flex shrink-0 items-center gap-2 pl-2">
+                <UserAvatar profile={task.assignee} size={28} muted={!task.assignee} />
+                {!dragDisabled && (
+                  <button
+                    type="button"
+                    {...(dragHandleProps ?? {})}
+                    onClick={(event) => event.stopPropagation()}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-slate-400 transition hover:border-slate-200 hover:bg-white hover:text-slate-600"
+                    aria-label={t('backlog.dragIssue')}
                   >
-                    {task.epic.title}
-                  </span>
+                    <GripVertical size={16} />
+                  </button>
                 )}
               </div>
-
-              <p className="mt-3 break-words font-semibold text-slate-900">{task.title}</p>
-
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                <PriorityBadge priority={task.priority} />
-                {task.labels.length > 0 && (
-                  <span className="break-words rounded-full bg-slate-100 px-2.5 py-1">{task.labels.join(', ')}</span>
-                )}
-                <span>{t('board.daysInStatus', { days: formatStatusAge(locale, task) })}</span>
-                {task.due_date && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1">
-                    <Calendar size={12} />
-                    {formatDate(locale, task.due_date)}
-                  </span>
-                )}
-                {task.attachments.length > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1">
-                    <Paperclip size={12} />
-                    {task.attachments.length}
-                  </span>
-                )}
-                {blocked && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 font-semibold text-rose-700">
-                    <CircleAlert size={12} />
-                    {t('board.blocked')}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 lg:pl-4">
-              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
-                {t('task.assignee')}
-              </span>
-              <UserAvatar profile={task.assignee} size={30} muted={!task.assignee} />
-            </div>
+            )}
           </div>
-        </div>
-      )}
+        )
+      }}
     </Draggable>
   )
 }
