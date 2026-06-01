@@ -110,6 +110,7 @@ CREATE TABLE public.task_comments (
   task_id    uuid NOT NULL REFERENCES public.tasks(id) ON DELETE CASCADE,
   author_id  uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   body       text NOT NULL,
+  attachments text[] NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -171,7 +172,7 @@ AS $$
   );
 $$;
 
-CREATE OR REPLACE FUNCTION public.can_override_project_delete(project_uuid uuid)
+CREATE OR REPLACE FUNCTION public.can_invite_to_project(project_uuid uuid)
 RETURNS boolean
 LANGUAGE sql
 STABLE
@@ -179,6 +180,38 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT EXISTS (
+    SELECT 1
+    FROM public.projects p
+    WHERE p.id = project_uuid
+      AND p.created_by = auth.uid()
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.can_delete_project(project_uuid uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.is_admin()
+    OR EXISTS (
+      SELECT 1
+      FROM public.projects p
+      WHERE p.id = project_uuid
+        AND p.created_by = auth.uid()
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION public.can_override_project_delete(project_uuid uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.is_admin()
+    OR EXISTS (
     SELECT 1
     FROM public.project_members pm
     WHERE pm.project_id = project_uuid
@@ -220,6 +253,29 @@ AS $$
     WHERE mine.profile_id = auth.uid()
       AND theirs.profile_id = target_profile
   );
+$$;
+
+CREATE OR REPLACE FUNCTION public.project_attachment_paths(project_uuid uuid)
+RETURNS TABLE(path text)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT DISTINCT attachment_path AS path
+  FROM (
+    SELECT unnest(t.attachments) AS attachment_path
+    FROM public.tasks t
+    WHERE t.project_id = project_uuid
+
+    UNION ALL
+
+    SELECT unnest(tc.attachments) AS attachment_path
+    FROM public.task_comments tc
+    WHERE tc.project_id = project_uuid
+  ) attachment_paths
+  WHERE public.can_delete_project(project_uuid)
+    AND attachment_path <> '';
 $$;
 
 CREATE OR REPLACE FUNCTION set_epic_key()
@@ -279,7 +335,7 @@ DECLARE
   target_profile uuid;
   invite_status text := 'pending';
 BEGIN
-  IF NOT public.can_manage_project(project_uuid) THEN
+  IF NOT public.can_invite_to_project(project_uuid) THEN
     RAISE EXCEPTION 'Not allowed to invite users to this project';
   END IF;
 
@@ -393,22 +449,19 @@ CREATE POLICY profiles_update_admin ON public.profiles
   WITH CHECK (public.is_admin());
 
 CREATE POLICY projects_select ON public.projects
-  FOR SELECT USING (created_by = auth.uid() OR public.is_project_member(id));
+  FOR SELECT USING (public.is_admin() OR created_by = auth.uid() OR public.is_project_member(id));
 
 CREATE POLICY projects_insert ON public.projects
   FOR INSERT WITH CHECK (created_by = auth.uid());
+
+CREATE POLICY projects_delete ON public.projects
+  FOR DELETE USING (public.can_delete_project(id));
 
 CREATE POLICY project_members_select ON public.project_members
   FOR SELECT USING (public.is_project_member(project_id));
 
 CREATE POLICY project_members_insert ON public.project_members
-  FOR INSERT WITH CHECK (
-    (profile_id = auth.uid() AND EXISTS (
-      SELECT 1 FROM public.projects p
-      WHERE p.id = project_id AND p.created_by = auth.uid()
-    ))
-    OR public.can_manage_project(project_id)
-  );
+  FOR INSERT WITH CHECK (public.can_invite_to_project(project_id));
 
 CREATE POLICY project_members_update ON public.project_members
   FOR UPDATE USING (public.can_manage_project(project_id))
@@ -418,17 +471,17 @@ CREATE POLICY project_members_delete ON public.project_members
   FOR DELETE USING (public.can_manage_project(project_id));
 
 CREATE POLICY project_invites_select ON public.project_invites
-  FOR SELECT USING (public.can_manage_project(project_id));
+  FOR SELECT USING (public.can_invite_to_project(project_id));
 
 CREATE POLICY project_invites_insert ON public.project_invites
-  FOR INSERT WITH CHECK (public.can_manage_project(project_id));
+  FOR INSERT WITH CHECK (public.can_invite_to_project(project_id));
 
 CREATE POLICY project_invites_update ON public.project_invites
-  FOR UPDATE USING (public.can_manage_project(project_id))
-  WITH CHECK (public.can_manage_project(project_id));
+  FOR UPDATE USING (public.can_invite_to_project(project_id))
+  WITH CHECK (public.can_invite_to_project(project_id));
 
 CREATE POLICY project_invites_delete ON public.project_invites
-  FOR DELETE USING (public.can_manage_project(project_id));
+  FOR DELETE USING (public.can_invite_to_project(project_id));
 
 CREATE POLICY epics_select ON public.epics
   FOR SELECT USING (public.is_project_member(project_id));
@@ -515,10 +568,23 @@ CREATE POLICY attachments_delete ON storage.objects
     bucket_id = 'attachments'
     AND (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
     AND (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-    AND (storage.foldername(name))[3] ~* '^[0-9a-f-]{36}$'
-    AND public.can_delete_task_content(
-      ((storage.foldername(name))[1])::uuid,
-      ((storage.foldername(name))[2])::uuid,
-      ((storage.foldername(name))[3])::uuid
+    AND (
+      (
+        (storage.foldername(name))[3] ~* '^[0-9a-f-]{36}$'
+        AND public.can_delete_task_content(
+          ((storage.foldername(name))[1])::uuid,
+          ((storage.foldername(name))[2])::uuid,
+          ((storage.foldername(name))[3])::uuid
+        )
+      )
+      OR (
+        (storage.foldername(name))[3] = 'comments'
+        AND (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+        AND public.can_delete_task_content(
+          ((storage.foldername(name))[1])::uuid,
+          ((storage.foldername(name))[2])::uuid,
+          ((storage.foldername(name))[4])::uuid
+        )
+      )
     )
   );

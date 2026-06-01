@@ -168,6 +168,20 @@ function buildProjectKey(name: string, projects: Project[]) {
   return candidate
 }
 
+type ProjectAttachmentPathRow = {
+  path: string | null
+}
+
+function chunkItems<T>(items: T[], size: number) {
+  const chunks: T[][] = []
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size))
+  }
+
+  return chunks
+}
+
 function readStoredActiveProjectId() {
   if (typeof window === 'undefined') return null
   return window.localStorage.getItem(ACTIVE_PROJECT_STORAGE_KEY)
@@ -279,6 +293,7 @@ async function postWebhook(event: WebhookEvent, webhook: ProjectWebhook, payload
 interface AppState {
   profile: Profile | null
   projects: Project[]
+  workspaceProjects: Project[]
   projectMemberships: ProjectMember[]
   projectMembers: ProjectMember[]
   projectInvites: ProjectInvite[]
@@ -306,6 +321,7 @@ interface AppState {
   setActiveSprintId: (id: string | null) => void
   setActiveProjectId: (id: string | null) => void
   fetchProjects: () => Promise<void>
+  fetchWorkspaceProjects: () => Promise<void>
   fetchBoard: (sprintId: string) => Promise<void>
   fetchBacklog: () => Promise<void>
   fetchSprints: () => Promise<void>
@@ -342,6 +358,7 @@ interface AppState {
   deleteEpic: (id: string) => Promise<void>
   updatePortfolioItem: (id: string, fields: Partial<PortfolioItem>) => Promise<void>
   updateAutomationSettings: (fields: Partial<ProjectAutomationSettings>) => Promise<void>
+  deleteProject: (projectId: string) => Promise<void>
   deleteProjectWebhook: (id: string) => Promise<void>
   markNotificationRead: (id: string) => Promise<void>
   markAllNotificationsRead: () => Promise<void>
@@ -387,6 +404,7 @@ export const useStore = create<AppState>((set, get) => {
   return ({
     profile: null,
     projects: [],
+    workspaceProjects: [],
     projectMemberships: [],
     projectMembers: [],
     projectInvites: [],
@@ -410,7 +428,10 @@ export const useStore = create<AppState>((set, get) => {
     activeSprintId: null,
     openTaskId: null,
 
-  setProfile: (profile) => set({ profile }),
+  setProfile: (profile) => set((state) => ({
+    profile,
+    workspaceProjects: profile?.role === 'admin' ? state.workspaceProjects : [],
+  })),
   setOpenTaskId: (openTaskId) => set({ openTaskId }),
   setActiveSprintId: (activeSprintId) => set({ activeSprintId }),
   setActiveProjectId: (activeProjectId) => {
@@ -445,6 +466,7 @@ export const useStore = create<AppState>((set, get) => {
     if (!profileId) {
       set({
         projects: [],
+        workspaceProjects: [],
         projectMemberships: [],
         activeProjectId: null,
         activeProjectRole: null,
@@ -475,11 +497,27 @@ export const useStore = create<AppState>((set, get) => {
 
     set({
       projects,
+      workspaceProjects: profile?.role === 'admin' ? get().workspaceProjects : [],
       projectMemberships: memberships,
       activeProjectId: nextActiveProjectId,
       activeProjectRole: nextRole,
       loadingProjects: false,
     })
+  },
+
+  fetchWorkspaceProjects: async () => {
+    const profile = get().profile
+    if (profile?.role !== 'admin') {
+      set({ workspaceProjects: [] })
+      return
+    }
+
+    const { data } = await supabase
+      .from('projects')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    set({ workspaceProjects: (data ?? []) as Project[] })
   },
 
   fetchBoard: async (sprintId) => {
@@ -1276,6 +1314,73 @@ export const useStore = create<AppState>((set, get) => {
       .single()
 
     if (data) set({ automationSettings: data as ProjectAutomationSettings })
+  },
+
+  deleteProject: async (projectId) => {
+    const activeProjectId = get().activeProjectId
+    const deletingActiveProject = activeProjectId === projectId
+
+    const { data: attachmentRows, error: attachmentError } = await supabase.rpc('project_attachment_paths', {
+      project_uuid: projectId,
+    })
+
+    if (attachmentError) throw attachmentError
+
+    const attachmentPaths = Array.from(
+      new Set(
+        ((attachmentRows ?? []) as ProjectAttachmentPathRow[])
+          .map((row) => row.path)
+          .filter((path): path is string => Boolean(path))
+      )
+    )
+
+    for (const batch of chunkItems(attachmentPaths, 100)) {
+      if (!batch.length) continue
+      const { error } = await supabase.storage.from('attachments').remove(batch)
+      if (error) throw error
+    }
+
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', projectId)
+
+    if (error) throw error
+
+    const nextProjects = get().projects.filter((project) => project.id !== projectId)
+    const nextMemberships = get().projectMemberships.filter((membership) => membership.project_id !== projectId)
+    const nextActiveProjectId = deletingActiveProject
+      ? (nextProjects[0]?.id ?? null)
+      : activeProjectId
+    const nextActiveProjectRole = nextMemberships.find((membership) => membership.project_id === nextActiveProjectId)?.project_role ?? null
+
+    storeActiveProjectId(nextActiveProjectId)
+    set((state) => ({
+      projects: state.projects.filter((project) => project.id !== projectId),
+      workspaceProjects: state.workspaceProjects.filter((project) => project.id !== projectId),
+      projectMemberships: nextMemberships,
+      activeProjectId: nextActiveProjectId,
+      activeProjectRole: nextActiveProjectRole,
+      ...(deletingActiveProject ? {
+        activeSprintId: null,
+        openTaskId: null,
+        tasks: [],
+        sprints: [],
+        epics: [],
+        portfolioItems: [],
+        automationSettings: null,
+        projectWebhooks: [],
+        taskLinks: [],
+        notifications: [],
+        members: [],
+        projectMembers: [],
+        projectInvites: [],
+        taskComments: [],
+        taskActivities: [],
+      } : {}),
+    }))
+
+    await Promise.all([get().fetchProjects(), get().fetchWorkspaceProjects()])
   },
 
   deleteProjectWebhook: async (id) => {

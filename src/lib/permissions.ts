@@ -7,6 +7,10 @@ export function canManageProject(role: ProjectRole | null) {
   return Boolean(role && MANAGE_PROJECT_ROLES.includes(role))
 }
 
+export function canInviteToProject(role: ProjectRole | null) {
+  return role === 'owner'
+}
+
 export function canOverrideDelete(role: ProjectRole | null) {
   return Boolean(role && OVERRIDE_DELETE_ROLES.includes(role))
 }
