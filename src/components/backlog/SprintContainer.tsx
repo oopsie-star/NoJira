@@ -17,6 +17,8 @@ interface SprintContainerProps {
 export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
   const { profile } = useAuthContext()
   const { t } = useI18n()
+  const epics = useStore((state) => state.epics)
+  const updateSprint = useStore((state) => state.updateSprint)
   const startSprint = useStore((state) => state.startSprint)
   const completeSprint = useStore((state) => state.completeSprint)
   const deleteSprint = useStore((state) => state.deleteSprint)
@@ -78,6 +80,11 @@ export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
               ].join(' ')}>
                 {t(`common.status.${sprint.status}`)}
               </span>
+              {sprint.epic_id && (
+                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                  {epics.find((epic) => epic.id === sprint.epic_id)?.title ?? t('task.epic')}
+                </span>
+              )}
               <span className="text-sm text-slate-500">{t('backlog.issueCount', { count: tasks.length })}</span>
             </div>
             {sprint.goal && (
@@ -91,6 +98,25 @@ export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
               </div>
               <span className="text-sm text-slate-500">{t('backlog.progress')}: {progress}%</span>
             </div>
+            {canManageSprint && (
+              <div className="mt-3 max-w-sm">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  {t('backlog.parentEpic')}
+                </label>
+                <select
+                  value={sprint.epic_id ?? ''}
+                  onChange={(event) => void updateSprint(sprint.id, { epic_id: event.target.value || null })}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
+                >
+                  <option value="">{t('common.none')}</option>
+                  {epics.map((epic) => (
+                    <option key={epic.id} value={epic.id}>
+                      {epic.key} — {epic.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">

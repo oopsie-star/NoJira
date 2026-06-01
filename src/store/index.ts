@@ -167,6 +167,37 @@ function normalizeDeletionRequests(rows: unknown[]) {
   }) as DeletionRequest[]
 }
 
+function normalizeTaskHierarchy(
+  fields: Partial<Task>,
+  sprints: Sprint[],
+  currentTask?: Task | null
+) {
+  const nextFields = { ...fields }
+  const hasSprintField = Object.prototype.hasOwnProperty.call(fields, 'sprint_id')
+  const sprintId = hasSprintField
+    ? (fields.sprint_id ?? null)
+    : (currentTask?.sprint_id ?? null)
+  const sprint = sprintId
+    ? (sprints.find((entry) => entry.id === sprintId) ?? null)
+    : null
+
+  if (sprint) {
+    nextFields.sprint_id = sprint.id
+    nextFields.epic_id = sprint.epic_id ?? null
+    return nextFields
+  }
+
+  if (hasSprintField) {
+    nextFields.sprint_id = null
+  }
+
+  if (Object.prototype.hasOwnProperty.call(fields, 'epic_id')) {
+    nextFields.epic_id = fields.epic_id ?? null
+  }
+
+  return nextFields
+}
+
 function uniqueProjects(memberships: ProjectMember[]) {
   return memberships
     .map((membership) => membership.project)
@@ -926,6 +957,7 @@ export const useStore = create<AppState>((set, get) => {
     const activeProjectId = get().activeProjectId
     if (!profile || !activeProjectId) return null
 
+    const normalizedFields = normalizeTaskHierarchy(fields, get().sprints)
     const payload = {
       project_id: activeProjectId,
       status: 'todo',
@@ -934,7 +966,7 @@ export const useStore = create<AppState>((set, get) => {
       labels: [],
       attachments: [],
       reporter_id: profile.id,
-      ...fields,
+      ...normalizedFields,
     }
 
     const { data, error } = await supabase
@@ -1150,13 +1182,15 @@ export const useStore = create<AppState>((set, get) => {
     const previousTask = get().tasks.find((task) => task.id === id)
     if (!previousTask) return
 
+    const normalizedFields = normalizeTaskHierarchy(fields, get().sprints, previousTask)
+
     set((state) => ({
-      tasks: state.tasks.map((task) => (task.id === id ? { ...task, ...fields } : task)),
+      tasks: state.tasks.map((task) => (task.id === id ? { ...task, ...normalizedFields } : task)),
     }))
 
     const { data } = await supabase
       .from('tasks')
-      .update(fields)
+      .update(normalizedFields)
       .eq('id', id)
       .select(TASK_SELECT)
       .single()
@@ -1165,7 +1199,7 @@ export const useStore = create<AppState>((set, get) => {
       const nextTask = data as Task
       set((state) => ({ tasks: replaceTask(state.tasks, nextTask) }))
 
-      const messages = buildTaskUpdateMessages(previousTask, nextTask, fields)
+      const messages = buildTaskUpdateMessages(previousTask, nextTask, normalizedFields)
       if (profile && messages.length > 0) {
         await supabase.from('task_activities').insert(
           messages.map((message) => ({
@@ -1182,12 +1216,12 @@ export const useStore = create<AppState>((set, get) => {
         await get().fetchTaskContext(id)
       }
 
-      const meaningfulChanges = Object.keys(fields).filter((field) => field !== 'position')
+      const meaningfulChanges = Object.keys(normalizedFields).filter((field) => field !== 'position')
       if (meaningfulChanges.length > 0) {
         await deliverProjectWebhooks('task.updated', {
           event: 'task.updated',
           project_id: nextTask.project_id,
-          changes: fields,
+          changes: normalizedFields,
           task: nextTask,
         }, nextTask.id)
       }
@@ -1282,9 +1316,14 @@ export const useStore = create<AppState>((set, get) => {
     const activeProjectId = get().activeProjectId
     if (!activeProjectId) return null
 
+    const normalizedFields = {
+      ...fields,
+      epic_id: fields.epic_id ?? null,
+    }
+
     const { data, error } = await supabase
       .from('sprints')
-      .insert({ project_id: activeProjectId, goal: '', ...fields })
+      .insert({ project_id: activeProjectId, goal: '', ...normalizedFields })
       .select()
       .single()
 
@@ -1296,10 +1335,28 @@ export const useStore = create<AppState>((set, get) => {
   },
 
   updateSprint: async (id, fields) => {
+    const normalizedFields = Object.prototype.hasOwnProperty.call(fields, 'epic_id')
+      ? { ...fields, epic_id: fields.epic_id ?? null }
+      : fields
+
     set((state) => ({
-      sprints: state.sprints.map((sprint) => (sprint.id === id ? { ...sprint, ...fields } : sprint)),
+      sprints: state.sprints.map((sprint) => (sprint.id === id ? { ...sprint, ...normalizedFields } : sprint)),
+      tasks: Object.prototype.hasOwnProperty.call(normalizedFields, 'epic_id')
+        ? state.tasks.map((task) => (
+            task.sprint_id === id
+              ? { ...task, epic_id: (normalizedFields.epic_id as string | null) ?? null }
+              : task
+          ))
+        : state.tasks,
     }))
-    await supabase.from('sprints').update(fields).eq('id', id)
+    await supabase.from('sprints').update(normalizedFields).eq('id', id)
+
+    if (Object.prototype.hasOwnProperty.call(normalizedFields, 'epic_id')) {
+      await supabase
+        .from('tasks')
+        .update({ epic_id: (normalizedFields.epic_id as string | null) ?? null })
+        .eq('sprint_id', id)
+    }
   },
 
   startSprint: async (id) => {

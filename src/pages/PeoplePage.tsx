@@ -10,6 +10,30 @@ import { canInviteToProject, canManageProject } from '@/lib/permissions'
 import { useStore } from '@/store'
 import type { Locale, Profile, ProjectRole } from '@/types'
 
+const JOB_TITLE_OPTIONS = [
+  'Senior Designer',
+  'Designer',
+  'Senior Frontend Engineer',
+  'Frontend Engineer',
+  'Senior Backend Engineer',
+  'Backend Engineer',
+  'Senior QA Engineer',
+  'QA Engineer',
+  'Senior Product Manager',
+  'Product Manager',
+  'Senior Project Manager',
+  'Project Manager',
+]
+
+const DEPARTMENT_OPTIONS = [
+  'Design',
+  'Frontend',
+  'Backend',
+  'Quality Assurance',
+  'Product',
+  'Project Delivery',
+]
+
 function InviteForm() {
   const { t } = useI18n()
   const inviteToProject = useStore((state) => state.inviteToProject)
@@ -505,6 +529,7 @@ export function PeoplePage() {
                   {projectMembers.map((member) => {
                     const person = member.profile
                     if (!person) return null
+                    const canEditMemberProfile = isAdmin || canManage || profile?.id === person.id
 
                     return (
                       <div key={member.id} className="rounded-2xl border border-slate-200 px-4 py-4">
@@ -538,7 +563,8 @@ export function PeoplePage() {
                             <label className="block">
                               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.jobTitle')}</span>
                               <input
-                                disabled={profile?.id !== person.id}
+                                list="job-title-options"
+                                disabled={!canEditMemberProfile}
                                 defaultValue={person.job_title ?? ''}
                                 onBlur={(event) => updateProfile(person.id, { job_title: event.target.value })}
                                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
@@ -548,7 +574,8 @@ export function PeoplePage() {
                             <label className="block">
                               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.department')}</span>
                               <input
-                                disabled={profile?.id !== person.id}
+                                list="department-options"
+                                disabled={!canEditMemberProfile}
                                 defaultValue={person.department ?? ''}
                                 onBlur={(event) => updateProfile(person.id, { department: event.target.value })}
                                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
@@ -558,7 +585,7 @@ export function PeoplePage() {
                             <label className="block">
                               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.locale')}</span>
                               <select
-                                disabled={profile?.id !== person.id}
+                                disabled={!canEditMemberProfile}
                                 value={person.locale as Locale}
                                 onChange={(event) => updateProfile(person.id, { locale: event.target.value as Locale })}
                                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
@@ -575,6 +602,18 @@ export function PeoplePage() {
                 </div>
               )}
             </section>
+
+            <datalist id="job-title-options">
+              {JOB_TITLE_OPTIONS.map((option) => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
+
+            <datalist id="department-options">
+              {DEPARTMENT_OPTIONS.map((option) => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
           </>
         )}
       </div>

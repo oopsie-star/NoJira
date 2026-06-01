@@ -126,6 +126,13 @@ export function TaskDrawer() {
   if (!task) return null
 
   const currentTask = task
+  const selectedSprint = currentTask.sprint_id
+    ? (sprints.find((sprint) => sprint.id === currentTask.sprint_id) ?? null)
+    : null
+  const availableSprints = selectedSprint
+    ? sprints
+    : sprints.filter((sprint) => !currentTask.epic_id || sprint.epic_id === currentTask.epic_id)
+  const effectiveEpicId = selectedSprint ? (selectedSprint.epic_id ?? '') : (currentTask.epic_id ?? '')
 
   const isDirty =
     draftTitle.trim() !== currentTask.title ||
@@ -604,9 +611,11 @@ export function TaskDrawer() {
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 >
                   <option value="">{t('common.backlog')}</option>
-                  {sprints.map((sprint) => (
+                  {availableSprints.map((sprint) => (
                     <option key={sprint.id} value={sprint.id}>
-                      {sprint.name}
+                      {sprint.epic_id
+                        ? `${sprint.name} — ${epics.find((epic) => epic.id === sprint.epic_id)?.title ?? t('task.epic')}`
+                        : sprint.name}
                     </option>
                   ))}
                 </select>
@@ -614,9 +623,10 @@ export function TaskDrawer() {
 
                <MetaSection title={t('task.epic')}>
                  <select
-                   value={currentTask.epic_id ?? ''}
+                   disabled={Boolean(selectedSprint)}
+                   value={effectiveEpicId}
                    onChange={(event) => void quickUpdate({ epic_id: event.target.value || null })}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio disabled:bg-slate-50"
                 >
                   <option value="">{t('common.none')}</option>
                   {epics.map((epic) => (
@@ -625,6 +635,13 @@ export function TaskDrawer() {
                     </option>
                   ))}
                  </select>
+                 {selectedSprint && (
+                   <p className="mt-2 text-xs text-slate-500">
+                     {selectedSprint.epic_id
+                       ? `${t('task.epic')}: ${epics.find((epic) => epic.id === selectedSprint.epic_id)?.title ?? t('common.none')}`
+                       : t('common.none')}
+                   </p>
+                 )}
                </MetaSection>
 
                <MetaSection title={t('task.links')}>

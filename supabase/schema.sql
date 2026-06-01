@@ -85,6 +85,7 @@ CREATE TABLE public.epics (
 CREATE TABLE public.sprints (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  epic_id    uuid REFERENCES public.epics(id) ON DELETE SET NULL,
   name       text NOT NULL,
   goal       text NOT NULL DEFAULT '',
   status     text NOT NULL DEFAULT 'planned'
@@ -202,6 +203,26 @@ AS $$
       FROM public.projects p
       WHERE p.id = project_uuid
         AND p.created_by = auth.uid()
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION public.can_manage_member_profile(profile_uuid uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.is_admin()
+    OR auth.uid() = profile_uuid
+    OR EXISTS (
+      SELECT 1
+      FROM public.project_members manager_membership
+      JOIN public.project_members target_membership
+        ON target_membership.project_id = manager_membership.project_id
+      WHERE manager_membership.profile_id = auth.uid()
+        AND target_membership.profile_id = profile_uuid
+        AND manager_membership.project_role IN ('owner', 'admin', 'founder', 'ceo')
     );
 $$;
 
@@ -598,6 +619,11 @@ CREATE POLICY profiles_update_admin ON public.profiles
   FOR UPDATE
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
+
+CREATE POLICY profiles_update_project_manager ON public.profiles
+  FOR UPDATE
+  USING (public.can_manage_member_profile(id))
+  WITH CHECK (public.can_manage_member_profile(id));
 
 CREATE POLICY projects_select ON public.projects
   FOR SELECT USING (public.is_admin() OR created_by = auth.uid() OR public.is_project_member(id));

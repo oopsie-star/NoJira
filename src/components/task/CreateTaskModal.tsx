@@ -41,6 +41,18 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
   const [labelsInput, setLabelsInput] = useState((initialValues?.labels ?? []).join(', '))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const selectedSprint = useMemo(
+    () => sprints.find((sprint) => sprint.id === sprintId) ?? null,
+    [sprints, sprintId]
+  )
+  const availableSprints = useMemo(
+    () => sprints.filter((sprint) => (
+      sprint.status !== 'completed'
+      && (!epicId || sprint.epic_id === epicId)
+    )),
+    [epicId, sprints]
+  )
+  const effectiveEpicId = selectedSprint ? (selectedSprint.epic_id ?? '') : epicId
 
   const nextPosition = useMemo(() => {
     const relevant = tasks
@@ -63,7 +75,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
         issue_type: issueType,
         priority,
         sprint_id: sprintId || null,
-        epic_id: epicId || null,
+        epic_id: selectedSprint ? (selectedSprint.epic_id ?? null) : (epicId || null),
         assignee_id: assigneeId || null,
         reporter_id: profile?.id ?? null,
         due_date: dueDate || null,
@@ -203,9 +215,11 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
               >
                 <option value="">{t('common.backlog')}</option>
-                {sprints.filter((sprint) => sprint.status !== 'completed').map((sprint) => (
+                {availableSprints.map((sprint) => (
                   <option key={sprint.id} value={sprint.id}>
-                    {sprint.name}
+                    {sprint.epic_id
+                      ? `${sprint.name} — ${epics.find((epic) => epic.id === sprint.epic_id)?.title ?? t('task.epic')}`
+                      : sprint.name}
                   </option>
                 ))}
               </select>
@@ -214,9 +228,10 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
             <div>
               <FieldLabel>{t('task.epic')}</FieldLabel>
               <select
-                value={epicId}
+                disabled={Boolean(selectedSprint)}
+                value={effectiveEpicId}
                 onChange={(event) => setEpicId(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio disabled:bg-slate-50"
               >
                 <option value="">{t('common.none')}</option>
                 {epics.map((epic) => (
@@ -225,6 +240,13 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
                   </option>
                 ))}
               </select>
+              {selectedSprint && (
+                <p className="mt-2 text-xs text-slate-500">
+                  {selectedSprint.epic_id
+                    ? `${t('task.epic')}: ${epics.find((epic) => epic.id === selectedSprint.epic_id)?.title ?? t('common.none')}`
+                    : t('common.none')}
+                </p>
+              )}
             </div>
 
             <div>

@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { DragDropContext, Droppable, type DropResult } from '@hello-pangea/dnd'
 import { Plus, ShieldAlert, Trash2 } from 'lucide-react'
 import { BacklogRow } from './BacklogRow'
@@ -7,15 +7,22 @@ import { CreateTaskModal } from '@/components/task/CreateTaskModal'
 import { useAuthContext } from '@/auth/AuthContext'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
-import { canManageProject } from '@/lib/permissions'
-import { EPIC_COLORS, EPIC_STATUS_OPTIONS, PORTFOLIO_ITEM_OPTIONS, type Epic, type PortfolioItem, type PortfolioItemType, type Task } from '@/types'
+import { EPIC_COLORS, EPIC_STATUS_OPTIONS, type Epic, type Sprint, type Task } from '@/types'
 import { useStore } from '@/store'
 
-function CreateSprintModal({ onClose }: { onClose: () => void }) {
+function CreateSprintModal({
+  initialEpicId,
+  onClose,
+}: {
+  initialEpicId?: string | null
+  onClose: () => void
+}) {
   const { t } = useI18n()
+  const epics = useStore((state) => state.epics)
   const createSprint = useStore((state) => state.createSprint)
   const [name, setName] = useState('')
   const [goal, setGoal] = useState('')
+  const [epicId, setEpicId] = useState(initialEpicId ?? '')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -28,6 +35,7 @@ function CreateSprintModal({ onClose }: { onClose: () => void }) {
       await createSprint({
         name: name.trim(),
         goal: goal.trim(),
+        epic_id: epicId || null,
         start_date: startDate || null,
         end_date: endDate || null,
       })
@@ -45,99 +53,39 @@ function CreateSprintModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           <div className="space-y-4">
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.name')}</label>
-            <input autoFocus autoComplete="off" value={name} onChange={(event) => setName(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.goal')}</label>
-            <textarea value={goal} onChange={(event) => setGoal(event.target.value)} rows={3} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.start')}</label>
-              <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.name')}</label>
+              <input autoFocus autoComplete="off" value={name} onChange={(event) => setName(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.end')}</label>
-              <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.goal')}</label>
+              <textarea value={goal} onChange={(event) => setGoal(event.target.value)} rows={3} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
             </div>
-          </div>
-          </div>
-        </div>
-        <div className="flex flex-shrink-0 justify-end gap-3 border-t border-slate-200 px-6 py-4">
-          {error && <p className="mr-auto rounded-2xl bg-rose-50 px-4 py-2.5 text-sm text-rose-600">{error}</p>}
-          <button type="button" onClick={onClose} className="rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">{t('common.cancel')}</button>
-          <button type="submit" className="rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white hover:bg-qira-pistachio-dk">{t('common.create')}</button>
-        </div>
-      </form>
-    </div>
-  )
-}
-
-function CreateRoadmapModal({ onClose }: { onClose: () => void }) {
-  const { t } = useI18n()
-  const portfolioItems = useStore((state) => state.portfolioItems)
-  const createPortfolioItem = useStore((state) => state.createPortfolioItem)
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [itemType, setItemType] = useState<PortfolioItemType>('initiative')
-  const [parentId, setParentId] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault()
-    if (!title.trim()) return
-    setError(null)
-    try {
-      await createPortfolioItem({
-        title: title.trim(),
-        description: description.trim(),
-        item_type: itemType,
-        parent_id: parentId || null,
-        color: itemType === 'milestone' ? '#FF8B00' : '#6554C0',
-      })
-      onClose()
-    } catch (err) {
-      setError(getErrorMessage(err))
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/35 p-4">
-      <form onSubmit={handleSubmit} className="flex w-full max-w-xl flex-col rounded-[28px] bg-white shadow-2xl" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
-        <div className="flex-shrink-0 border-b border-slate-200 px-6 py-4">
-          <h3 className="text-xl font-semibold text-slate-900">{t('backlog.createRoadmap')}</h3>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          <div className="space-y-4">
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.name')}</label>
-            <input autoFocus autoComplete="off" value={title} onChange={(event) => setTitle(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.description')}</label>
-            <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('backlog.roadmapType')}</label>
-              <select value={itemType} onChange={(event) => setItemType(event.target.value as PortfolioItemType)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio">
-                {PORTFOLIO_ITEM_OPTIONS.map((option) => (
-                  <option key={option} value={option}>{option}</option>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('backlog.parentEpic')}</label>
+              <select
+                value={epicId}
+                onChange={(event) => setEpicId(event.target.value)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio"
+              >
+                <option value="">{t('common.none')}</option>
+                {epics.map((epic) => (
+                  <option key={epic.id} value={epic.id}>
+                    {epic.key} — {epic.title}
+                  </option>
                 ))}
               </select>
             </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('backlog.parentItem')}</label>
-              <select value={parentId} onChange={(event) => setParentId(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio">
-                <option value="">{t('backlog.noParent')}</option>
-                {portfolioItems.map((item) => (
-                  <option key={item.id} value={item.id}>{item.key} - {item.title}</option>
-                ))}
-              </select>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.start')}</label>
+                <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.end')}</label>
+                <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
+              </div>
             </div>
-          </div>
           </div>
         </div>
         <div className="flex flex-shrink-0 justify-end gap-3 border-t border-slate-200 px-6 py-4">
@@ -152,12 +100,10 @@ function CreateRoadmapModal({ onClose }: { onClose: () => void }) {
 
 function CreateEpicModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18n()
-  const portfolioItems = useStore((state) => state.portfolioItems)
   const createEpic = useStore((state) => state.createEpic)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [color, setColor] = useState(EPIC_COLORS[0])
-  const [parentPortfolioItemId, setParentPortfolioItemId] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(event: FormEvent) {
@@ -169,7 +115,7 @@ function CreateEpicModal({ onClose }: { onClose: () => void }) {
         title: title.trim(),
         description: description.trim(),
         color,
-        parent_portfolio_item_id: parentPortfolioItemId || null,
+        parent_portfolio_item_id: null,
       })
       onClose()
     } catch (err) {
@@ -185,23 +131,13 @@ function CreateEpicModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           <div className="space-y-4">
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.name')}</label>
-            <input autoFocus autoComplete="off" value={title} onChange={(event) => setTitle(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.description')}</label>
-            <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('backlog.parentItem')}</label>
-              <select value={parentPortfolioItemId} onChange={(event) => setParentPortfolioItemId(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio">
-                <option value="">{t('backlog.noParent')}</option>
-                {portfolioItems.map((item) => (
-                  <option key={item.id} value={item.id}>{item.key} - {item.title}</option>
-                ))}
-              </select>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.name')}</label>
+              <input autoFocus autoComplete="off" value={title} onChange={(event) => setTitle(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('common.description')}</label>
+              <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio" />
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('backlog.epicColor')}</label>
@@ -218,7 +154,6 @@ function CreateEpicModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
           </div>
-          </div>
         </div>
         <div className="flex flex-shrink-0 justify-end gap-3 border-t border-slate-200 px-6 py-4">
           {error && <p className="mr-auto rounded-2xl bg-rose-50 px-4 py-2.5 text-sm text-rose-600">{error}</p>}
@@ -230,16 +165,20 @@ function CreateEpicModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-function EpicCard({
+function EpicSection({
   epic,
   tasks,
-  portfolioItems,
+  sprints,
   canEdit,
+  onCreateTask,
+  onCreateSprint,
 }: {
   epic: Epic
   tasks: Task[]
-  portfolioItems: PortfolioItem[]
+  sprints: Sprint[]
   canEdit: boolean
+  onCreateTask: (initialValues?: Partial<Task>) => void
+  onCreateSprint: (epicId: string) => void
 }) {
   const { profile } = useAuthContext()
   const { t } = useI18n()
@@ -249,9 +188,28 @@ function EpicCard({
   const [requestingDelete, setRequestingDelete] = useState(false)
   const [deletingEpic, setDeletingEpic] = useState(false)
 
-  const epicTasks = tasks.filter((task) => task.epic_id === epic.id)
-  const progress = epicTasks.length
-    ? Math.round((epicTasks.filter((task) => task.status === 'done').length / epicTasks.length) * 100)
+  const epicSprints = useMemo(
+    () => sprints.filter((sprint) => sprint.epic_id === epic.id),
+    [epic.id, sprints]
+  )
+  const sprintIdSet = useMemo(
+    () => new Set(epicSprints.map((sprint) => sprint.id)),
+    [epicSprints]
+  )
+  const directTasks = useMemo(
+    () => tasks.filter((task) => task.epic_id === epic.id && !task.sprint_id),
+    [epic.id, tasks]
+  )
+  const nestedSprintTasks = useMemo(
+    () => tasks.filter((task) => task.sprint_id && sprintIdSet.has(task.sprint_id)),
+    [sprintIdSet, tasks]
+  )
+  const allEpicTasks = useMemo(
+    () => [...directTasks, ...nestedSprintTasks],
+    [directTasks, nestedSprintTasks]
+  )
+  const progress = allEpicTasks.length
+    ? Math.round((allEpicTasks.filter((task) => task.status === 'done').length / allEpicTasks.length) * 100)
     : 0
   const isSuperAdmin = profile?.role === 'admin'
 
@@ -275,126 +233,159 @@ function EpicCard({
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <div className="flex items-start gap-3">
-        <span className="mt-1 h-3 w-3 rounded-full" style={{ backgroundColor: epic.color }} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-slate-900">{epic.title}</p>
-              <p className="mt-1 text-xs uppercase tracking-[0.12em] text-slate-400">{epic.key}</p>
+    <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 px-5 py-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: epic.color }} />
+              <h2 className="min-w-0 break-words text-lg font-semibold text-slate-900">{epic.title}</h2>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{epic.key}</span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                {t('backlog.issueCount', { count: allEpicTasks.length })}
+              </span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                {t('backlog.sprintCount', { count: epicSprints.length })}
+              </span>
             </div>
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-              {t('backlog.epicCount', { count: epicTasks.length })}
-            </span>
+            {epic.description && (
+              <p className="mt-2 break-words text-sm text-slate-500">{epic.description}</p>
+            )}
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <div className="h-2 w-full max-w-48 overflow-hidden rounded-full bg-slate-200">
+                <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, backgroundColor: epic.color }} />
+              </div>
+              <span className="text-sm text-slate-500">{t('backlog.progress')}: {progress}%</span>
+            </div>
           </div>
-          {epic.description && <p className="mt-2 text-sm text-slate-500">{epic.description}</p>}
-        </div>
-      </div>
 
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-        <div className="h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: epic.color }} />
-      </div>
-
-      <div className="mt-3 grid gap-2">
-        <select
-          value={epic.status}
-          disabled={!canEdit}
-          onChange={(event) => void updateEpic(epic.id, { status: event.target.value as Epic['status'] })}
-          className="rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-qira-pistachio disabled:bg-slate-50"
-        >
-          {EPIC_STATUS_OPTIONS.map((status) => (
-            <option key={status} value={status}>{t(`common.status.${status === 'done' ? 'completed' : status}`)}</option>
-          ))}
-        </select>
-        <select
-          value={epic.parent_portfolio_item_id ?? ''}
-          disabled={!canEdit}
-          onChange={(event) => void updateEpic(epic.id, { parent_portfolio_item_id: event.target.value || null })}
-          className="rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-qira-pistachio disabled:bg-slate-50"
-        >
-          <option value="">{t('backlog.noParent')}</option>
-          {portfolioItems.map((item) => (
-            <option key={item.id} value={item.id}>{item.key} - {item.title}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="mt-3">
-        {isSuperAdmin ? (
-          <button
-            type="button"
-            onClick={() => void handleDeleteEpic()}
-            disabled={deletingEpic}
-            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
-          >
-            <Trash2 size={15} />
-            {t('backlog.deleteEpic')}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void handleRequestDeleteEpic()}
-            disabled={requestingDelete}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
-          >
-            <ShieldAlert size={15} />
-            {requestingDelete ? t('backlog.deletionRequestSending') : t('backlog.requestDelete')}
-          </button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function RoadmapNode({
-  item,
-  tasks,
-  portfolioItems,
-  epics,
-  canManage,
-  level = 0,
-}: {
-  item: PortfolioItem
-  tasks: Task[]
-  portfolioItems: PortfolioItem[]
-  epics: Epic[]
-  canManage: boolean
-  level?: number
-}) {
-  const childItems = portfolioItems.filter((entry) => entry.parent_id === item.id)
-  const childEpics = epics.filter((epic) => epic.parent_portfolio_item_id === item.id)
-  const linkedTasks = tasks.filter((task) => childEpics.some((epic) => epic.id === task.epic_id))
-  const progress = linkedTasks.length
-    ? Math.round((linkedTasks.filter((task) => task.status === 'done').length / linkedTasks.length) * 100)
-    : 0
-
-  return (
-    <div className="space-y-3" style={{ marginLeft: level * 12 }}>
-      <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-900">{item.title}</p>
-            <p className="mt-1 text-xs uppercase tracking-[0.12em] text-slate-400">{item.key} - {item.item_type}</p>
-            {item.description && <p className="mt-2 text-sm text-slate-500">{item.description}</p>}
+          <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto xl:flex-col">
+            <select
+              value={epic.status}
+              disabled={!canEdit}
+              onChange={(event) => void updateEpic(epic.id, { status: event.target.value as Epic['status'] })}
+              className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio disabled:bg-slate-50"
+            >
+              {EPIC_STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>{t(`common.status.${status === 'done' ? 'completed' : status}`)}</option>
+              ))}
+            </select>
+            {canEdit && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onCreateTask({ epic_id: epic.id })}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  <Plus size={15} />
+                  {t('backlog.createIssue')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCreateSprint(epic.id)}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-3 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
+                >
+                  <Plus size={15} />
+                  {t('backlog.createSprintInEpic')}
+                </button>
+              </>
+            )}
+            {isSuperAdmin ? (
+              <button
+                type="button"
+                onClick={() => void handleDeleteEpic()}
+                disabled={deletingEpic}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-200 px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
+              >
+                <Trash2 size={15} />
+                {t('backlog.deleteEpic')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleRequestDeleteEpic()}
+                disabled={requestingDelete}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+              >
+                <ShieldAlert size={15} />
+                {requestingDelete ? t('backlog.deletionRequestSending') : t('backlog.requestDelete')}
+              </button>
+            )}
           </div>
-          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">
-            {linkedTasks.length}
-          </span>
-        </div>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-          <div className="h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: item.color }} />
         </div>
       </div>
 
-      {childEpics.map((epic) => (
-        <EpicCard key={epic.id} epic={epic} tasks={tasks} portfolioItems={portfolioItems} canEdit />
-      ))}
+      <div className="grid gap-4 p-4 2xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+        <div className="rounded-[24px] bg-slate-50 p-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">{t('backlog.directEpicTasks')}</h3>
+              <p className="mt-1 text-sm text-slate-500">{t('backlog.issueCount', { count: directTasks.length })}</p>
+            </div>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => onCreateTask({ epic_id: epic.id })}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white"
+              >
+                {t('backlog.createIssue')}
+              </button>
+            )}
+          </div>
 
-      {childItems.map((child) => (
-        <RoadmapNode key={child.id} item={child} tasks={tasks} portfolioItems={portfolioItems} epics={epics} canManage={canManage} level={level + 1} />
-      ))}
-    </div>
+          <Droppable droppableId={`epic-${epic.id}`} type="BACKLOG_TASK">
+            {(provided, snapshot) => (
+              <div
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                className={[
+                  'min-h-[120px] space-y-3 rounded-[20px] border border-dashed border-slate-200 p-3 transition',
+                  snapshot.isDraggingOver ? 'border-qira-pistachio bg-qira-pistachio-lt/30' : 'bg-white',
+                ].join(' ')}
+              >
+                {directTasks.length === 0 && (
+                  <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">{t('backlog.noDirectEpicTasks')}</p>
+                )}
+                {directTasks.map((task, index) => (
+                  <BacklogRow key={task.id} task={task} index={index} />
+                ))}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">{t('backlog.epicSprints')}</h3>
+              <p className="mt-1 text-sm text-slate-500">{t('backlog.sprintCount', { count: epicSprints.length })}</p>
+            </div>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => onCreateSprint(epic.id)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                {t('backlog.createSprintInEpic')}
+              </button>
+            )}
+          </div>
+
+          {epicSprints.length === 0 ? (
+            <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">{t('backlog.noEpicSprints')}</p>
+          ) : (
+            epicSprints.map((sprint) => (
+              <SprintContainer
+                key={sprint.id}
+                sprint={sprint}
+                tasks={tasks.filter((task) => task.sprint_id === sprint.id)}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -403,7 +394,6 @@ export function BacklogView() {
   const tasks = useStore((state) => state.tasks)
   const sprints = useStore((state) => state.sprints)
   const epics = useStore((state) => state.epics)
-  const portfolioItems = useStore((state) => state.portfolioItems)
   const updateTask = useStore((state) => state.updateTask)
   const activeProjectId = useStore((state) => state.activeProjectId)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
@@ -411,10 +401,10 @@ export function BacklogView() {
   const [search, setSearch] = useState('')
   const [showSprintModal, setShowSprintModal] = useState(false)
   const [showEpicModal, setShowEpicModal] = useState(false)
-  const [showRoadmapModal, setShowRoadmapModal] = useState(false)
   const [showCreateTask, setShowCreateTask] = useState(false)
+  const [taskSeed, setTaskSeed] = useState<Partial<Task> | null>(null)
+  const [sprintSeedEpicId, setSprintSeedEpicId] = useState<string | null>(null)
 
-  const canManage = canManageProject(activeProjectRole)
   const canCollaborate = Boolean(activeProjectRole)
 
   const filteredTasks = useMemo(() => {
@@ -427,38 +417,49 @@ export function BacklogView() {
   }, [tasks, search])
 
   const rootTasks = useMemo(
-    () => filteredTasks.filter((task) => !task.parent_task_id),
+    () => filteredTasks.filter((task) => !task.parent_task_id).sort((left, right) => left.position - right.position),
     [filteredTasks]
   )
 
-  const sprintTasks = useMemo(() => {
-    const map = new Map<string, typeof tasks>()
-    for (const sprint of sprints) map.set(sprint.id, [])
-    for (const task of rootTasks) {
-      if (task.sprint_id && map.has(task.sprint_id)) {
-        map.get(task.sprint_id)!.push(task)
-      }
-    }
-    for (const [key, value] of map.entries()) {
-      map.set(key, value.slice().sort((left, right) => left.position - right.position))
-    }
-    return map
-  }, [rootTasks, sprints, tasks])
+  const sortedEpics = useMemo(
+    () => epics.slice().sort((left, right) => left.created_at.localeCompare(right.created_at)),
+    [epics]
+  )
+
+  const sortedSprints = useMemo(
+    () => sprints.slice().sort((left, right) => left.created_at.localeCompare(right.created_at)),
+    [sprints]
+  )
+
+  const standaloneSprints = useMemo(
+    () => sortedSprints.filter((sprint) => !sprint.epic_id),
+    [sortedSprints]
+  )
 
   const backlogTasks = useMemo(
-    () => rootTasks.filter((task) => !task.sprint_id).sort((left, right) => left.position - right.position),
+    () => rootTasks.filter((task) => !task.sprint_id && !task.epic_id),
     [rootTasks]
   )
 
-  const rootRoadmapItems = useMemo(
-    () => portfolioItems.filter((item) => !item.parent_id).sort((left, right) => left.position - right.position),
-    [portfolioItems]
-  )
+  function openTaskModal(initialValues?: Partial<Task>) {
+    setTaskSeed(initialValues ?? null)
+    setShowCreateTask(true)
+  }
 
-  const standaloneEpics = useMemo(
-    () => epics.filter((epic) => !epic.parent_portfolio_item_id),
-    [epics]
-  )
+  function openSprintModal(initialEpicId?: string | null) {
+    setSprintSeedEpicId(initialEpicId ?? null)
+    setShowSprintModal(true)
+  }
+
+  function closeTaskModal() {
+    setShowCreateTask(false)
+    setTaskSeed(null)
+  }
+
+  function closeSprintModal() {
+    setShowSprintModal(false)
+    setSprintSeedEpicId(null)
+  }
 
   function onDragEnd(result: DropResult) {
     const { destination, source, draggableId } = result
@@ -470,8 +471,21 @@ export function BacklogView() {
       void updateTask(draggableId, { sprint_id: sprintMatch[1] })
       return
     }
+
+    const epicMatch = destination.droppableId.match(/^epic-(.+)$/)
+    if (epicMatch) {
+      void updateTask(draggableId, {
+        sprint_id: null,
+        epic_id: epicMatch[1],
+      })
+      return
+    }
+
     if (destination.droppableId === 'backlog') {
-      void updateTask(draggableId, { sprint_id: null })
+      void updateTask(draggableId, {
+        sprint_id: null,
+        epic_id: null,
+      })
     }
   }
 
@@ -496,114 +510,123 @@ export function BacklogView() {
                 <span className="hidden rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600 sm:block">
                   {t('backlog.issueCount', { count: rootTasks.length })}
                 </span>
-                <button onClick={() => setShowCreateTask(true)} className="inline-flex items-center gap-1.5 rounded-2xl bg-qira-pistachio px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk">
+                <button onClick={() => openTaskModal()} className="inline-flex items-center gap-1.5 rounded-2xl bg-qira-pistachio px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk">
                   <Plus size={15} />
                   {t('backlog.createIssue')}
                 </button>
                 {canCollaborate && (
                   <>
-                    <button onClick={() => setShowSprintModal(true)} className="rounded-2xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">{t('backlog.createSprint')}</button>
+                    <button onClick={() => openSprintModal()} className="rounded-2xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">{t('backlog.createSprint')}</button>
                     <button onClick={() => setShowEpicModal(true)} className="rounded-2xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">{t('backlog.createEpic')}</button>
-                  </>
-                )}
-                {canManage && (
-                  <>
-                    <button onClick={() => setShowRoadmapModal(true)} className="hidden rounded-2xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 lg:inline-flex">{t('backlog.createRoadmap')}</button>
                   </>
                 )}
               </div>
             </section>
 
-            <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-              <aside className="flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">{t('backlog.roadmap')}</h2>
-                    <p className="text-sm text-slate-500">{t('backlog.epics')}</p>
+            <div className="grid min-h-0 flex-1 gap-4 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
+              <section className="min-h-0 space-y-4">
+                <div className="rounded-[28px] bg-white p-5 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-900">{t('backlog.epicHierarchy')}</h2>
+                      <p className="mt-1 text-sm text-slate-500">{t('backlog.epicHierarchyHint')}</p>
+                    </div>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+                      {sortedEpics.length}
+                    </span>
                   </div>
-                  {canManage && (
-                    <button onClick={() => setShowRoadmapModal(true)} className="rounded-xl bg-slate-100 p-2 text-slate-600 transition hover:bg-slate-200 hover:text-slate-900">
-                      <Plus size={16} />
-                    </button>
-                  )}
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                  <div className="space-y-4">
-                    {rootRoadmapItems.length === 0 && standaloneEpics.length === 0 ? (
-                      <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">{t('backlog.noRoadmap')}</p>
-                    ) : (
-                      <>
-                        {rootRoadmapItems.map((item) => (
-                          <RoadmapNode
-                            key={item.id}
-                            item={item}
-                            tasks={filteredTasks}
-                            portfolioItems={portfolioItems}
-                            epics={epics}
-                            canManage={canManage}
-                          />
-                        ))}
+                {sortedEpics.length === 0 ? (
+                  <section className="rounded-[28px] bg-white p-8 text-sm text-slate-500 shadow-sm">
+                    {t('backlog.noEpicHierarchy')}
+                  </section>
+                ) : (
+                  sortedEpics.map((epic) => (
+                    <EpicSection
+                      key={epic.id}
+                      epic={epic}
+                      tasks={rootTasks}
+                      sprints={sortedSprints}
+                      canEdit={canCollaborate}
+                      onCreateTask={openTaskModal}
+                      onCreateSprint={openSprintModal}
+                    />
+                  ))
+                )}
+              </section>
 
-                        {standaloneEpics.length > 0 && (
-                          <div className="space-y-3">
-                            <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 p-4">
-                              <p className="text-sm font-semibold text-slate-900">{t('backlog.standaloneEpics')}</p>
-                            </div>
-                            {standaloneEpics.map((epic) => (
-                              <EpicCard key={epic.id} epic={epic} tasks={filteredTasks} portfolioItems={portfolioItems} canEdit={canCollaborate} />
-                            ))}
-                          </div>
-                        )}
-                      </>
+              <div className="min-h-0 space-y-4">
+                <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-900">{t('backlog.standaloneSprints')}</h2>
+                      <p className="mt-1 text-sm text-slate-500">{t('backlog.sprintCount', { count: standaloneSprints.length })}</p>
+                    </div>
+                    {canCollaborate && (
+                      <button
+                        type="button"
+                        onClick={() => openSprintModal()}
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                      >
+                        {t('backlog.createSprint')}
+                      </button>
                     )}
                   </div>
-                </div>
-              </aside>
 
-              <div className="min-h-0 overflow-y-auto pr-1">
-                <div className="space-y-4">
-                  {sprints.map((sprint) => (
-                    <SprintContainer key={sprint.id} sprint={sprint} tasks={sprintTasks.get(sprint.id) ?? []} />
-                  ))}
+                  <div className="space-y-4 p-4">
+                    {standaloneSprints.length === 0 ? (
+                      <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">{t('backlog.noStandaloneSprints')}</p>
+                    ) : (
+                      standaloneSprints.map((sprint) => (
+                        <SprintContainer
+                          key={sprint.id}
+                          sprint={sprint}
+                          tasks={rootTasks.filter((task) => task.sprint_id === sprint.id)}
+                        />
+                      ))
+                    )}
+                  </div>
+                </section>
 
-                  <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-                    <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                      <div>
-                        <h2 className="text-lg font-semibold text-slate-900">{t('backlog.unplanned')}</h2>
-                        <p className="text-sm text-slate-500">{t('backlog.issueCount', { count: backlogTasks.length })}</p>
-                      </div>
+                <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-900">{t('backlog.unplanned')}</h2>
+                      <p className="text-sm text-slate-500">{t('backlog.issueCount', { count: backlogTasks.length })}</p>
                     </div>
+                  </div>
 
-                    <Droppable droppableId="backlog" type="BACKLOG_TASK">
-                      {(provided, snapshot) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.droppableProps}
-                          className={[
-                            'space-y-3 p-3',
-                            snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/40' : 'bg-white',
-                          ].join(' ')}
-                        >
-                          {backlogTasks.map((task, index) => (
-                            <BacklogRow key={task.id} task={task} index={index} />
-                          ))}
-                          {provided.placeholder}
-                        </div>
-                      )}
-                    </Droppable>
-                  </section>
-                </div>
+                  <Droppable droppableId="backlog" type="BACKLOG_TASK">
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className={[
+                          'space-y-3 p-3',
+                          snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/40' : 'bg-white',
+                        ].join(' ')}
+                      >
+                        {backlogTasks.length === 0 && (
+                          <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">{t('backlog.noBacklogTasks')}</p>
+                        )}
+                        {backlogTasks.map((task, index) => (
+                          <BacklogRow key={task.id} task={task} index={index} />
+                        ))}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </section>
               </div>
             </div>
           </>
         )}
       </div>
 
-      {showSprintModal && <CreateSprintModal onClose={() => setShowSprintModal(false)} />}
+      {showSprintModal && <CreateSprintModal initialEpicId={sprintSeedEpicId} onClose={closeSprintModal} />}
       {showEpicModal && <CreateEpicModal onClose={() => setShowEpicModal(false)} />}
-      {showRoadmapModal && <CreateRoadmapModal onClose={() => setShowRoadmapModal(false)} />}
-      {showCreateTask && <CreateTaskModal onClose={() => setShowCreateTask(false)} />}
+      {showCreateTask && <CreateTaskModal onClose={closeTaskModal} initialValues={taskSeed ?? undefined} />}
     </DragDropContext>
   )
 }
