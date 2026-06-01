@@ -1,8 +1,9 @@
-﻿import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ChevronDown, ChevronRight, Plus, ShieldAlert, Trash2 } from 'lucide-react'
 import { Droppable } from '@hello-pangea/dnd'
 import { BacklogRow } from './BacklogRow'
 import { CreateTaskModal } from '@/components/task/CreateTaskModal'
+import { useAuthContext } from '@/auth/AuthContext'
 import { useI18n } from '@/lib/i18n'
 import { canManageProject } from '@/lib/permissions'
 import { useStore } from '@/store'
@@ -14,12 +15,17 @@ interface SprintContainerProps {
 }
 
 export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
+  const { profile } = useAuthContext()
   const { t } = useI18n()
   const startSprint = useStore((state) => state.startSprint)
   const completeSprint = useStore((state) => state.completeSprint)
+  const deleteSprint = useStore((state) => state.deleteSprint)
+  const requestEntityDeletion = useStore((state) => state.requestEntityDeletion)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const [collapsed, setCollapsed] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+  const [requestingDelete, setRequestingDelete] = useState(false)
+  const [deletingSprint, setDeletingSprint] = useState(false)
 
   const doneCount = useMemo(
     () => tasks.filter((task) => task.status === 'done').length,
@@ -27,6 +33,26 @@ export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
   )
   const progress = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0
   const canManageSprint = canManageProject(activeProjectRole)
+  const isSuperAdmin = profile?.role === 'admin'
+
+  async function handleDeleteSprint() {
+    if (!window.confirm(t('backlog.deleteSprintConfirm', { name: sprint.name }))) return
+    setDeletingSprint(true)
+    try {
+      await deleteSprint(sprint.id)
+    } finally {
+      setDeletingSprint(false)
+    }
+  }
+
+  async function handleRequestDeleteSprint() {
+    setRequestingDelete(true)
+    try {
+      await requestEntityDeletion('sprint', sprint.id, sprint.name)
+    } finally {
+      setRequestingDelete(false)
+    }
+  }
 
   return (
     <>
@@ -55,19 +81,19 @@ export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
               <span className="text-sm text-slate-500">{t('backlog.issueCount', { count: tasks.length })}</span>
             </div>
             {sprint.goal && (
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 break-words text-sm text-slate-500">
                 <span className="font-semibold text-slate-700">{t('backlog.goal')}:</span> {sprint.goal}
               </p>
             )}
-            <div className="mt-3 flex items-center gap-3">
-              <div className="h-2 w-44 overflow-hidden rounded-full bg-slate-200">
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <div className="h-2 w-full max-w-44 overflow-hidden rounded-full bg-slate-200">
                 <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
               </div>
               <span className="text-sm text-slate-500">{t('backlog.progress')}: {progress}%</span>
             </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             <button
               onClick={() => setShowCreate(true)}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
@@ -93,6 +119,28 @@ export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
                 {t('backlog.completeSprint')}
               </button>
             )}
+
+            {isSuperAdmin ? (
+              <button
+                type="button"
+                onClick={() => void handleDeleteSprint()}
+                disabled={deletingSprint}
+                className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
+              >
+                <Trash2 size={15} />
+                {t('backlog.deleteSprint')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleRequestDeleteSprint()}
+                disabled={requestingDelete}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+              >
+                <ShieldAlert size={15} />
+                {requestingDelete ? t('backlog.deletionRequestSending') : t('backlog.requestDelete')}
+              </button>
+            )}
           </div>
         </div>
 
@@ -102,16 +150,11 @@ export function SprintContainer({ sprint, tasks }: SprintContainerProps) {
               <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className={snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/40' : 'bg-white'}
+                className={[
+                  'space-y-3 p-3',
+                  snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/40' : 'bg-white',
+                ].join(' ')}
               >
-                <div className="grid grid-cols-[minmax(0,1fr)_32px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 sm:grid-cols-[minmax(0,1.35fr)_110px_110px_110px_70px_40px]">
-                  <span>{t('task.summary')}</span>
-                  <span className="hidden sm:block">{t('task.status')}</span>
-                  <span className="hidden sm:block">{t('task.priority')}</span>
-                  <span className="hidden sm:block">{t('task.dueDate')}</span>
-                  <span className="hidden sm:block">{t('task.attachments')}</span>
-                  <span>{t('task.assignee')}</span>
-                </div>
                 {tasks.map((task, index) => (
                   <BacklogRow key={task.id} task={task} index={index} />
                 ))}

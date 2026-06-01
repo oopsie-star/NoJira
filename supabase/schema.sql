@@ -57,6 +57,21 @@ CREATE TABLE public.project_invites (
   UNIQUE (project_id, email)
 );
 
+CREATE TABLE public.deletion_requests (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id   uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  requested_by uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  entity_type  text NOT NULL
+               CHECK (entity_type IN ('task', 'sprint', 'epic')),
+  entity_id    uuid NOT NULL,
+  entity_label text NOT NULL,
+  status       text NOT NULL DEFAULT 'pending'
+               CHECK (status IN ('pending', 'approved', 'rejected')),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  resolved_at  timestamptz,
+  resolved_by  uuid REFERENCES public.profiles(id) ON DELETE SET NULL
+);
+
 CREATE TABLE public.epics (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id  uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
@@ -126,21 +141,6 @@ CREATE TABLE public.task_activities (
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE OR REPLACE FUNCTION public.is_project_member(project_uuid uuid)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.project_members pm
-    WHERE pm.project_id = project_uuid
-      AND pm.profile_id = auth.uid()
-  );
-$$;
-
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS boolean
 LANGUAGE sql
@@ -156,6 +156,22 @@ AS $$
   );
 $$;
 
+CREATE OR REPLACE FUNCTION public.is_project_member(project_uuid uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.is_admin()
+    OR EXISTS (
+      SELECT 1
+      FROM public.project_members pm
+      WHERE pm.project_id = project_uuid
+        AND pm.profile_id = auth.uid()
+    );
+$$;
+
 CREATE OR REPLACE FUNCTION public.can_manage_project(project_uuid uuid)
 RETURNS boolean
 LANGUAGE sql
@@ -163,13 +179,14 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.project_members pm
-    WHERE pm.project_id = project_uuid
-      AND pm.profile_id = auth.uid()
-      AND pm.project_role IN ('owner', 'admin', 'founder', 'ceo')
-  );
+  SELECT public.is_admin()
+    OR EXISTS (
+      SELECT 1
+      FROM public.project_members pm
+      WHERE pm.project_id = project_uuid
+        AND pm.profile_id = auth.uid()
+        AND pm.project_role IN ('owner', 'admin', 'founder', 'ceo')
+    );
 $$;
 
 CREATE OR REPLACE FUNCTION public.can_invite_to_project(project_uuid uuid)
@@ -179,12 +196,13 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.projects p
-    WHERE p.id = project_uuid
-      AND p.created_by = auth.uid()
-  );
+  SELECT public.is_admin()
+    OR EXISTS (
+      SELECT 1
+      FROM public.projects p
+      WHERE p.id = project_uuid
+        AND p.created_by = auth.uid()
+    );
 $$;
 
 CREATE OR REPLACE FUNCTION public.can_delete_project(project_uuid uuid)
@@ -278,6 +296,117 @@ AS $$
     AND attachment_path <> '';
 $$;
 
+CREATE OR REPLACE FUNCTION public.list_assignable_profiles(project_uuid uuid)
+RETURNS SETOF public.profiles
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT p.*
+  FROM public.profiles p
+  WHERE public.can_invite_to_project(project_uuid)
+    AND p.approved = true
+    AND p.id <> auth.uid()
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.project_members pm
+      WHERE pm.project_id = project_uuid
+        AND pm.profile_id = p.id
+    )
+  ORDER BY NULLIF(p.full_name, ''), p.email;
+$$;
+
+CREATE OR REPLACE FUNCTION public.request_entity_deletion(
+  project_uuid uuid,
+  request_entity_type text,
+  request_entity_uuid uuid,
+  request_entity_label text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF request_entity_type NOT IN ('task', 'sprint', 'epic') THEN
+    RAISE EXCEPTION 'Invalid entity type';
+  END IF;
+
+  IF NOT public.is_project_member(project_uuid) THEN
+    RAISE EXCEPTION 'Not allowed to request deletion for this project';
+  END IF;
+
+  INSERT INTO public.deletion_requests (
+    project_id,
+    requested_by,
+    entity_type,
+    entity_id,
+    entity_label
+  )
+  VALUES (
+    project_uuid,
+    auth.uid(),
+    request_entity_type,
+    request_entity_uuid,
+    request_entity_label
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.resolve_deletion_request(
+  request_uuid uuid,
+  request_resolution text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  target_request public.deletion_requests%ROWTYPE;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Not allowed to resolve deletion requests';
+  END IF;
+
+  IF request_resolution NOT IN ('approved', 'rejected') THEN
+    RAISE EXCEPTION 'Invalid resolution';
+  END IF;
+
+  SELECT *
+  INTO target_request
+  FROM public.deletion_requests
+  WHERE id = request_uuid
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Deletion request not found';
+  END IF;
+
+  IF target_request.status <> 'pending' THEN
+    RAISE EXCEPTION 'Deletion request has already been resolved';
+  END IF;
+
+  IF request_resolution = 'approved' THEN
+    IF target_request.entity_type = 'task' THEN
+      DELETE FROM public.tasks WHERE id = target_request.entity_id;
+    ELSIF target_request.entity_type = 'sprint' THEN
+      DELETE FROM public.sprints WHERE id = target_request.entity_id;
+    ELSIF target_request.entity_type = 'epic' THEN
+      DELETE FROM public.epics WHERE id = target_request.entity_id;
+    END IF;
+  END IF;
+
+  UPDATE public.deletion_requests
+  SET
+    status = request_resolution,
+    resolved_at = now(),
+    resolved_by = auth.uid()
+  WHERE id = request_uuid;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION set_epic_key()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
@@ -333,6 +462,7 @@ AS $$
 DECLARE
   normalized_email text := lower(trim(invite_email));
   target_profile uuid;
+  target_profile_approved boolean := false;
   invite_status text := 'pending';
 BEGIN
   IF NOT public.can_invite_to_project(project_uuid) THEN
@@ -343,12 +473,13 @@ BEGIN
     RAISE EXCEPTION 'Invalid project role';
   END IF;
 
-  SELECT id INTO target_profile
+  SELECT id, approved
+  INTO target_profile, target_profile_approved
   FROM public.profiles
   WHERE lower(email) = normalized_email
   LIMIT 1;
 
-  IF target_profile IS NOT NULL THEN
+  IF target_profile IS NOT NULL AND target_profile_approved THEN
     invite_status := 'accepted';
 
     INSERT INTO public.project_members (project_id, profile_id, project_role)
@@ -383,18 +514,31 @@ BEGIN
     NEW.raw_user_meta_data->>'avatar_url'
   );
 
-  INSERT INTO public.project_members (project_id, profile_id, project_role)
-  SELECT project_id, NEW.id, project_role
-  FROM public.project_invites
-  WHERE email = lower(NEW.email)
-    AND status = 'pending'
-  ON CONFLICT (project_id, profile_id)
-  DO UPDATE SET project_role = EXCLUDED.project_role;
+  RETURN NEW;
+END;
+$$;
 
-  UPDATE public.project_invites
-  SET status = 'accepted'
-  WHERE email = lower(NEW.email)
-    AND status = 'pending';
+CREATE OR REPLACE FUNCTION public.handle_profile_approval()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.approved = true AND COALESCE(OLD.approved, false) = false THEN
+    INSERT INTO public.project_members (project_id, profile_id, project_role)
+    SELECT project_id, NEW.id, project_role
+    FROM public.project_invites
+    WHERE email = lower(NEW.email)
+      AND status = 'pending'
+    ON CONFLICT (project_id, profile_id)
+    DO UPDATE SET project_role = EXCLUDED.project_role;
+
+    UPDATE public.project_invites
+    SET status = 'accepted'
+    WHERE email = lower(NEW.email)
+      AND status = 'pending';
+  END IF;
 
   RETURN NEW;
 END;
@@ -423,10 +567,17 @@ CREATE TRIGGER on_project_created
   AFTER INSERT ON public.projects
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_project();
 
+CREATE TRIGGER on_profile_approved
+  AFTER UPDATE ON public.profiles
+  FOR EACH ROW
+  WHEN (OLD.approved IS DISTINCT FROM TRUE AND NEW.approved = TRUE)
+  EXECUTE FUNCTION public.handle_profile_approval();
+
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_invites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.deletion_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.epics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sprints ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
@@ -483,6 +634,22 @@ CREATE POLICY project_invites_update ON public.project_invites
 CREATE POLICY project_invites_delete ON public.project_invites
   FOR DELETE USING (public.can_invite_to_project(project_id));
 
+CREATE POLICY deletion_requests_select ON public.deletion_requests
+  FOR SELECT USING (requested_by = auth.uid() OR public.is_admin());
+
+CREATE POLICY deletion_requests_insert ON public.deletion_requests
+  FOR INSERT WITH CHECK (
+    requested_by = auth.uid()
+    AND public.is_project_member(project_id)
+  );
+
+CREATE POLICY deletion_requests_update ON public.deletion_requests
+  FOR UPDATE USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+CREATE POLICY deletion_requests_delete ON public.deletion_requests
+  FOR DELETE USING (public.is_admin());
+
 CREATE POLICY epics_select ON public.epics
   FOR SELECT USING (public.is_project_member(project_id));
 
@@ -494,7 +661,7 @@ CREATE POLICY epics_update ON public.epics
   WITH CHECK (public.is_project_member(project_id));
 
 CREATE POLICY epics_delete ON public.epics
-  FOR DELETE USING (public.can_manage_project(project_id));
+  FOR DELETE USING (public.is_admin());
 
 CREATE POLICY sprints_select ON public.sprints
   FOR SELECT USING (public.is_project_member(project_id));
@@ -507,7 +674,7 @@ CREATE POLICY sprints_update ON public.sprints
   WITH CHECK (public.is_project_member(project_id));
 
 CREATE POLICY sprints_delete ON public.sprints
-  FOR DELETE USING (public.can_manage_project(project_id));
+  FOR DELETE USING (public.is_admin());
 
 CREATE POLICY tasks_select ON public.tasks
   FOR SELECT USING (public.is_project_member(project_id));
@@ -520,7 +687,7 @@ CREATE POLICY tasks_update ON public.tasks
   WITH CHECK (public.is_project_member(project_id));
 
 CREATE POLICY tasks_delete ON public.tasks
-  FOR DELETE USING (public.can_delete_task_content(project_id, id, reporter_id));
+  FOR DELETE USING (public.is_admin());
 
 CREATE POLICY task_comments_select ON public.task_comments
   FOR SELECT USING (public.is_project_member(project_id));

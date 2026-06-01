@@ -1,9 +1,10 @@
 ﻿import { useMemo, useState, type FormEvent } from 'react'
 import { DragDropContext, Droppable, type DropResult } from '@hello-pangea/dnd'
-import { Plus } from 'lucide-react'
+import { Plus, ShieldAlert, Trash2 } from 'lucide-react'
 import { BacklogRow } from './BacklogRow'
 import { SprintContainer } from './SprintContainer'
 import { CreateTaskModal } from '@/components/task/CreateTaskModal'
+import { useAuthContext } from '@/auth/AuthContext'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { canManageProject } from '@/lib/permissions'
@@ -233,20 +234,45 @@ function EpicCard({
   epic,
   tasks,
   portfolioItems,
-  canManage,
+  canEdit,
 }: {
   epic: Epic
   tasks: Task[]
   portfolioItems: PortfolioItem[]
-  canManage: boolean
+  canEdit: boolean
 }) {
+  const { profile } = useAuthContext()
   const { t } = useI18n()
   const updateEpic = useStore((state) => state.updateEpic)
+  const deleteEpic = useStore((state) => state.deleteEpic)
+  const requestEntityDeletion = useStore((state) => state.requestEntityDeletion)
+  const [requestingDelete, setRequestingDelete] = useState(false)
+  const [deletingEpic, setDeletingEpic] = useState(false)
 
   const epicTasks = tasks.filter((task) => task.epic_id === epic.id)
   const progress = epicTasks.length
     ? Math.round((epicTasks.filter((task) => task.status === 'done').length / epicTasks.length) * 100)
     : 0
+  const isSuperAdmin = profile?.role === 'admin'
+
+  async function handleDeleteEpic() {
+    if (!window.confirm(t('backlog.deleteEpicConfirm', { name: epic.title }))) return
+    setDeletingEpic(true)
+    try {
+      await deleteEpic(epic.id)
+    } finally {
+      setDeletingEpic(false)
+    }
+  }
+
+  async function handleRequestDeleteEpic() {
+    setRequestingDelete(true)
+    try {
+      await requestEntityDeletion('epic', epic.id, `${epic.key} — ${epic.title}`)
+    } finally {
+      setRequestingDelete(false)
+    }
+  }
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -273,7 +299,7 @@ function EpicCard({
       <div className="mt-3 grid gap-2">
         <select
           value={epic.status}
-          disabled={!canManage}
+          disabled={!canEdit}
           onChange={(event) => void updateEpic(epic.id, { status: event.target.value as Epic['status'] })}
           className="rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-qira-pistachio disabled:bg-slate-50"
         >
@@ -283,7 +309,7 @@ function EpicCard({
         </select>
         <select
           value={epic.parent_portfolio_item_id ?? ''}
-          disabled={!canManage}
+          disabled={!canEdit}
           onChange={(event) => void updateEpic(epic.id, { parent_portfolio_item_id: event.target.value || null })}
           className="rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-qira-pistachio disabled:bg-slate-50"
         >
@@ -292,6 +318,30 @@ function EpicCard({
             <option key={item.id} value={item.id}>{item.key} - {item.title}</option>
           ))}
         </select>
+      </div>
+
+      <div className="mt-3">
+        {isSuperAdmin ? (
+          <button
+            type="button"
+            onClick={() => void handleDeleteEpic()}
+            disabled={deletingEpic}
+            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
+          >
+            <Trash2 size={15} />
+            {t('backlog.deleteEpic')}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void handleRequestDeleteEpic()}
+            disabled={requestingDelete}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+          >
+            <ShieldAlert size={15} />
+            {requestingDelete ? t('backlog.deletionRequestSending') : t('backlog.requestDelete')}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -338,7 +388,7 @@ function RoadmapNode({
       </div>
 
       {childEpics.map((epic) => (
-        <EpicCard key={epic.id} epic={epic} tasks={tasks} portfolioItems={portfolioItems} canManage={canManage} />
+        <EpicCard key={epic.id} epic={epic} tasks={tasks} portfolioItems={portfolioItems} canEdit />
       ))}
 
       {childItems.map((child) => (
@@ -365,6 +415,7 @@ export function BacklogView() {
   const [showCreateTask, setShowCreateTask] = useState(false)
 
   const canManage = canManageProject(activeProjectRole)
+  const canCollaborate = Boolean(activeProjectRole)
 
   const filteredTasks = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -426,7 +477,7 @@ export function BacklogView() {
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <div className="flex h-full min-h-0 flex-1 flex-col gap-4 p-4 sm:p-5">
+      <div className="flex min-h-full min-w-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden p-4 sm:p-5">
         {!activeProjectId ? (
           <section className="rounded-[28px] bg-white p-12 text-center shadow-sm">
             <h2 className="text-2xl font-semibold text-slate-900">{t('project.noProjects')}</h2>
@@ -449,10 +500,14 @@ export function BacklogView() {
                   <Plus size={15} />
                   {t('backlog.createIssue')}
                 </button>
-                {canManage && (
+                {canCollaborate && (
                   <>
                     <button onClick={() => setShowSprintModal(true)} className="rounded-2xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">{t('backlog.createSprint')}</button>
                     <button onClick={() => setShowEpicModal(true)} className="rounded-2xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">{t('backlog.createEpic')}</button>
+                  </>
+                )}
+                {canManage && (
+                  <>
                     <button onClick={() => setShowRoadmapModal(true)} className="hidden rounded-2xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 lg:inline-flex">{t('backlog.createRoadmap')}</button>
                   </>
                 )}
@@ -496,7 +551,7 @@ export function BacklogView() {
                               <p className="text-sm font-semibold text-slate-900">{t('backlog.standaloneEpics')}</p>
                             </div>
                             {standaloneEpics.map((epic) => (
-                              <EpicCard key={epic.id} epic={epic} tasks={filteredTasks} portfolioItems={portfolioItems} canManage={canManage} />
+                              <EpicCard key={epic.id} epic={epic} tasks={filteredTasks} portfolioItems={portfolioItems} canEdit={canCollaborate} />
                             ))}
                           </div>
                         )}
@@ -522,15 +577,14 @@ export function BacklogView() {
 
                     <Droppable droppableId="backlog" type="BACKLOG_TASK">
                       {(provided, snapshot) => (
-                        <div ref={provided.innerRef} {...provided.droppableProps} className={snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/40' : 'bg-white'}>
-                          <div className="grid grid-cols-[minmax(0,1.35fr)_110px_110px_110px_70px_40px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                            <span>{t('task.summary')}</span>
-                            <span>{t('task.status')}</span>
-                            <span>{t('task.priority')}</span>
-                            <span>{t('task.dueDate')}</span>
-                            <span>{t('task.attachments')}</span>
-                            <span>{t('task.assignee')}</span>
-                          </div>
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                          className={[
+                            'space-y-3 p-3',
+                            snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/40' : 'bg-white',
+                          ].join(' ')}
+                        >
                           {backlogTasks.map((task, index) => (
                             <BacklogRow key={task.id} task={task} index={index} />
                           ))}

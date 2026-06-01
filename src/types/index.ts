@@ -55,6 +55,24 @@ export interface ProjectInvite {
   created_at:   string
 }
 
+export type DeletionRequestEntityType = 'task' | 'sprint' | 'epic'
+export type DeletionRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface DeletionRequest {
+  id:          string
+  project_id:  string
+  requested_by: string
+  entity_type: DeletionRequestEntityType
+  entity_id:   string
+  entity_label: string
+  status:      DeletionRequestStatus
+  created_at:  string
+  resolved_at: string | null
+  resolved_by: string | null
+  requester?:  Profile | null
+  project?:    Pick<Project, 'id' | 'key' | 'name'> | null
+}
+
 export type PortfolioItemType = 'initiative' | 'milestone'
 
 export interface PortfolioItem {

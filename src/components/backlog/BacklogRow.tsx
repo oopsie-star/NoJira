@@ -29,75 +29,72 @@ export function BacklogRow({ task, index }: BacklogRowProps) {
           {...provided.dragHandleProps}
           onClick={() => setOpenTaskId(task.id)}
           className={[
-            'grid cursor-pointer grid-cols-[minmax(0,1fr)_32px] items-center gap-3 border-b border-slate-200 px-4 py-3 text-sm transition sm:grid-cols-[minmax(0,1.35fr)_110px_110px_110px_70px_40px]',
-            snapshot.isDragging ? 'rounded-2xl border border-slate-200 bg-white shadow-xl' : 'bg-white hover:bg-slate-50',
+            'cursor-pointer rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm transition',
+            snapshot.isDragging ? 'shadow-xl ring-2 ring-qira-pistachio/20' : 'hover:bg-slate-50',
           ].join(' ')}
         >
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <IssueTypeBadge type={task.issue_type} />
-              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{task.key}</span>
-              {task.epic && (
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <IssueTypeBadge type={task.issue_type} />
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{task.key}</span>
                 <span
-                  className="rounded-full px-2 py-1 text-[11px] font-semibold"
-                  style={{ backgroundColor: `${task.epic.color}20`, color: task.epic.color }}
+                  className={[
+                    'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
+                    task.status === 'done'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : task.status === 'in_progress'
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-slate-100 text-slate-700',
+                  ].join(' ')}
                 >
-                  {task.epic.title}
+                  {t(`status.${task.status}`)}
                 </span>
-              )}
+                {task.epic && (
+                  <span
+                    className="rounded-full px-2 py-1 text-[11px] font-semibold"
+                    style={{ backgroundColor: `${task.epic.color}20`, color: task.epic.color }}
+                  >
+                    {task.epic.title}
+                  </span>
+                )}
+              </div>
+
+              <p className="mt-3 break-words font-semibold text-slate-900">{task.title}</p>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <PriorityBadge priority={task.priority} />
+                {task.labels.length > 0 && (
+                  <span className="break-words rounded-full bg-slate-100 px-2.5 py-1">{task.labels.join(', ')}</span>
+                )}
+                <span>{t('board.daysInStatus', { days: formatStatusAge(locale, task) })}</span>
+                {task.due_date && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1">
+                    <Calendar size={12} />
+                    {formatDate(locale, task.due_date)}
+                  </span>
+                )}
+                {task.attachments.length > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1">
+                    <Paperclip size={12} />
+                    {task.attachments.length}
+                  </span>
+                )}
+                {blocked && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 font-semibold text-rose-700">
+                    <CircleAlert size={12} />
+                    {t('board.blocked')}
+                  </span>
+                )}
+              </div>
             </div>
-             <p className="mt-2 truncate font-semibold text-slate-900">{task.title}</p>
-             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-               {task.labels.length > 0 && <span className="truncate">{task.labels.join(', ')}</span>}
-               <span>{t('board.daysInStatus', { days: formatStatusAge(locale, task) })}</span>
-               {blocked && (
-                 <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 font-semibold text-rose-700">
-                   <CircleAlert size={12} />
-                   {t('board.blocked')}
-                 </span>
-               )}
-             </div>
-           </div>
 
-          <div className="hidden sm:block">
-            <span
-              className={[
-                'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
-                task.status === 'done'
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : task.status === 'in_progress'
-                    ? 'bg-amber-100 text-amber-700'
-                    : 'bg-slate-100 text-slate-700',
-              ].join(' ')}
-            >
-              {t(`status.${task.status}`)}
-            </span>
-          </div>
-
-          <div className="hidden sm:block">
-            <PriorityBadge priority={task.priority} />
-          </div>
-
-          <div className="hidden text-sm text-slate-500 sm:block">
-            {task.due_date ? (
-              <span className="inline-flex items-center gap-1">
-                <Calendar size={14} />
-                {formatDate(locale, task.due_date)}
+            <div className="flex items-center gap-3 lg:pl-4">
+              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                {t('task.assignee')}
               </span>
-            ) : '—'}
-          </div>
-
-          <div className="hidden text-sm text-slate-500 sm:block">
-            {task.attachments.length > 0 ? (
-              <span className="inline-flex items-center gap-1">
-                <Paperclip size={14} />
-                {task.attachments.length}
-              </span>
-            ) : '—'}
-          </div>
-
-          <div className="justify-self-end">
-            <UserAvatar profile={task.assignee} size={28} muted={!task.assignee} />
+              <UserAvatar profile={task.assignee} size={30} muted={!task.assignee} />
+            </div>
           </div>
         </div>
       )}

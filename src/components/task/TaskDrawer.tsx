@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { Calendar, Link2, MessageSquare, Paperclip, Plus, Send, Timer, Trash2, X } from 'lucide-react'
+import { Calendar, Link2, MessageSquare, Paperclip, Plus, Send, ShieldAlert, Timer, Trash2, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { IssueTypeBadge, PriorityBadge } from '@/components/common/IssueBadges'
 import { UserAvatar } from '@/components/common/UserAvatar'
@@ -39,6 +39,7 @@ export function TaskDrawer() {
   const taskActivities = useStore((state) => state.taskActivities)
   const updateTask = useStore((state) => state.updateTask)
   const deleteTask = useStore((state) => state.deleteTask)
+  const requestEntityDeletion = useStore((state) => state.requestEntityDeletion)
   const createSubtask = useStore((state) => state.createSubtask)
   const createTaskComment = useStore((state) => state.createTaskComment)
   const createTaskLink = useStore((state) => state.createTaskLink)
@@ -84,6 +85,7 @@ export function TaskDrawer() {
   const [commentBody, setCommentBody] = useState('')
   const [commentFiles, setCommentFiles] = useState<File[]>([])
   const [commentUploading, setCommentUploading] = useState(false)
+  const [deleteRequestSending, setDeleteRequestSending] = useState(false)
   const commentFileRef = useRef<HTMLInputElement>(null)
   const [linkType, setLinkType] = useState<TaskLinkType>('blocks')
   const [linkedTaskId, setLinkedTaskId] = useState('')
@@ -172,6 +174,15 @@ export function TaskDrawer() {
     await deleteTask(currentTask.id)
   }
 
+  async function handleRequestDelete() {
+    setDeleteRequestSending(true)
+    try {
+      await requestEntityDeletion('task', currentTask.id, `${currentTask.key} — ${currentTask.title}`)
+    } finally {
+      setDeleteRequestSending(false)
+    }
+  }
+
   async function handleCreateSubtask() {
     if (!subtaskTitle.trim()) return
     await createSubtask(currentTask.id, subtaskTitle)
@@ -215,12 +226,7 @@ export function TaskDrawer() {
     return t('task.link.relates_to')
   }
 
-  const canDelete = canDeleteAuthoredContent(
-    activeProjectRole,
-    profile?.id,
-    currentTask.reporter_id,
-    currentTask.status
-  )
+  const canDelete = profile?.role === 'admin'
 
   return (
     <>
@@ -252,13 +258,23 @@ export function TaskDrawer() {
                 {saving ? '…' : t('common.save')}
               </button>
             )}
-            {canDelete && (
+            {canDelete ? (
               <button
                 type="button"
                 onClick={handleDelete}
                 className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
               >
                 <Trash2 size={18} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleRequestDelete()}
+                disabled={deleteRequestSending}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-60"
+              >
+                <ShieldAlert size={15} />
+                {deleteRequestSending ? t('backlog.deletionRequestSending') : t('task.requestDelete')}
               </button>
             )}
             <button

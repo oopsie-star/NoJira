@@ -49,7 +49,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
           />
         )}
         <LeftSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <main className="flex min-h-0 flex-1 overflow-hidden bg-[#F7F8F9] pb-24 lg:pb-0">
+        <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#F7F8F9] pb-24 lg:pb-0">
           {children}
         </main>
       </div>

@@ -3,6 +3,8 @@ import { FunctionsHttpError } from '@supabase/supabase-js'
 import { isTaskBlocked } from '@/lib/ops'
 import { supabase } from '@/lib/supabase'
 import type {
+  DeletionRequest,
+  DeletionRequestEntityType,
   Epic,
   Notification,
   PortfolioItem,
@@ -67,6 +69,12 @@ const TASK_LINK_SELECT = `
 const NOTIFICATION_SELECT = `
   *,
   task:tasks(id, key, title, status, assignee_id)
+`
+
+const DELETION_REQUEST_SELECT = `
+  *,
+  requester:profiles(*),
+  project:projects(id, key, name)
 `
 
 const ACTIVE_PROJECT_STORAGE_KEY = 'qira-active-project-id'
@@ -142,6 +150,21 @@ function normalizeNotifications(rows: unknown[]) {
     const entry = row as Notification & { task?: Notification['task'] | Notification['task'][] | null }
     return { ...entry, task: unwrapRelation<Notification['task']>(entry.task) }
   }) as Notification[]
+}
+
+function normalizeDeletionRequests(rows: unknown[]) {
+  return rows.map((row) => {
+    const entry = row as DeletionRequest & {
+      requester?: Profile | Profile[] | null
+      project?: DeletionRequest['project'] | DeletionRequest['project'][] | null
+    }
+
+    return {
+      ...entry,
+      requester: unwrapRelation<Profile>(entry.requester),
+      project: unwrapRelation<DeletionRequest['project']>(entry.project),
+    }
+  }) as DeletionRequest[]
 }
 
 function uniqueProjects(memberships: ProjectMember[]) {
@@ -294,9 +317,11 @@ interface AppState {
   profile: Profile | null
   projects: Project[]
   workspaceProjects: Project[]
+  assignableProfiles: Profile[]
   projectMemberships: ProjectMember[]
   projectMembers: ProjectMember[]
   projectInvites: ProjectInvite[]
+  deletionRequests: DeletionRequest[]
   portfolioItems: PortfolioItem[]
   automationSettings: ProjectAutomationSettings | null
   projectWebhooks: ProjectWebhook[]
@@ -322,6 +347,7 @@ interface AppState {
   setActiveProjectId: (id: string | null) => void
   fetchProjects: () => Promise<void>
   fetchWorkspaceProjects: () => Promise<void>
+  fetchAssignableProfiles: () => Promise<void>
   fetchBoard: (sprintId: string) => Promise<void>
   fetchBacklog: () => Promise<void>
   fetchSprints: () => Promise<void>
@@ -359,6 +385,10 @@ interface AppState {
   updatePortfolioItem: (id: string, fields: Partial<PortfolioItem>) => Promise<void>
   updateAutomationSettings: (fields: Partial<ProjectAutomationSettings>) => Promise<void>
   deleteProject: (projectId: string) => Promise<void>
+  addProfileToProject: (profileId: string, role: ProjectRole) => Promise<void>
+  fetchDeletionRequests: () => Promise<void>
+  requestEntityDeletion: (entityType: DeletionRequestEntityType, entityId: string, entityLabel: string) => Promise<void>
+  resolveDeletionRequest: (requestId: string, resolution: 'approved' | 'rejected') => Promise<void>
   deleteProjectWebhook: (id: string) => Promise<void>
   markNotificationRead: (id: string) => Promise<void>
   markAllNotificationsRead: () => Promise<void>
@@ -405,9 +435,11 @@ export const useStore = create<AppState>((set, get) => {
     profile: null,
     projects: [],
     workspaceProjects: [],
+    assignableProfiles: [],
     projectMemberships: [],
     projectMembers: [],
     projectInvites: [],
+    deletionRequests: [],
     portfolioItems: [],
     automationSettings: null,
     projectWebhooks: [],
@@ -431,6 +463,7 @@ export const useStore = create<AppState>((set, get) => {
   setProfile: (profile) => set((state) => ({
     profile,
     workspaceProjects: profile?.role === 'admin' ? state.workspaceProjects : [],
+    deletionRequests: profile?.role === 'admin' ? state.deletionRequests : [],
   })),
   setOpenTaskId: (openTaskId) => set({ openTaskId }),
   setActiveSprintId: (activeSprintId) => set({ activeSprintId }),
@@ -453,6 +486,7 @@ export const useStore = create<AppState>((set, get) => {
         members: [],
         projectMembers: [],
         projectInvites: [],
+        assignableProfiles: [],
         taskComments: [],
         taskActivities: [],
     })
@@ -467,23 +501,47 @@ export const useStore = create<AppState>((set, get) => {
       set({
         projects: [],
         workspaceProjects: [],
+        assignableProfiles: [],
         projectMemberships: [],
         activeProjectId: null,
         activeProjectRole: null,
+        deletionRequests: profile?.role === 'admin' ? get().deletionRequests : [],
         loadingProjects: false,
       })
       return
     }
 
     set({ loadingProjects: true })
-    const { data } = await supabase
-      .from('project_members')
-      .select(PROJECT_ACCESS_SELECT)
-      .eq('profile_id', profileId)
-      .order('created_at')
+    let memberships: ProjectMember[] = []
+    let projects: Project[] = []
 
-    const memberships = normalizeProjectAccess((data ?? []) as unknown[])
-    const projects = uniqueProjects(memberships)
+    if (profile?.role === 'admin') {
+      const { data } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at')
+
+      projects = (data ?? []) as Project[]
+      memberships = projects.map((project) => ({
+        id: `admin-${project.id}`,
+        project_id: project.id,
+        profile_id: profileId,
+        project_role: 'owner',
+        created_at: project.created_at,
+        project,
+        profile,
+      }))
+    } else {
+      const { data } = await supabase
+        .from('project_members')
+        .select(PROJECT_ACCESS_SELECT)
+        .eq('profile_id', profileId)
+        .order('created_at')
+
+      memberships = normalizeProjectAccess((data ?? []) as unknown[])
+      projects = uniqueProjects(memberships)
+    }
+
     const storedActiveProjectId = readStoredActiveProjectId()
     const currentProjectExists = projects.some((project) => project.id === get().activeProjectId)
     const storedProjectExists = projects.some((project) => project.id === storedActiveProjectId)
@@ -497,7 +555,7 @@ export const useStore = create<AppState>((set, get) => {
 
     set({
       projects,
-      workspaceProjects: profile?.role === 'admin' ? get().workspaceProjects : [],
+      workspaceProjects: profile?.role === 'admin' ? projects : [],
       projectMemberships: memberships,
       activeProjectId: nextActiveProjectId,
       activeProjectRole: nextRole,
@@ -518,6 +576,35 @@ export const useStore = create<AppState>((set, get) => {
       .order('created_at', { ascending: false })
 
     set({ workspaceProjects: (data ?? []) as Project[] })
+  },
+
+  fetchAssignableProfiles: async () => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) {
+      set({ assignableProfiles: [] })
+      return
+    }
+
+    const { data } = await supabase.rpc('list_assignable_profiles', {
+      project_uuid: activeProjectId,
+    })
+
+    set({ assignableProfiles: (data ?? []) as Profile[] })
+  },
+
+  fetchDeletionRequests: async () => {
+    const profile = get().profile
+    if (profile?.role !== 'admin') {
+      set({ deletionRequests: [] })
+      return
+    }
+
+    const { data } = await supabase
+      .from('deletion_requests')
+      .select(DELETION_REQUEST_SELECT)
+      .order('created_at', { ascending: false })
+
+    set({ deletionRequests: normalizeDeletionRequests((data ?? []) as unknown[]) })
   },
 
   fetchBoard: async (sprintId) => {
@@ -1362,6 +1449,7 @@ export const useStore = create<AppState>((set, get) => {
       activeProjectId: nextActiveProjectId,
       activeProjectRole: nextActiveProjectRole,
       ...(deletingActiveProject ? {
+        assignableProfiles: [],
         activeSprintId: null,
         openTaskId: null,
         tasks: [],
@@ -1490,8 +1578,35 @@ export const useStore = create<AppState>((set, get) => {
       },
     })
 
-    await Promise.all([get().fetchMembers(), get().fetchProjectInvites(), get().fetchProjects()])
+    await Promise.all([
+      get().fetchMembers(),
+      get().fetchProjectInvites(),
+      get().fetchProjects(),
+      get().fetchAssignableProfiles(),
+    ])
     return { emailSent: !error }
+  },
+
+  addProfileToProject: async (profileId, role) => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) return
+
+    const { error } = await supabase
+      .from('project_members')
+      .insert({
+        project_id: activeProjectId,
+        profile_id: profileId,
+        project_role: role,
+      })
+
+    if (error) throw error
+
+    await Promise.all([
+      get().fetchMembers(),
+      get().fetchProjectInvites(),
+      get().fetchAssignableProfiles(),
+      get().fetchProjects(),
+    ])
   },
 
   fetchPendingMembers: async () => {
@@ -1509,8 +1624,51 @@ export const useStore = create<AppState>((set, get) => {
       .from('profiles')
       .update({ approved: true, approved_at: new Date().toISOString(), approved_by: adminProfile?.id })
       .eq('id', profileId)
-    await get().fetchPendingMembers()
-    get().fetchMembers()
+    await Promise.all([
+      get().fetchPendingMembers(),
+      get().fetchMembers(),
+      get().fetchProjectInvites(),
+      get().fetchAssignableProfiles(),
+    ])
+  },
+
+  requestEntityDeletion: async (entityType, entityId, entityLabel) => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) return
+
+    const { error } = await supabase.rpc('request_entity_deletion', {
+      project_uuid: activeProjectId,
+      request_entity_type: entityType,
+      request_entity_uuid: entityId,
+      request_entity_label: entityLabel,
+    })
+
+    if (error) throw error
+  },
+
+  resolveDeletionRequest: async (requestId, resolution) => {
+    const request = get().deletionRequests.find((item) => item.id === requestId) ?? null
+
+    const { error } = await supabase.rpc('resolve_deletion_request', {
+      request_uuid: requestId,
+      request_resolution: resolution,
+    })
+
+    if (error) throw error
+
+    if (request?.project_id === get().activeProjectId) {
+      if (request.entity_type === 'task' && get().openTaskId === request.entity_id) {
+        set({ openTaskId: null, taskComments: [], taskActivities: [] })
+      }
+
+      await Promise.all([
+        get().fetchBacklog(),
+        get().fetchSprints(),
+        get().fetchEpics(),
+      ])
+    }
+
+    await get().fetchDeletionRequests()
   },
 
   triggerApprovalNotification: async (options) => {
