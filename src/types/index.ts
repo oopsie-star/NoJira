@@ -107,6 +107,7 @@ export type SprintStatus = 'planned' | 'active' | 'completed'
 export interface Sprint {
   id:         string
   project_id: string
+  epic_id:    string | null
   name:       string
   goal:       string
   status:     SprintStatus
