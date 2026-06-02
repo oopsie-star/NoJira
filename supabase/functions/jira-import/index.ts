@@ -13,6 +13,10 @@ const EPIC_COLORS = [
   '#FF5630', '#FF8B00', '#4C9AFF', '#57D9A3',
 ]
 
+// Max attachments downloaded per runFinalization call to avoid Edge Function timeout.
+// Large projects with more attachments must re-run the import; getMappedId skips already-done.
+const MAX_ATTACHMENTS_PER_FINALIZE = 50
+
 // ── Response helpers ───────────────────────────────────────────────────────────
 
 function json(status: number, payload: unknown) {
@@ -255,7 +259,7 @@ async function addWarning(
   warnings.push(warning)
   await supabase
     .from('jira_import_jobs')
-    .update({ warnings: JSON.stringify(warnings) })
+    .update({ warnings: warnings as unknown as string })
     .eq('id', jobId)
 }
 
@@ -685,7 +689,8 @@ async function runFinalization(
         return raw?.attachment && Array.isArray(raw.attachment) && raw.attachment.length > 0
       })
 
-      for (const mapping of attachmentMappings) {
+      let attachmentsDownloaded = 0
+      outerAttachments: for (const mapping of attachmentMappings) {
         const raw = mapping.raw_json as Record<string, any>
         const taskId = mapping.local_entity_id
         const attachments: any[] = raw.attachment ?? []
@@ -694,6 +699,11 @@ async function runFinalization(
           try {
             const existingAttachment = await getMappedId(supabase, userId, siteUrl, 'attachment', String(att.id))
             if (existingAttachment) continue
+
+            if (attachmentsDownloaded >= MAX_ATTACHMENTS_PER_FINALIZE) {
+              await addWarning(supabase, jobId, warnings, `Attachment import capped at ${MAX_ATTACHMENTS_PER_FINALIZE} per run. Re-run import to download remaining attachments.`)
+              break outerAttachments
+            }
 
             if (att.size && att.size > maxBytes) {
               await addWarning(supabase, jobId, warnings, `Skipped large attachment ${att.filename} (${Math.round(att.size / 1048576)}MB > limit)`)
@@ -721,6 +731,7 @@ async function runFinalization(
               userId, localProjectId, localEntityType: 'attachment', localEntityId: storagePath,
               externalId: String(att.id), externalKey: filename, jiraSiteUrl: siteUrl,
             })
+            attachmentsDownloaded++
           } catch (attError) {
             await addWarning(supabase, jobId, warnings, `Attachment error for ${att?.filename ?? att?.id}: ${sanitizeError(String(attError))}`)
           }
@@ -755,7 +766,7 @@ async function runFinalization(
       status: finalStatus,
       progress_done: processedIssues,
       current_step: null,
-      warnings: JSON.stringify(warnings),
+      warnings: warnings as unknown as string,
       finished_at: new Date().toISOString(),
       local_project_id: localProjectId,
       cursor_json: null,
@@ -769,7 +780,7 @@ async function runFinalization(
       status: 'failed',
       error_message: message,
       finished_at: new Date().toISOString(),
-      warnings: JSON.stringify(warnings),
+      warnings: warnings as unknown as string,
       cursor_json: null,
     }).eq('id', jobId)
     throw err
@@ -1017,7 +1028,7 @@ Deno.serve(async (request) => {
         const message = sanitizeError(setupErr instanceof Error ? setupErr.message : String(setupErr))
         await adminClient.from('jira_import_jobs').update({
           status: 'failed', error_message: message,
-          finished_at: new Date().toISOString(), warnings: JSON.stringify(warnings),
+          finished_at: new Date().toISOString(), warnings: warnings as unknown as string,
         }).eq('id', job.id)
         return json(200, { id: job.id, status: 'failed', error_message: message })
       }
@@ -1030,7 +1041,7 @@ Deno.serve(async (request) => {
         const message = sanitizeError(batchErr instanceof Error ? batchErr.message : String(batchErr))
         await adminClient.from('jira_import_jobs').update({
           status: 'failed', error_message: message,
-          finished_at: new Date().toISOString(), warnings: JSON.stringify(warnings),
+          finished_at: new Date().toISOString(), warnings: warnings as unknown as string,
         }).eq('id', job.id)
         return json(200, { id: job.id, status: 'failed', error_message: message })
       }
@@ -1042,7 +1053,7 @@ Deno.serve(async (request) => {
         // Large project — save cursor so frontend can poll resume
         await adminClient.from('jira_import_jobs').update({
           cursor_json: batchResult.cursor as unknown as Record<string, unknown>,
-          warnings: JSON.stringify(warnings),
+          warnings: warnings as unknown as string,
         }).eq('id', job.id)
       }
 
@@ -1060,7 +1071,7 @@ Deno.serve(async (request) => {
       const jobId = String(body.job_id ?? '')
       const { data: job } = await adminClient
         .from('jira_import_jobs')
-        .select('id, status, progress_done, progress_total, current_step, warnings, error_message, local_project_id, cursor_json, connection_id, jira_project_key, finished_at')
+        .select('id, status, progress_done, progress_total, current_step, warnings, error_message, local_project_id, cursor_json, connection_id, jira_project_key, finished_at, updated_at')
         .eq('id', jobId)
         .eq('user_id', userId)
         .single()
@@ -1068,9 +1079,10 @@ Deno.serve(async (request) => {
       if (!job) return json(404, { error: 'Job not found.' })
 
       if (job.status !== 'running') {
-        // Already done or failed — return current state without cursor
-        const { cursor_json: _cursor, ...safeJob } = job as typeof job & { cursor_json: unknown }
-        void _cursor
+        // Already done or failed — return current state, strip internal fields
+        const { cursor_json: _cursor, connection_id: _conn, updated_at: _ts, ...safeJob } =
+          job as typeof job & { cursor_json: unknown; connection_id: unknown; updated_at: unknown }
+        void _cursor; void _conn; void _ts
         return json(200, safeJob)
       }
 
@@ -1084,16 +1096,42 @@ Deno.serve(async (request) => {
         return json(200, { id: jobId, status: 'failed', error_message: 'Resume failed: no import cursor found.' })
       }
 
+      // ── Server-side optimistic lock ─────────────────────────────────────────
+      // Atomically claim this batch by bumping updated_at (via trigger) using the
+      // last-known updated_at as a compare-and-swap token.  If another concurrent
+      // resume call already claimed the row (its UPDATE changed updated_at before
+      // ours), our WHERE clause won't match and we return without processing.
+      const { data: claimed } = await adminClient
+        .from('jira_import_jobs')
+        .update({ current_step: 'step_processing' })
+        .eq('id', jobId)
+        .eq('updated_at', (job as any).updated_at)
+        .select('id')
+
+      if (!claimed || claimed.length === 0) {
+        // Lost the race — another resume is already processing this batch
+        return json(200, {
+          id: jobId, status: 'running',
+          progress_done: job.progress_done, progress_total: job.progress_total,
+          current_step: job.current_step,
+        })
+      }
+
       const { data: conn } = await adminClient
         .from('jira_connections')
         .select('jira_site_url, _access_token, _token_email')
-        .eq('id', job.connection_id)
+        .eq('id', (job as any).connection_id)
         .eq('user_id', userId)
         .single()
       if (!conn) return json(404, { error: 'Connection not found for resume.' })
 
       const jiraClient = new JiraClient(conn.jira_site_url, conn._token_email, conn._access_token)
-      const warnings: string[] = Array.isArray(job.warnings) ? (job.warnings as unknown[]).map(String) : []
+      // Handle both array (jsonb array, correct) and JSON string (legacy pre-fix rows)
+      const warnings: string[] = Array.isArray(job.warnings)
+        ? (job.warnings as unknown[]).map(String)
+        : typeof job.warnings === 'string' && (job.warnings as string).length > 2
+          ? (JSON.parse(job.warnings as string) as unknown[]).map(String)
+          : []
 
       try {
         if (cursor.phase === 'issues') {
@@ -1103,7 +1141,7 @@ Deno.serve(async (request) => {
           } else {
             await adminClient.from('jira_import_jobs').update({
               cursor_json: batchResult.cursor as unknown as Record<string, unknown>,
-              warnings: JSON.stringify(warnings),
+              warnings: warnings as unknown as string,
             }).eq('id', jobId)
           }
         } else {
@@ -1113,7 +1151,7 @@ Deno.serve(async (request) => {
         const message = sanitizeError(resumeErr instanceof Error ? resumeErr.message : String(resumeErr))
         await adminClient.from('jira_import_jobs').update({
           status: 'failed', error_message: message,
-          finished_at: new Date().toISOString(), warnings: JSON.stringify(warnings), cursor_json: null,
+          finished_at: new Date().toISOString(), warnings: warnings as unknown as string, cursor_json: null,
         }).eq('id', jobId)
         return json(200, { id: jobId, status: 'failed', error_message: message })
       }
