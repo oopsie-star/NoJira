@@ -256,3 +256,67 @@ export const EPIC_COLORS = [
   '#0C66E4', '#6554C0', '#00B8D9', '#36B37E',
   '#FF5630', '#FF8B00', '#4C9AFF', '#57D9A3',
 ]
+
+// ─── Jira Import ──────────────────────────────────────────────────────────────
+export interface JiraConnection {
+  id: string
+  user_id: string
+  jira_site_url: string
+  cloud_id: string | null
+  auth_type: 'api_token' | 'oauth2'
+  jira_account_id: string | null
+  jira_user_email: string | null
+  status: 'active' | 'expired' | 'revoked'
+  last_sync_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface JiraImportJob {
+  id: string
+  user_id: string
+  connection_id: string
+  local_project_id: string | null
+  jira_project_key: string
+  jira_project_name: string | null
+  jira_board_id: string | null
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'partial'
+  progress_total: number
+  progress_done: number
+  current_step: string | null
+  warnings: string[]
+  error_message: string | null
+  import_options: JiraImportOptions
+  created_at: string
+  updated_at: string
+  finished_at: string | null
+}
+
+export interface JiraImportOptions {
+  include_attachments: boolean
+  include_completed_sprints: boolean
+  include_comments: boolean
+  max_attachment_size_mb: number
+}
+
+export interface JiraImportPreview {
+  epics_count: number
+  issues_count: number
+  subtasks_count: number
+  sprints_count: number
+  attachments_count: number
+  estimated_attachment_size_bytes: number
+}
+
+export interface JiraProjectInfo {
+  id: string
+  key: string
+  name: string
+  description: string
+}
+
+export interface JiraBoardInfo {
+  id: string
+  name: string
+  type: string
+}

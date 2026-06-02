@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Copy, Eye, EyeOff, LoaderCircle, Trash2 } from 'lucide-react'
+import { Copy, Eye, EyeOff, Import, LoaderCircle, Trash2 } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { useI18n } from '@/lib/i18n'
+import { JiraImportWizard } from '@/components/jira/JiraImportWizard'
 import {
   callLLM,
   DEFAULT_MODELS,
@@ -92,6 +93,7 @@ export function OpsPage() {
 
   const initialAiConfig = useMemo(() => getLLMConfig(), [])
 
+  const [jiraWizardOpen, setJiraWizardOpen] = useState(false)
   const [name, setName] = useState('')
   const [endpointUrl, setEndpointUrl] = useState('')
   const [secret, setSecret] = useState('')
@@ -287,6 +289,25 @@ export function OpsPage() {
             <span className="text-sm text-slate-500">{t('ops.subtitle')}</span>
           </div>
         </section>
+
+        <section className="rounded-[28px] bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">{t('ops.jira.title')}</h2>
+              <p className="mt-1 text-sm text-slate-500">{t('ops.jira.subtitle')}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setJiraWizardOpen(true)}
+              className="inline-flex items-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
+            >
+              <Import size={16} />
+              {t('ops.jira.openWizard')}
+            </button>
+          </div>
+        </section>
+
+        {jiraWizardOpen && <JiraImportWizard onClose={() => setJiraWizardOpen(false)} />}
 
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
           <div className="space-y-4">
