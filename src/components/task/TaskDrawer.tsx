@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { IssueTypeBadge, PriorityBadge } from '@/components/common/IssueBadges'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { AttachmentUpload } from './AttachmentUpload'
+import { JiraDescriptionRenderer } from './JiraDescriptionRenderer'
 import { StatusDropdown } from './StatusDropdown'
 import { useAuthContext } from '@/auth/AuthContext'
 import { useI18n } from '@/lib/i18n'
@@ -80,6 +81,7 @@ export function TaskDrawer() {
 
   const [draftTitle, setDraftTitle] = useState('')
   const [draftDescription, setDraftDescription] = useState('')
+  const [editDescription, setEditDescription] = useState(false)
   const [draftLabels, setDraftLabels] = useState('')
   const [subtaskTitle, setSubtaskTitle] = useState('')
   const [commentBody, setCommentBody] = useState('')
@@ -114,6 +116,7 @@ export function TaskDrawer() {
 
     setDraftTitle(task.title)
     setDraftDescription(task.description)
+    setEditDescription(false)
     setDraftLabels(task.labels.join(', '))
     setSubtaskTitle('')
     setCommentBody('')
@@ -126,6 +129,7 @@ export function TaskDrawer() {
   if (!task) return null
 
   const currentTask = task
+  const hasRichDescription = Boolean(currentTask.jira_description_adf)
   const selectedSprint = currentTask.sprint_id
     ? (sprints.find((sprint) => sprint.id === currentTask.sprint_id) ?? null)
     : null
@@ -337,7 +341,24 @@ export function TaskDrawer() {
             </div>
 
             <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <MetaSection title={t('task.description')}>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('task.description')}</p>
+                {hasRichDescription && (
+                  <button
+                    type="button"
+                    onClick={() => setEditDescription((v) => !v)}
+                    className="text-xs font-medium text-qira-pistachio transition hover:text-qira-pistachio-dk"
+                  >
+                    {editDescription ? t('task.jira.viewRich') : t('task.jira.editAsText')}
+                  </button>
+                )}
+              </div>
+              {hasRichDescription && !editDescription ? (
+                <JiraDescriptionRenderer
+                  adf={currentTask.jira_description_adf as NonNullable<Task['jira_description_adf']>}
+                  attachments={currentTask.attachments}
+                />
+              ) : (
                 <textarea
                   value={draftDescription}
                   onChange={(event) => setDraftDescription(event.target.value)}
@@ -346,7 +367,7 @@ export function TaskDrawer() {
                   placeholder={t('task.emptyDescription')}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 />
-              </MetaSection>
+              )}
             </div>
 
             <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

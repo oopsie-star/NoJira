@@ -4,16 +4,9 @@ import { supabase } from '@/lib/supabase'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { canDeleteAuthoredContent } from '@/lib/permissions'
+import { getFilename, isImage, storageBucket } from '@/lib/attachments'
 import { useStore } from '@/store'
 import type { ProjectRole, TaskStatus } from '@/types'
-
-function isImage(path: string) {
-  return /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(path)
-}
-
-function getFilename(path: string) {
-  return path.split('/').pop() ?? path
-}
 
 interface SignedAttachment {
   path: string
@@ -66,7 +59,7 @@ export function AttachmentUpload({
       const results = await Promise.all(
         attachments.map(async (path) => {
           const { data } = await supabase.storage
-            .from('attachments')
+            .from(storageBucket(path))
             .createSignedUrl(path, 3600)
 
           return { path, signedUrl: data?.signedUrl ?? null }
@@ -124,7 +117,7 @@ export function AttachmentUpload({
 
   async function handleDelete(path: string) {
     if (!canDeleteAuthoredContent(activeProjectRole, currentUserId, getAttachmentAuthorId(path), taskStatus)) return
-    await supabase.storage.from('attachments').remove([path])
+    await supabase.storage.from(storageBucket(path)).remove([path])
     await updateTask(taskId, { attachments: attachments.filter((item) => item !== path) })
   }
 

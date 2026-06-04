@@ -120,6 +120,29 @@ export type TaskStatus = 'todo' | 'in_progress' | 'done'
 export type IssueType = 'task' | 'story' | 'bug'
 export type IssuePriority = 'lowest' | 'low' | 'medium' | 'high' | 'highest'
 
+// Raw Atlassian Document Format node (loosely typed — we only read a few attrs).
+export interface AdfNode {
+  type?: string
+  text?: string
+  attrs?: Record<string, unknown>
+  marks?: AdfNode[]
+  content?: AdfNode[]
+  [key: string]: unknown
+}
+
+// A media reference extracted from a Jira description (image / file embedded in
+// the ADF body). Linked to an imported attachment by filename at render time.
+export interface JiraMediaRef {
+  id:         string | null
+  type:       string | null
+  collection: string | null
+  width:      number | null
+  height:     number | null
+  alt:        string | null
+  url:        string | null
+  localId:    string | null
+}
+
 export interface Task {
   id:             string
   project_id:     string
@@ -137,6 +160,10 @@ export interface Task {
   reporter_id:    string | null
   due_date:       string | null
   attachments:    string[]
+  // Jira rich-content import: raw ADF body + media refs extracted from it.
+  // Both are null for tasks not imported from Jira (or with no rich body).
+  jira_description_adf?:   AdfNode | null
+  description_media_refs?: JiraMediaRef[] | null
   position:       number
   status_changed_at: string
   started_at:     string | null
@@ -297,6 +324,8 @@ export interface JiraImportOptions {
   include_completed_sprints: boolean
   include_comments: boolean
   max_attachment_size_mb: number
+  skip_attachments_over_limit: boolean
+  import_users: boolean
 }
 
 export interface JiraImportPreview {
@@ -306,6 +335,21 @@ export interface JiraImportPreview {
   sprints_count: number
   attachments_count: number
   estimated_attachment_size_bytes: number
+  total_issues: number
+  is_large_project: boolean
+}
+
+export interface JiraUserPlaceholder {
+  id: string
+  project_id: string
+  source: 'jira'
+  external_id: string
+  email: string | null
+  display_name: string
+  avatar_url: string | null
+  status: 'imported_placeholder'
+  created_at: string
+  updated_at: string
 }
 
 export interface JiraProjectInfo {
@@ -319,4 +363,26 @@ export interface JiraBoardInfo {
   id: string
   name: string
   type: string
+}
+
+export interface JiraSavedConnection {
+  connection_id: string
+  jira_site_url: string
+  email: string | null
+  status: 'active' | 'expired' | 'revoked'
+  last_sync_at: string | null
+  token_saved: boolean
+}
+
+export interface JiraImportPreferences {
+  connection_id: string
+  local_project_id: string | null
+  last_jira_project_key: string | null
+  last_jira_board_id: string | null
+  include_attachments: boolean
+  include_completed_sprints: boolean
+  include_comments: boolean
+  max_attachment_size_mb: number
+  skip_attachments_over_limit: boolean
+  import_users: boolean
 }

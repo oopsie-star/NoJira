@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   Import,
+  Lock,
   Loader2,
   X,
 } from 'lucide-react'
@@ -19,8 +20,10 @@ import type {
   JiraBoardInfo,
   JiraImportJob,
   JiraImportOptions,
+  JiraImportPreferences,
   JiraImportPreview,
   JiraProjectInfo,
+  JiraSavedConnection,
 } from '@/types'
 
 type WizardStep = 'connect' | 'select' | 'preview' | 'progress' | 'result'
@@ -70,19 +73,36 @@ function OptionToggle({
   checked,
   onChange,
   label,
+  disabled = false,
+  hint,
 }: {
   checked: boolean
   onChange: (v: boolean) => void
   label: string
+  disabled?: boolean
+  hint?: string
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-slate-200 px-4 py-3">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+    <label
+      className={[
+        'flex items-center justify-between gap-4 rounded-2xl border border-slate-200 px-4 py-3',
+        disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
+      ].join(' ')}
+    >
+      <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+        {label}
+        {hint && (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {hint}
+          </span>
+        )}
+      </span>
       <input
         type="checkbox"
         checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-5 w-5 shrink-0 rounded border-slate-300 text-qira-pistachio focus:ring-qira-pistachio"
+        disabled={disabled}
+        onChange={(e) => !disabled && onChange(e.target.checked)}
+        className="h-5 w-5 shrink-0 rounded border-slate-300 text-qira-pistachio focus:ring-qira-pistachio disabled:cursor-not-allowed"
       />
     </label>
   )
@@ -112,6 +132,12 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
   const setActiveProjectId = useStore((s) => s.setActiveProjectId)
 
   const [step, setStep] = useState<WizardStep>('connect')
+
+  // ── Saved-connection / preferences state ──────────────────────────────────
+  const [savedConnection, setSavedConnection] = useState<JiraSavedConnection | null>(null)
+  const [savedPreferences, setSavedPreferences] = useState<JiraImportPreferences | null>(null)
+  const [loadingLastConnection, setLoadingLastConnection] = useState(true)
+  const [showReplaceToken, setShowReplaceToken] = useState(false)
 
   // Step 1
   const [siteUrl, setSiteUrl] = useState('')
@@ -143,7 +169,13 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
     include_completed_sprints: true,
     include_comments: true,
     max_attachment_size_mb: 10,
+    skip_attachments_over_limit: true,
+    import_users: true,
   })
+
+  // Stale mapping check (existing project re-import)
+  const [staleMappingsInfo, setStaleMappingsInfo] = useState<{ total: number; stale: number } | null>(null)
+  const [checkingStale, setCheckingStale] = useState(false)
 
   // Step 4/5
   const [jobId, setJobId] = useState<string | null>(null)
@@ -154,7 +186,17 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     void fetchProjects()
+    void loadLastConnection()
   }, [fetchProjects])
+
+  // When user selects an existing local project, check for stale Jira mappings.
+  useEffect(() => {
+    if (useExistingProject && selectedLocalProjectId && connectionId) {
+      void checkStaleMappings(connectionId, selectedLocalProjectId)
+    } else {
+      setStaleMappingsInfo(null)
+    }
+  }, [useExistingProject, selectedLocalProjectId, connectionId])
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -162,6 +204,61 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
       if (pollRef.current !== null) window.clearInterval(pollRef.current)
     }
   }, [])
+
+  // ── Load last connection on open ──────────────────────────────────────────
+
+  async function loadLastConnection() {
+    setLoadingLastConnection(true)
+    try {
+      const { data } = await supabase.functions.invoke('jira-import', {
+        body: { action: 'get_last_connection' },
+      })
+
+      if (data?.connection) {
+        const conn = data.connection as JiraSavedConnection
+        const prefs = data.preferences as JiraImportPreferences | null
+
+        setSavedConnection(conn)
+        setSiteUrl(conn.jira_site_url)
+        setEmail(conn.email ?? '')
+
+        if (prefs) {
+          setSavedPreferences(prefs)
+          setOptions({
+            include_attachments: prefs.include_attachments,
+            include_completed_sprints: prefs.include_completed_sprints,
+            include_comments: prefs.include_comments,
+            max_attachment_size_mb: prefs.max_attachment_size_mb,
+            skip_attachments_over_limit: prefs.skip_attachments_over_limit,
+            import_users: prefs.import_users,
+          })
+        }
+      }
+    } catch {
+      // Non-fatal — wizard still works, just shows the full form
+    } finally {
+      setLoadingLastConnection(false)
+    }
+  }
+
+  async function checkStaleMappings(connId: string, localProjectId: string) {
+    setCheckingStale(true)
+    setStaleMappingsInfo(null)
+    try {
+      const { data } = await supabase.functions.invoke('jira-import', {
+        body: { action: 'check_stale_mappings', connection_id: connId, local_project_id: localProjectId },
+      })
+      if (data?.has_mappings !== undefined) {
+        const total = (data.total_issue_mappings ?? 0) + (data.total_epic_mappings ?? 0) + (data.total_sprint_mappings ?? 0)
+        const stale = (data.stale_issue_mappings ?? 0) + (data.stale_epic_mappings ?? 0) + (data.stale_sprint_mappings ?? 0)
+        setStaleMappingsInfo({ total, stale })
+      }
+    } catch {
+      // Non-fatal — wizard still works without this info
+    } finally {
+      setCheckingStale(false)
+    }
+  }
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -177,22 +274,50 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
     setConnecting(false)
 
     if (error || !data?.connection_id) {
-      const msg = data?.error ?? error?.message ?? ''
+      const errorCode: string = data?.error_code ?? ''
+      const msg: string = data?.error ?? error?.message ?? ''
+      const isAuthFailure =
+        errorCode === 'JIRA_AUTH_FAILED' ||
+        msg.includes('invalidCredentials') ||
+        msg.includes('401')
       setConnectError(
-        msg.includes('invalidCredentials') || msg.includes('401')
+        isAuthFailure
           ? t('ops.jira.error.invalidCredentials')
-          : t('ops.jira.error.generic'),
+          : `${t('ops.jira.error.generic')}${errorCode ? ` [${errorCode}]` : ''}`,
       )
       return
     }
 
+    // Update savedConnection so the next time the wizard opens it shows the
+    // new connection without requiring a page refresh.
+    const newSaved: JiraSavedConnection = {
+      connection_id: data.connection_id,
+      jira_site_url: data.jira_site_url ?? siteUrl.trim(),
+      email: data.jira_user_email ?? email.trim(),
+      status: data.status ?? 'active',
+      last_sync_at: null,
+      token_saved: true,
+    }
+    setSavedConnection(newSaved)
+    setShowReplaceToken(false)
+    setApiToken('')
+
     setConnectionId(data.connection_id)
     setConnectedEmail(data.jira_user_email ?? email)
     setStep('select')
-    void loadProjects(data.connection_id)
+    void loadProjects(data.connection_id, savedPreferences?.last_jira_project_key, savedPreferences?.last_jira_board_id)
   }
 
-  async function loadProjects(connId: string) {
+  // "Continue" when a saved connection exists and user is not replacing the token.
+  async function handleContinueWithSaved() {
+    const connId = savedConnection!.connection_id
+    setConnectionId(connId)
+    setConnectedEmail(savedConnection!.email)
+    setStep('select')
+    void loadProjects(connId, savedPreferences?.last_jira_project_key, savedPreferences?.last_jira_board_id)
+  }
+
+  async function loadProjects(connId: string, restoreProjectKey?: string | null, restoreBoardId?: string | null) {
     setLoadingProjects(true)
     setSelectError(null)
     const { data, error } = await supabase.functions.invoke('jira-import', {
@@ -203,15 +328,26 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
       setSelectError(t('ops.jira.error.generic'))
       return
     }
-    setJiraProjects(data.projects)
-    if (data.projects.length > 0) {
-      setSelectedProjectKey(data.projects[0].key)
-      setSelectedProjectName(data.projects[0].name)
-      void loadBoards(connId, data.projects[0].key)
+    const projectList: JiraProjectInfo[] = data.projects
+    setJiraProjects(projectList)
+    if (projectList.length === 0) return
+
+    const restoredProj = restoreProjectKey
+      ? projectList.find((p) => p.key === restoreProjectKey) ?? null
+      : null
+    const targetProject = restoredProj ?? projectList[0]
+
+    setSelectedProjectKey(targetProject.key)
+    setSelectedProjectName(targetProject.name)
+
+    if (restoreProjectKey && !restoredProj) {
+      setSelectError(t('ops.jira.step2.savedProjectNotFound'))
     }
+
+    void loadBoards(connId, targetProject.key, restoreBoardId)
   }
 
-  async function loadBoards(connId: string, projectKey: string) {
+  async function loadBoards(connId: string, projectKey: string, restoreBoardId?: string | null) {
     setLoadingBoards(true)
     setJiraBoards([])
     setSelectedBoardId('')
@@ -219,7 +355,14 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
       body: { action: 'list_boards', connection_id: connId, project_key: projectKey },
     })
     setLoadingBoards(false)
-    if (data?.boards) setJiraBoards(data.boards)
+    if (data?.boards) {
+      const boardList: JiraBoardInfo[] = data.boards
+      setJiraBoards(boardList)
+      if (restoreBoardId) {
+        const found = boardList.find((b) => b.id === restoreBoardId)
+        if (found) setSelectedBoardId(restoreBoardId)
+      }
+    }
   }
 
   function handleProjectChange(key: string) {
@@ -245,10 +388,30 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
     if (data) setPreview(data as JiraImportPreview)
   }
 
+  async function savePreferences(connId: string) {
+    try {
+      await supabase.functions.invoke('jira-import', {
+        body: {
+          action: 'save_preferences',
+          connection_id: connId,
+          local_project_id: useExistingProject && selectedLocalProjectId ? selectedLocalProjectId : null,
+          jira_project_key: selectedProjectKey,
+          jira_board_id: selectedBoardId || null,
+          options,
+        },
+      })
+    } catch {
+      // Non-fatal — import continues even if preferences weren't saved
+    }
+  }
+
   async function handleStartImport() {
     setImporting(true)
     setImportError(null)
     setStep('progress')
+
+    // Save preferences in background so the next wizard open restores state.
+    if (connectionId) void savePreferences(connectionId)
 
     const { data, error } = await supabase.functions.invoke('jira-import', {
       body: {
@@ -274,13 +437,11 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
     setJobStatus(startedJob)
 
     if (startedJob.status !== 'running') {
-      // Small project — already finished synchronously
       setImporting(false)
       await finishImport(startedJob)
       return
     }
 
-    // Large project — poll resume every 3s until done
     const currentJobId = startedJob.id
     const resuming = { current: false }
 
@@ -303,7 +464,6 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
             await finishImport(job)
           }
         } else if (resumeErr) {
-          // Transient error — log and let the next tick retry
           console.error('[jira-import] resume error:', resumeErr.message)
         }
       } finally {
@@ -322,11 +482,12 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
 
   function handleReset() {
     setStep('connect')
+    // Keep savedConnection and siteUrl/email pre-filled — user should not need
+    // to re-enter credentials for a second import in the same session.
     setConnectionId(null)
     setConnectedEmail(null)
-    setSiteUrl('')
-    setEmail('')
     setApiToken('')
+    setShowReplaceToken(false)
     setConnectError(null)
     setJiraProjects([])
     setJiraBoards([])
@@ -344,6 +505,66 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
   const currentIndex = stepOrder.indexOf(step)
 
   function renderConnect() {
+    // While we are loading preferences from the server, show a minimal spinner
+    // so the form does not flash before we know whether it should be pre-filled.
+    if (loadingLastConnection) {
+      return (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 size={24} className="animate-spin text-slate-300" />
+        </div>
+      )
+    }
+
+    // ── Case A: Saved connection — no token replacement requested ─────────────
+    if (savedConnection && !showReplaceToken) {
+      return (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">{t('ops.jira.step1.savedTitle')}</h2>
+            <p className="mt-1 text-sm text-slate-500">{t('ops.jira.step1.savedSubtitle')}</p>
+          </div>
+
+          {/* Connection summary */}
+          <div className="rounded-2xl border border-slate-200 px-4 py-3 space-y-1">
+            <p className="text-sm font-medium text-slate-900 truncate">{savedConnection.jira_site_url}</p>
+            {savedConnection.email && (
+              <p className="text-xs text-slate-500">{savedConnection.email}</p>
+            )}
+          </div>
+
+          {/* Token saved indicator */}
+          <div className="flex items-start gap-3 rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3">
+            <Lock size={14} className="mt-0.5 shrink-0 text-emerald-600" />
+            <p className="text-xs text-emerald-700">{t('ops.jira.step1.tokenSaved')}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowReplaceToken(true)}
+            className="text-sm font-medium text-slate-500 hover:text-slate-700 transition underline underline-offset-2"
+          >
+            {t('ops.jira.step1.replaceToken')}
+          </button>
+
+          {connectError && (
+            <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{connectError}</p>
+          )}
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => void handleContinueWithSaved()}
+              className="inline-flex items-center gap-2 rounded-2xl bg-qira-pistachio px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
+            >
+              {t('ops.jira.step1.continueButton')}
+              <ChevronRight size={15} />
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    // ── Case B: No saved connection OR user replacing the token ───────────────
     return (
       <form onSubmit={(e) => void handleConnect(e)} className="space-y-4">
         <div>
@@ -405,15 +626,26 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
           <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{connectError}</p>
         )}
 
-        <div className="flex justify-end pt-2">
-          <button
-            type="submit"
-            disabled={connecting}
-            className="inline-flex items-center gap-2 rounded-2xl bg-qira-pistachio px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
-          >
-            {connecting && <Loader2 size={15} className="animate-spin" />}
-            {connecting ? t('ops.jira.step1.connecting') : t('ops.jira.step1.connect')}
-          </button>
+        <div className="flex items-center justify-between pt-2">
+          {showReplaceToken && (
+            <button
+              type="button"
+              onClick={() => { setShowReplaceToken(false); setConnectError(null); setApiToken('') }}
+              className="text-sm text-slate-400 transition hover:text-slate-600"
+            >
+              {t('ops.jira.step1.cancelReplace')}
+            </button>
+          )}
+          <div className="ml-auto">
+            <button
+              type="submit"
+              disabled={connecting}
+              className="inline-flex items-center gap-2 rounded-2xl bg-qira-pistachio px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
+            >
+              {connecting && <Loader2 size={15} className="animate-spin" />}
+              {connecting ? t('ops.jira.step1.connecting') : t('ops.jira.step1.connect')}
+            </button>
+          </div>
         </div>
       </form>
     )
@@ -433,7 +665,7 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
         </div>
 
         {selectError && (
-          <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{selectError}</p>
+          <p className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">{selectError}</p>
         )}
 
         <Field label={t('ops.jira.step2.project')}>
@@ -521,6 +753,32 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
+        {/* Stale mappings banner — shown when re-importing into an existing project */}
+        {useExistingProject && selectedLocalProjectId && !checkingStale && staleMappingsInfo && staleMappingsInfo.total > 0 && (
+          <div className={[
+            'flex items-start gap-3 rounded-2xl border px-4 py-3',
+            staleMappingsInfo.stale > 0
+              ? 'border-amber-200 bg-amber-50'
+              : 'border-blue-100 bg-blue-50',
+          ].join(' ')}>
+            <AlertTriangle
+              size={15}
+              className={[
+                'mt-0.5 shrink-0',
+                staleMappingsInfo.stale > 0 ? 'text-amber-500' : 'text-blue-400',
+              ].join(' ')}
+            />
+            <p className={[
+              'text-xs',
+              staleMappingsInfo.stale > 0 ? 'text-amber-800' : 'text-blue-700',
+            ].join(' ')}>
+              {staleMappingsInfo.stale > 0
+                ? t('ops.jira.step2.staleMappingsWarning', { stale: String(staleMappingsInfo.stale) })
+                : t('ops.jira.step2.previousImportInfo', { total: String(staleMappingsInfo.total) })}
+            </p>
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-3 pt-2">
           <button
             type="button"
@@ -558,17 +816,25 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
             {t('ops.jira.step3.loadingPreview')}
           </div>
         ) : preview ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <PreviewStat label={t('ops.jira.step3.epics')} value={preview.epics_count} />
-            <PreviewStat label={t('ops.jira.step3.issues')} value={preview.issues_count} />
-            <PreviewStat label={t('ops.jira.step3.subtasks')} value={preview.subtasks_count} />
-            <PreviewStat label={t('ops.jira.step3.sprints')} value={preview.sprints_count} />
-            <PreviewStat label={t('ops.jira.step3.attachments')} value={preview.attachments_count} />
-            <PreviewStat
-              label={t('ops.jira.step3.attachmentSize')}
-              value={formatBytes(preview.estimated_attachment_size_bytes)}
-            />
-          </div>
+          <>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <PreviewStat label={t('ops.jira.step3.epics')} value={preview.epics_count} />
+              <PreviewStat label={t('ops.jira.step3.issues')} value={preview.issues_count} />
+              <PreviewStat label={t('ops.jira.step3.subtasks')} value={preview.subtasks_count} />
+              <PreviewStat label={t('ops.jira.step3.sprints')} value={preview.sprints_count} />
+              <PreviewStat label={t('ops.jira.step3.attachments')} value={preview.attachments_count} />
+              <PreviewStat
+                label={t('ops.jira.step3.attachmentSize')}
+                value={formatBytes(preview.estimated_attachment_size_bytes)}
+              />
+            </div>
+            {preview.is_large_project && (
+              <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                <p className="text-sm text-amber-800">{t('ops.jira.step3.largeProjectWarning')}</p>
+              </div>
+            )}
+          </>
         ) : null}
 
         <div className="space-y-2">
@@ -577,31 +843,49 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
             checked={options.include_attachments}
             onChange={(v) => setOptions((o) => ({ ...o, include_attachments: v }))}
           />
+          {options.include_attachments && (
+            <>
+              <OptionToggle
+                label={t('ops.jira.step3.skipAttachmentsOverLimit')}
+                checked={options.skip_attachments_over_limit}
+                onChange={(v) => setOptions((o) => ({ ...o, skip_attachments_over_limit: v }))}
+              />
+              <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 px-4 py-3">
+                <span className="text-sm font-medium text-slate-700">
+                  {t('ops.jira.step3.maxAttachmentSize')}
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={options.max_attachment_size_mb}
+                  onChange={(e) =>
+                    setOptions((o) => ({ ...o, max_attachment_size_mb: Number(e.target.value) }))
+                  }
+                  className="w-20 rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-center outline-none focus:border-qira-pistachio"
+                />
+              </div>
+            </>
+          )}
           <OptionToggle
             label={t('ops.jira.step3.includeCompletedSprints')}
             checked={options.include_completed_sprints}
             onChange={(v) => setOptions((o) => ({ ...o, include_completed_sprints: v }))}
           />
           <OptionToggle
-            label={t('ops.jira.step3.includeComments')}
-            checked={options.include_comments}
-            onChange={(v) => setOptions((o) => ({ ...o, include_comments: v }))}
+            label={t('ops.jira.step3.importUsers')}
+            checked={options.import_users}
+            onChange={(v) => setOptions((o) => ({ ...o, import_users: v }))}
           />
-          <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 px-4 py-3">
-            <span className="text-sm font-medium text-slate-700">
-              {t('ops.jira.step3.maxAttachmentSize')}
-            </span>
-            <input
-              type="number"
-              min={1}
-              max={500}
-              value={options.max_attachment_size_mb}
-              onChange={(e) =>
-                setOptions((o) => ({ ...o, max_attachment_size_mb: Number(e.target.value) }))
-              }
-              className="w-20 rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-center outline-none focus:border-qira-pistachio"
-            />
-          </div>
+          {/* Comments import is not built yet — the server accepts the flag but
+              never writes task_comments. Disable so users aren't misled. */}
+          <OptionToggle
+            label={t('ops.jira.step3.includeComments')}
+            checked={false}
+            disabled
+            hint={t('ops.jira.step3.comingSoon')}
+            onChange={() => {}}
+          />
         </div>
 
         <div className="flex items-center justify-between gap-3 pt-2">
@@ -633,6 +917,8 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
         ? Math.round((jobStatus.progress_done / jobStatus.progress_total) * 100)
         : null
 
+    const stepLabel = getStepLabel(jobStatus?.current_step ?? null, t)
+
     return (
       <div className="space-y-6 py-4">
         <div>
@@ -643,31 +929,24 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
         <div className="flex flex-col items-center gap-6 py-8">
           <Loader2 size={40} className="animate-spin text-qira-pistachio" />
 
-          {pct !== null ? (
-            <div className="w-full">
+          <div className="w-full">
+            {stepLabel && (
               <div className="mb-1.5 flex justify-between text-xs text-slate-500">
-                <span>{getStepLabel(jobStatus?.current_step ?? null, t)}</span>
-                <span>{pct}%</span>
+                <span>{stepLabel}</span>
+                {pct !== null && <span>{pct}%</span>}
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            )}
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              {pct !== null ? (
                 <div
                   className="h-full rounded-full bg-qira-pistachio transition-all duration-500"
                   style={{ width: `${pct}%` }}
                 />
-              </div>
-            </div>
-          ) : (
-            <div className="w-full">
-              {jobStatus?.current_step && (
-                <p className="mb-2 text-center text-sm text-slate-500">
-                  {getStepLabel(jobStatus.current_step, t)}
-                </p>
-              )}
-              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              ) : (
                 <div className="h-full animate-pulse rounded-full bg-qira-pistachio/60" style={{ width: '60%' }} />
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     )

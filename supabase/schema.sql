@@ -115,6 +115,11 @@ CREATE TABLE public.tasks (
   reporter_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   due_date    date,
   attachments text[] NOT NULL DEFAULT '{}',
+  -- Jira rich-content import: raw Atlassian Document Format body + media refs
+  -- extracted from it (images/files embedded in the description). NULL for tasks
+  -- not imported from Jira. `description` remains the plain-text fallback.
+  jira_description_adf   jsonb,
+  description_media_refs jsonb,
   position    integer NOT NULL DEFAULT 0,
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now()
@@ -140,6 +145,17 @@ CREATE TABLE public.task_activities (
                 CHECK (activity_type IN ('task_created', 'task_updated', 'comment_added', 'subtask_created')),
   message       text NOT NULL,
   created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.internal_heartbeat (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  source       text NOT NULL,
+  last_ping_at timestamptz NOT NULL DEFAULT now(),
+  environment  text NOT NULL,
+  metadata     jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (source, environment)
 );
 
 CREATE OR REPLACE FUNCTION public.is_admin()
@@ -474,6 +490,10 @@ CREATE TRIGGER trg_task_comment_updated_at
   BEFORE UPDATE ON public.task_comments
   FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
+CREATE TRIGGER touch_internal_heartbeat_updated_at
+  BEFORE UPDATE ON public.internal_heartbeat
+  FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
 CREATE OR REPLACE FUNCTION public.invite_to_project(project_uuid uuid, invite_email text, invite_role text DEFAULT 'member')
 RETURNS void
 LANGUAGE plpgsql
@@ -604,6 +624,7 @@ ALTER TABLE public.sprints ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.internal_heartbeat ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY profiles_select ON public.profiles
   FOR SELECT USING (
@@ -740,6 +761,12 @@ CREATE POLICY task_activities_insert ON public.task_activities
     AND (actor_id IS NULL OR actor_id = auth.uid())
   );
 
+CREATE POLICY internal_heartbeat_service_role_only ON public.internal_heartbeat
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('attachments', 'attachments', false)
 ON CONFLICT DO NOTHING;
@@ -781,3 +808,6 @@ CREATE POLICY attachments_delete ON storage.objects
       )
     )
   );
+
+REVOKE ALL ON public.internal_heartbeat FROM anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.internal_heartbeat TO service_role;
