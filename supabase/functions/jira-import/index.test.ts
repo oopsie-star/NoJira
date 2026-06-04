@@ -756,27 +756,36 @@ Deno.test('plain-text fallback never contains raw JSON when media + text mix', (
   assertEquals(text.includes('"type"'), false, 'no raw ADF keys leak into fallback')
 })
 
-// Mirrors safeStorageName in index.ts — Supabase Storage rejects non-ASCII keys.
+// Mirrors safeStorageName in index.ts — strict ASCII slug, no spaces.
 function safeStorageName(name: string): string {
-  const cleaned = name.replace(/[^\w.\-() ]+/g, '_').replace(/\s+/g, ' ').trim()
-  return cleaned.length > 0 ? cleaned : 'file'
+  const dot = name.lastIndexOf('.')
+  const rawExt = dot > 0 ? name.slice(dot + 1) : ''
+  const ext = /^[A-Za-z0-9]{1,8}$/.test(rawExt) ? `.${rawExt.toLowerCase()}` : ''
+  const base = (ext ? name.slice(0, dot) : name)
+    .normalize('NFKD')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return (base.length > 0 ? base : 'file') + ext
 }
 
-// The exact pattern Supabase Storage allows in an object key.
-const SAFE_KEY_RE = /^[\w.\-() ]+$/
+// Storage key must contain ONLY these — crucially no spaces (spaces break
+// createSignedUrl, which showed up as "filename instead of image").
+const SAFE_KEY_RE = /^[A-Za-z0-9.\-]+$/
 
-Deno.test('Cyrillic / em-dash filename becomes a valid Storage key', () => {
+Deno.test('Cyrillic / em-dash filename becomes a valid Storage key (no spaces)', () => {
   const original = 'Снимок экрана — 2026-05-25 в 19.30.58.png'
   const safe = safeStorageName(original)
-  // Was failing with "Invalid key" because of Cyrillic + em-dash.
   assertEquals(SAFE_KEY_RE.test(safe), true, `"${safe}" must be a valid storage key`)
+  assertEquals(safe.includes(' '), false, 'storage key must not contain spaces')
   assertStringIncludes(safe, '.png')           // extension preserved
   assertStringIncludes(safe, '2026-05-25')      // ASCII parts preserved
 })
 
-Deno.test('safeStorageName keeps already-ASCII names intact', () => {
-  assertEquals(safeStorageName('diagram (final).png'), 'diagram (final).png')
+Deno.test('safeStorageName produces clean slugs for spaced/ASCII names', () => {
+  assertEquals(safeStorageName('diagram (final).png'), 'diagram-final.png')
   assertEquals(safeStorageName('archive.zip'), 'archive.zip')
+  assertEquals(SAFE_KEY_RE.test(safeStorageName('My File 2.PNG')), true)
 })
 
 Deno.test('safeStorageName never returns an empty key', () => {

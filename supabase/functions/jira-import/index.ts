@@ -98,17 +98,21 @@ function sanitizeError(message: string): string {
     .slice(0, 500)
 }
 
-// Supabase Storage rejects object keys with non-ASCII / unusual characters
-// ("Invalid key"). Jira filenames routinely contain Cyrillic, em-dashes, etc.,
-// so collapse anything outside a safe ASCII set to "_" (mirrors the frontend
-// user-upload safeFilename) while keeping the extension. The attachment id is
-// prefixed by the caller to guarantee uniqueness after sanitisation.
+// Build a strict, ASCII-only storage key slug. Supabase Storage not only rejects
+// non-ASCII keys ("Invalid key") but also fails to produce working signed URLs
+// for keys containing spaces — so the slug keeps ONLY [A-Za-z0-9.-] and turns
+// everything else (spaces, parens, Cyrillic, em-dashes…) into "-". The extension
+// is preserved; the attachment id is prefixed by the caller for uniqueness.
 function safeStorageName(name: string): string {
-  const cleaned = name
-    .replace(/[^\w.\-() ]+/g, '_')
-    .replace(/\s+/g, ' ')
-    .trim()
-  return cleaned.length > 0 ? cleaned : 'file'
+  const dot = name.lastIndexOf('.')
+  const rawExt = dot > 0 ? name.slice(dot + 1) : ''
+  const ext = /^[A-Za-z0-9]{1,8}$/.test(rawExt) ? `.${rawExt.toLowerCase()}` : ''
+  const base = (ext ? name.slice(0, dot) : name)
+    .normalize('NFKD')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return (base.length > 0 ? base : 'file') + ext
 }
 
 // ── Atlassian Document Format → plain text ────────────────────────────────────
