@@ -1342,6 +1342,9 @@ async function runFinalization(
     }
 
     const issueMappings = (allMappings ?? []).filter((m) => m.local_entity_type === 'issue')
+    // Board/Backlog placement — applied here too so re-imports (which skip existing
+    // issues at insert) still populate placement on already-imported tasks.
+    const backlogIdSet = new Set(cursor.backlog_issue_ids)
     const batchUpdates: Array<{ id: string; parent_task_id?: string | null; epic_id?: string | null; sprint_id?: string | null }> = []
 
     for (const mapping of issueMappings) {
@@ -1392,6 +1395,10 @@ async function runFinalization(
         update.description = normalizeJiraDescription(rawDesc)
         update.jira_description_adf = repairAdf as unknown as string
         update.description_media_refs = extractAdfMediaRefs(repairAdf) as unknown as string
+      }
+
+      if (cursor.board_id) {
+        update.jira_board_placement = backlogIdSet.has(mapping.external_id) ? 'backlog' : 'board'
       }
 
       if (Object.keys(update).length > 0) {
