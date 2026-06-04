@@ -563,6 +563,21 @@ export function BacklogView() {
     [rootTasks]
   )
 
+  // Jira Board/Backlog split: only when the project was imported from a board
+  // (some task carries a placement). Otherwise the single Backlog section is kept.
+  const hasBoardPlacement = useMemo(
+    () => rootTasks.some((task) => task.jira_board_placement === 'board' || task.jira_board_placement === 'backlog'),
+    [rootTasks]
+  )
+  const boardPlacementTasks = useMemo(
+    () => backlogTasks.filter((task) => task.jira_board_placement === 'board'),
+    [backlogTasks]
+  )
+  const pureBacklogTasks = useMemo(
+    () => backlogTasks.filter((task) => task.jira_board_placement !== 'board'),
+    [backlogTasks]
+  )
+
   const epicSections = useMemo(
     () => sortedEpics
       .map((epic) => {
@@ -648,10 +663,16 @@ export function BacklogView() {
       return
     }
 
+    if (destination.droppableId === 'board-placement') {
+      void updateTask(draggableId, { sprint_id: null, epic_id: null, jira_board_placement: 'board' })
+      return
+    }
+
     if (destination.droppableId === 'backlog') {
       void updateTask(draggableId, {
         sprint_id: null,
         epic_id: null,
+        ...(hasBoardPlacement ? { jira_board_placement: 'backlog' as const } : {}),
       })
     }
   }
@@ -824,12 +845,28 @@ export function BacklogView() {
                     />
                   ))}
 
+                  {hasBoardPlacement && (
+                    <TaskListSection
+                      sectionKey="board-placement"
+                      title={t('backlog.boardSection')}
+                      itemCount={boardPlacementTasks.length}
+                      statusCounts={getStatusCounts(boardPlacementTasks)}
+                      tasks={boardPlacementTasks}
+                      droppableId="board-placement"
+                      emptyLabel={t('backlog.noBoardTasks')}
+                      createLabel={t('backlog.createIssue')}
+                      onCreate={() => openTaskModal({ jira_board_placement: 'board' })}
+                      actions={[{ label: t('backlog.createIssue'), onSelect: () => openTaskModal({ jira_board_placement: 'board' }) }]}
+                      mobile={isMobile}
+                    />
+                  )}
+
                   <TaskListSection
                     sectionKey="backlog"
                     title={t('backlog.title')}
-                    itemCount={backlogTasks.length}
-                    statusCounts={getStatusCounts(backlogTasks)}
-                    tasks={backlogTasks}
+                    itemCount={(hasBoardPlacement ? pureBacklogTasks : backlogTasks).length}
+                    statusCounts={getStatusCounts(hasBoardPlacement ? pureBacklogTasks : backlogTasks)}
+                    tasks={hasBoardPlacement ? pureBacklogTasks : backlogTasks}
                     droppableId="backlog"
                     emptyLabel={t('backlog.noBacklogTasks')}
                     createLabel={t('backlog.createIssue')}

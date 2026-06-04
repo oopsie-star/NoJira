@@ -393,6 +393,15 @@ class JiraClient {
     return this.request(`/rest/agile/1.0/board/${boardId}/sprint?startAt=${startAt}&maxResults=50`)
   }
 
+  // Issues sitting in the board's *backlog* (not on the board). Used to mirror
+  // Jira's Board/Backlog split. Works for Kanban (with backlog) and Scrum boards.
+  async listBoardBacklog(boardId: string, startAt = 0): Promise<{ issues: any[]; total: number }> {
+    const result = await this.request<{ issues: any[]; total: number; maxResults: number; startAt: number }>(
+      `/rest/agile/1.0/board/${boardId}/backlog?startAt=${startAt}&maxResults=50&fields=id`,
+    )
+    return { issues: result.issues ?? [], total: result.total ?? 0 }
+  }
+
   async discoverFields(): Promise<Record<string, string>> {
     const fields = await this.request<any[]>('/rest/api/3/field')
     const map: Record<string, string> = {}
@@ -598,6 +607,8 @@ interface ImportCursor {
   max_attachment_size_mb: number
   skip_attachments_over_limit: boolean
   import_users: boolean
+  board_id: string | null            // board used for Board/Backlog placement
+  backlog_issue_ids: string[]        // Jira issue ids in the board backlog
 }
 
 /** Deserialise cursor from DB, filling in defaults for backward compat with pre-v2 cursors. */
@@ -620,6 +631,8 @@ function normaliseCursor(raw: Record<string, unknown>): ImportCursor {
     max_attachment_size_mb: Number(raw.max_attachment_size_mb ?? 10),
     skip_attachments_over_limit: raw.skip_attachments_over_limit !== false,
     import_users: raw.import_users !== false,
+    board_id: (raw.board_id as string | null) ?? null,
+    backlog_issue_ids: Array.isArray(raw.backlog_issue_ids) ? (raw.backlog_issue_ids as string[]).map(String) : [],
   }
 }
 
@@ -905,6 +918,27 @@ async function runSetup(
   ]
   const allFields = [...new Set([...baseFields, ...Object.values(fieldMap)])]
 
+  // ── Board backlog placement ──────────────────────────────────────────────
+  // Mirror Jira's Board/Backlog split: fetch the board's backlog issue ids so
+  // each task can be tagged 'board' or 'backlog'. Non-fatal — a board without a
+  // backlog (or no board) simply leaves placements null.
+  const backlogIssueIds: string[] = []
+  if (boardId) {
+    try {
+      let start = 0
+      while (true) {
+        const { issues, total } = await jiraClient.listBoardBacklog(boardId, start)
+        for (const it of issues) if (it?.id != null) backlogIssueIds.push(String(it.id))
+        start += issues.length
+        if (issues.length === 0 || start >= total) break
+      }
+      console.log('[jira-import] board backlog fetched', { boardId, backlog: backlogIssueIds.length })
+    } catch (backlogErr) {
+      const msg = backlogErr instanceof Error ? backlogErr.message : String(backlogErr)
+      console.warn('[jira-import] BOARD_BACKLOG_UNSUPPORTED', { boardId, msg })
+    }
+  }
+
   // JQL fallback chain: Rank → key ASC → bare project
   // Some Jira instances (especially simple/kanban boards) don't support ORDER BY Rank.
   // A 400 from the search endpoint almost always means invalid JQL, not bad credentials.
@@ -949,6 +983,8 @@ async function runSetup(
     max_attachment_size_mb: options.max_attachment_size_mb,
     skip_attachments_over_limit: options.skip_attachments_over_limit,
     import_users: options.import_users,
+    board_id: boardId,
+    backlog_issue_ids: backlogIssueIds,
   }
 }
 
@@ -963,6 +999,11 @@ async function processIssuesBatch(
   warnings: string[],
 ): Promise<{ cursor: ImportCursor; done: boolean }> {
   const { local_project_id: localProjectId, site_url: siteUrl, jql, all_fields: allFields, field_map: fieldMap } = cursor
+
+  // Board/Backlog placement lookup (empty when not a board import).
+  const backlogIdSet = new Set(cursor.backlog_issue_ids)
+  const placementFor = (issueId: string): 'board' | 'backlog' | null =>
+    cursor.board_id ? (backlogIdSet.has(issueId) ? 'backlog' : 'board') : null
 
   const result = await jiraClient.searchIssues(jql, allFields, cursor.next_cursor)
   const issues = result.issues ?? []
@@ -1047,6 +1088,7 @@ async function processIssuesBatch(
           description,
           jira_description_adf: descriptionAdf,
           description_media_refs: descriptionAdf ? mediaRefs : null,
+          jira_board_placement: placementFor(issueId),
           status: mappedStatus,
           issue_type: localType,
           priority: mappedPriority,

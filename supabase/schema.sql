@@ -120,6 +120,9 @@ CREATE TABLE public.tasks (
   -- not imported from Jira. `description` remains the plain-text fallback.
   jira_description_adf   jsonb,
   description_media_refs jsonb,
+  -- 'board' | 'backlog' for board-imported issues; NULL otherwise. Mirrors Jira's
+  -- board/backlog split so the NoJira backlog can show the same sections.
+  jira_board_placement   text CHECK (jira_board_placement IN ('board', 'backlog')),
   position    integer NOT NULL DEFAULT 0,
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now()

@@ -164,6 +164,9 @@ export interface Task {
   // Both are null for tasks not imported from Jira (or with no rich body).
   jira_description_adf?:   AdfNode | null
   description_media_refs?: JiraMediaRef[] | null
+  // Mirrors Jira's board split: 'board' (on the board) | 'backlog' (in the board
+  // backlog) | null (manual task or non-board import).
+  jira_board_placement?:   'board' | 'backlog' | null
   position:       number
   status_changed_at: string
   started_at:     string | null
