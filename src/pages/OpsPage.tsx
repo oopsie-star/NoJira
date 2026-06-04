@@ -3,6 +3,7 @@ import { Copy, Eye, EyeOff, Import, LoaderCircle, Trash2 } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { useI18n } from '@/lib/i18n'
 import { JiraImportWizard } from '@/components/jira/JiraImportWizard'
+import { JiraQuickSync } from '@/components/jira/JiraQuickSync'
 import {
   callLLM,
   DEFAULT_MODELS,
@@ -296,14 +297,17 @@ export function OpsPage() {
               <h2 className="text-lg font-semibold text-slate-900">{t('ops.jira.title')}</h2>
               <p className="mt-1 text-sm text-slate-500">{t('ops.jira.subtitle')}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setJiraWizardOpen(true)}
-              className="inline-flex items-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
-            >
-              <Import size={16} />
-              {t('ops.jira.openWizard')}
-            </button>
+            <div className="flex flex-wrap items-start gap-2.5">
+              <JiraQuickSync />
+              <button
+                type="button"
+                onClick={() => setJiraWizardOpen(true)}
+                className="inline-flex items-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
+              >
+                <Import size={16} />
+                {t('ops.jira.openWizard')}
+              </button>
+            </div>
           </div>
         </section>
 
