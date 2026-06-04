@@ -241,9 +241,12 @@ export function TaskDrawer() {
 
   return (
     <>
-      <div className="fixed inset-0 z-[60] bg-slate-950/25" onClick={handleClose} />
+      {/* Dimming backdrop only on small screens; on desktop the drawer is a side
+          panel that leaves the backlog list visible and clickable for fast
+          switching between issues (Jira-style). */}
+      <div className="fixed inset-0 z-[60] bg-slate-950/25 lg:hidden" onClick={handleClose} />
 
-      <aside className="fixed bottom-0 right-0 top-0 z-[70] flex w-full flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl lg:max-w-[980px]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <aside className="fixed bottom-0 right-0 top-0 z-[70] flex w-full flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl lg:max-w-[760px]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">

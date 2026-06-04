@@ -1,5 +1,6 @@
+import { useMemo } from 'react'
 import { Draggable } from '@hello-pangea/dnd'
-import { AlertTriangle, BookOpenText, Calendar, CheckSquare, CircleAlert, GripVertical, MoreHorizontal, Paperclip } from 'lucide-react'
+import { AlertTriangle, BookOpenText, Calendar, CheckSquare, CircleAlert, GripVertical, ListTree, MoreHorizontal, Paperclip } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/common/IssueBadges'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { useI18n } from '@/lib/i18n'
@@ -30,9 +31,15 @@ function IssueTypeIcon({ type }: { type: IssueType }) {
 export function BacklogRow({ task, index, mobile = false, dragDisabled = false }: BacklogRowProps) {
   const { locale, t } = useI18n()
   const setOpenTaskId = useStore((state) => state.setOpenTaskId)
+  const openTaskId = useStore((state) => state.openTaskId)
   const tasks = useStore((state) => state.tasks)
   const taskLinks = useStore((state) => state.taskLinks)
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
+  const isOpen = task.id === openTaskId
+  const subtaskCount = useMemo(
+    () => tasks.reduce((n, t) => n + (t.parent_task_id === task.id ? 1 : 0), 0),
+    [tasks, task.id],
+  )
 
   return (
     <Draggable draggableId={task.id} index={index} isDragDisabled={dragDisabled}>
@@ -44,9 +51,13 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
             ref={provided.innerRef}
             {...provided.draggableProps}
             className={[
-              'flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition',
+              'flex items-start gap-3 rounded-xl border px-3 py-2.5 transition',
               mobile ? 'min-h-[68px]' : 'min-h-[52px]',
-              snapshot.isDragging ? 'shadow-xl ring-2 ring-qira-pistachio/20' : 'hover:border-slate-300 hover:bg-slate-50/80',
+              isOpen
+                ? 'border-qira-pistachio bg-qira-pistachio-lt/50 ring-1 ring-qira-pistachio/40'
+                : snapshot.isDragging
+                  ? 'border-slate-200 bg-white shadow-xl ring-2 ring-qira-pistachio/20'
+                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80',
             ].join(' ')}
           >
             <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${issueTypeClasses[task.issue_type]}`}>
@@ -98,6 +109,12 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
                       <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
                         <Paperclip size={11} />
                         {task.attachments.length}
+                      </span>
+                    )}
+                    {subtaskCount > 0 && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-[11px] font-medium text-indigo-600">
+                        <ListTree size={11} />
+                        {subtaskCount}
                       </span>
                     )}
                     {blocked && (
