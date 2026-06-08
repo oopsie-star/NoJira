@@ -4,6 +4,7 @@ import { MobileBottomBar } from './MobileBottomBar'
 import { TopNavbar } from './TopNavbar'
 import { AiAssistant } from '@/components/ai/AiAssistant'
 import { CommandPalette } from '@/components/common/CommandPalette'
+import { RealtimeSync } from '@/components/common/RealtimeSync'
 import { useAuthContext } from '@/auth/AuthContext'
 import { useStore } from '@/store'
 
@@ -58,6 +59,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
       <MobileBottomBar />
       <AiAssistant projectName={activeProjectName} />
       <CommandPalette />
+      <RealtimeSync />
     </div>
   )
 }
