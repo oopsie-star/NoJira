@@ -1,8 +1,10 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { Bold, Code, Eye, Italic, Link2, List, ListChecks, ListOrdered, Pencil, Quote, Strikethrough } from 'lucide-react'
+import { Bold, Code, Eye, Italic, Link2, List, ListChecks, ListOrdered, Loader2, Pencil, Quote, Sparkles, Strikethrough } from 'lucide-react'
 import { MarkdownRenderer } from '@/lib/markdown'
 import { useI18n } from '@/lib/i18n'
 import type { Profile } from '@/types'
+
+const MAX_SUGGESTION_CHARS = 800
 
 interface MarkdownEditorProps {
   value: string
@@ -11,12 +13,31 @@ interface MarkdownEditorProps {
   placeholder?: string
   rows?: number
   members?: Profile[]
+  onAiSuggest?: (text: string) => Promise<string | null>
 }
 
-export function MarkdownEditor({ value, onChange, onBlur, placeholder, rows = 8, members }: MarkdownEditorProps) {
+export function MarkdownEditor({ value, onChange, onBlur, placeholder, rows = 8, members, onAiSuggest }: MarkdownEditorProps) {
   const { t } = useI18n()
   const ref = useRef<HTMLTextAreaElement>(null)
   const [preview, setPreview] = useState(false)
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+
+  async function handleAiSuggest() {
+    if (!onAiSuggest || aiLoading) return
+    setAiLoading(true)
+    setAiSuggestion(null)
+    const result = await onAiSuggest(value)
+    setAiLoading(false)
+    if (result) setAiSuggestion(result.slice(0, MAX_SUGGESTION_CHARS))
+  }
+
+  function acceptSuggestion() {
+    if (!aiSuggestion) return
+    const separator = value.trim() ? '\n\n' : ''
+    onChange(value + separator + aiSuggestion)
+    setAiSuggestion(null)
+  }
 
   function apply(transform: (sel: string) => { text: string; selStart: number; selEnd: number }) {
     const el = ref.current
@@ -88,6 +109,17 @@ export function MarkdownEditor({ value, onChange, onBlur, placeholder, rows = 8,
             {tool.icon}
           </button>
         ))}
+        {onAiSuggest && !preview && (
+          <button
+            type="button"
+            title={aiLoading ? t('ai.suggestGenerating') : t('ai.suggestDescription')}
+            onMouseDown={(e) => { e.preventDefault(); void handleAiSuggest() }}
+            disabled={aiLoading}
+            className="ml-1 rounded-lg p-1.5 text-[#6B9E6B] transition hover:bg-slate-100 disabled:opacity-50"
+          >
+            {aiLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setPreview((v) => !v)}
@@ -112,8 +144,34 @@ export function MarkdownEditor({ value, onChange, onBlur, placeholder, rows = 8,
           onKeyDown={onKeyDown}
           rows={rows}
           placeholder={placeholder}
-          className="w-full resize-y rounded-b-2xl bg-transparent px-4 py-3 text-sm text-slate-900 outline-none"
+          className={['w-full resize-y bg-transparent px-4 py-3 text-sm text-slate-900 outline-none', aiSuggestion ? '' : 'rounded-b-2xl'].join(' ')}
         />
+      )}
+
+      {aiSuggestion && (
+        <div className="rounded-b-2xl border-t border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="mb-2 flex items-center gap-1.5">
+            <Sparkles size={13} className="text-slate-400" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t('ai.suggestLabel')}</span>
+          </div>
+          <p className="whitespace-pre-wrap text-sm text-slate-400">{aiSuggestion}</p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={acceptSuggestion}
+              className="rounded-xl bg-[#6B9E6B] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#5a8a5a]"
+            >
+              {t('ai.suggestAccept')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAiSuggestion(null)}
+              className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white"
+            >
+              {t('ai.suggestReject')}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

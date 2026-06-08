@@ -379,6 +379,7 @@ export interface JiraSavedConnection {
   connection_id: string
   jira_site_url: string
   email: string | null
+  display_name: string | null
   status: 'active' | 'expired' | 'revoked'
   last_sync_at: string | null
   token_saved: boolean

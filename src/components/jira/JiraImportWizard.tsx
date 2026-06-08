@@ -10,6 +10,7 @@ import {
   Import,
   Lock,
   Loader2,
+  Trash2,
   X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -134,10 +135,12 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<WizardStep>('connect')
 
   // ── Saved-connection / preferences state ──────────────────────────────────
-  const [savedConnection, setSavedConnection] = useState<JiraSavedConnection | null>(null)
+  const [savedConnections, setSavedConnections] = useState<JiraSavedConnection[]>([])
   const [savedPreferences, setSavedPreferences] = useState<JiraImportPreferences | null>(null)
-  const [loadingLastConnection, setLoadingLastConnection] = useState(true)
-  const [showReplaceToken, setShowReplaceToken] = useState(false)
+  const [loadingConnections, setLoadingConnections] = useState(true)
+  // 'list' = show saved connections; 'form' = show credential entry form
+  const [connectView, setConnectView] = useState<'list' | 'form'>('list')
+  const [deletingConnectionId, setDeletingConnectionId] = useState<string | null>(null)
 
   // Step 1
   const [siteUrl, setSiteUrl] = useState('')
@@ -186,7 +189,7 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     void fetchProjects()
-    void loadLastConnection()
+    void loadConnections()
   }, [fetchProjects])
 
   // When user selects an existing local project, check for stale Jira mappings.
@@ -205,39 +208,22 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
     }
   }, [])
 
-  // ── Load last connection on open ──────────────────────────────────────────
+  // ── Load all connections on open ─────────────────────────────────────────
 
-  async function loadLastConnection() {
-    setLoadingLastConnection(true)
+  async function loadConnections() {
+    setLoadingConnections(true)
     try {
       const { data } = await supabase.functions.invoke('jira-import', {
-        body: { action: 'get_last_connection' },
+        body: { action: 'list_connections' },
       })
-
-      if (data?.connection) {
-        const conn = data.connection as JiraSavedConnection
-        const prefs = data.preferences as JiraImportPreferences | null
-
-        setSavedConnection(conn)
-        setSiteUrl(conn.jira_site_url)
-        setEmail(conn.email ?? '')
-
-        if (prefs) {
-          setSavedPreferences(prefs)
-          setOptions({
-            include_attachments: prefs.include_attachments,
-            include_completed_sprints: prefs.include_completed_sprints,
-            include_comments: prefs.include_comments,
-            max_attachment_size_mb: prefs.max_attachment_size_mb,
-            skip_attachments_over_limit: prefs.skip_attachments_over_limit,
-            import_users: prefs.import_users,
-          })
-        }
-      }
+      const conns: JiraSavedConnection[] = data?.connections ?? []
+      setSavedConnections(conns)
+      // If no connections yet, show the form directly.
+      if (conns.length === 0) setConnectView('form')
     } catch {
-      // Non-fatal — wizard still works, just shows the full form
+      setConnectView('form')
     } finally {
-      setLoadingLastConnection(false)
+      setLoadingConnections(false)
     }
   }
 
@@ -288,18 +274,9 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
       return
     }
 
-    // Update savedConnection so the next time the wizard opens it shows the
-    // new connection without requiring a page refresh.
-    const newSaved: JiraSavedConnection = {
-      connection_id: data.connection_id,
-      jira_site_url: data.jira_site_url ?? siteUrl.trim(),
-      email: data.jira_user_email ?? email.trim(),
-      status: data.status ?? 'active',
-      last_sync_at: null,
-      token_saved: true,
-    }
-    setSavedConnection(newSaved)
-    setShowReplaceToken(false)
+    // Refresh the connection list so it reflects the new/updated entry.
+    void loadConnections()
+    setConnectView('list')
     setApiToken('')
 
     setConnectionId(data.connection_id)
@@ -308,13 +285,49 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
     void loadProjects(data.connection_id, savedPreferences?.last_jira_project_key, savedPreferences?.last_jira_board_id)
   }
 
-  // "Continue" when a saved connection exists and user is not replacing the token.
-  async function handleContinueWithSaved() {
-    const connId = savedConnection!.connection_id
-    setConnectionId(connId)
-    setConnectedEmail(savedConnection!.email)
-    setStep('select')
-    void loadProjects(connId, savedPreferences?.last_jira_project_key, savedPreferences?.last_jira_board_id)
+  // Called when user clicks "Use" on a connection card.
+  async function handleContinueWithSaved(conn: JiraSavedConnection) {
+    setConnectionId(conn.connection_id)
+    setConnectedEmail(conn.email)
+    setSiteUrl(conn.jira_site_url)
+    setEmail(conn.email ?? '')
+
+    // Load preferences for this specific connection to restore last project/board.
+    try {
+      const { data } = await supabase.functions.invoke('jira-import', {
+        body: { action: 'get_last_connection', connection_id: conn.connection_id },
+      })
+      const prefs = data?.preferences as JiraImportPreferences | null
+      if (prefs) {
+        setSavedPreferences(prefs)
+        setOptions({
+          include_attachments: prefs.include_attachments,
+          include_completed_sprints: prefs.include_completed_sprints,
+          include_comments: prefs.include_comments,
+          max_attachment_size_mb: prefs.max_attachment_size_mb,
+          skip_attachments_over_limit: prefs.skip_attachments_over_limit,
+          import_users: prefs.import_users,
+        })
+      }
+      setStep('select')
+      void loadProjects(conn.connection_id, prefs?.last_jira_project_key, prefs?.last_jira_board_id)
+    } catch {
+      setStep('select')
+      void loadProjects(conn.connection_id)
+    }
+  }
+
+  async function handleDeleteConnection(connId: string) {
+    if (!window.confirm(t('ops.jira.step1.confirmDelete'))) return
+    setDeletingConnectionId(connId)
+    try {
+      await supabase.functions.invoke('jira-import', {
+        body: { action: 'delete_connection', connection_id: connId },
+      })
+      setSavedConnections((prev) => prev.filter((c) => c.connection_id !== connId))
+    } finally {
+      setDeletingConnectionId(null)
+    }
   }
 
   async function loadProjects(connId: string, restoreProjectKey?: string | null, restoreBoardId?: string | null) {
@@ -488,12 +501,10 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
 
   function handleReset() {
     setStep('connect')
-    // Keep savedConnection and siteUrl/email pre-filled — user should not need
-    // to re-enter credentials for a second import in the same session.
+    setConnectView(savedConnections.length > 0 ? 'list' : 'form')
     setConnectionId(null)
     setConnectedEmail(null)
     setApiToken('')
-    setShowReplaceToken(false)
     setConnectError(null)
     setJiraProjects([])
     setJiraBoards([])
@@ -511,9 +522,7 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
   const currentIndex = stepOrder.indexOf(step)
 
   function renderConnect() {
-    // While we are loading preferences from the server, show a minimal spinner
-    // so the form does not flash before we know whether it should be pre-filled.
-    if (loadingLastConnection) {
+    if (loadingConnections) {
       return (
         <div className="flex items-center justify-center py-16">
           <Loader2 size={24} className="animate-spin text-slate-300" />
@@ -521,56 +530,83 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
       )
     }
 
-    // ── Case A: Saved connection — no token replacement requested ─────────────
-    if (savedConnection && !showReplaceToken) {
+    // ── Case A: List of saved connections ─────────────────────────────────────
+    if (connectView === 'list' && savedConnections.length > 0) {
       return (
         <div className="space-y-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">{t('ops.jira.step1.savedTitle')}</h2>
+            <h2 className="text-lg font-semibold text-slate-900">{t('ops.jira.step1.connections')}</h2>
             <p className="mt-1 text-sm text-slate-500">{t('ops.jira.step1.savedSubtitle')}</p>
           </div>
 
-          {/* Connection summary */}
-          <div className="rounded-2xl border border-slate-200 px-4 py-3 space-y-1">
-            <p className="text-sm font-medium text-slate-900 truncate">{savedConnection.jira_site_url}</p>
-            {savedConnection.email && (
-              <p className="text-xs text-slate-500">{savedConnection.email}</p>
-            )}
-          </div>
-
-          {/* Token saved indicator */}
-          <div className="flex items-start gap-3 rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3">
-            <Lock size={14} className="mt-0.5 shrink-0 text-emerald-600" />
-            <p className="text-xs text-emerald-700">{t('ops.jira.step1.tokenSaved')}</p>
+          <div className="space-y-2">
+            {savedConnections.map((conn) => (
+              <div
+                key={conn.connection_id}
+                className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-900">{conn.jira_site_url}</p>
+                  {conn.email && (
+                    <p className="mt-0.5 truncate text-xs text-slate-500">{conn.email}</p>
+                  )}
+                  {conn.token_saved && (
+                    <div className="mt-1 flex items-center gap-1 text-xs text-emerald-600">
+                      <Lock size={11} />
+                      <span>{t('ops.jira.step1.tokenSaved').split('.')[0]}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSiteUrl(conn.jira_site_url)
+                      setEmail(conn.email ?? '')
+                      setApiToken('')
+                      setConnectError(null)
+                      setConnectView('form')
+                    }}
+                    className="text-xs text-slate-400 underline underline-offset-2 transition hover:text-slate-600"
+                  >
+                    {t('ops.jira.step1.replaceToken')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteConnection(conn.connection_id)}
+                    disabled={deletingConnectionId === conn.connection_id}
+                    className="rounded-xl p-1.5 text-slate-300 transition hover:bg-rose-50 hover:text-rose-500 disabled:opacity-40"
+                    title={t('ops.jira.step1.deleteConnection')}
+                  >
+                    {deletingConnectionId === conn.connection_id
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : <Trash2 size={14} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleContinueWithSaved(conn)}
+                    className="inline-flex items-center gap-1.5 rounded-2xl bg-qira-pistachio px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-qira-pistachio-dk"
+                  >
+                    {t('ops.jira.step1.useConnection')}
+                    <ChevronRight size={13} />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
 
           <button
             type="button"
-            onClick={() => setShowReplaceToken(true)}
-            className="text-sm font-medium text-slate-500 hover:text-slate-700 transition underline underline-offset-2"
+            onClick={() => { setSiteUrl(''); setEmail(''); setApiToken(''); setConnectError(null); setConnectView('form') }}
+            className="text-sm font-medium text-qira-pistachio transition hover:text-qira-pistachio-dk"
           >
-            {t('ops.jira.step1.replaceToken')}
+            {t('ops.jira.step1.addConnection')}
           </button>
-
-          {connectError && (
-            <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{connectError}</p>
-          )}
-
-          <div className="flex justify-end pt-2">
-            <button
-              type="button"
-              onClick={() => void handleContinueWithSaved()}
-              className="inline-flex items-center gap-2 rounded-2xl bg-qira-pistachio px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
-            >
-              {t('ops.jira.step1.continueButton')}
-              <ChevronRight size={15} />
-            </button>
-          </div>
         </div>
       )
     }
 
-    // ── Case B: No saved connection OR user replacing the token ───────────────
+    // ── Case B: Credential entry form (new connection or replace token) ────────
     return (
       <form onSubmit={(e) => void handleConnect(e)} className="space-y-4">
         <div>
@@ -633,13 +669,13 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
         )}
 
         <div className="flex items-center justify-between pt-2">
-          {showReplaceToken && (
+          {savedConnections.length > 0 && (
             <button
               type="button"
-              onClick={() => { setShowReplaceToken(false); setConnectError(null); setApiToken('') }}
+              onClick={() => { setConnectError(null); setApiToken(''); setConnectView('list') }}
               className="text-sm text-slate-400 transition hover:text-slate-600"
             >
-              {t('ops.jira.step1.cancelReplace')}
+              {t('ops.jira.step1.backToList')}
             </button>
           )}
           <div className="ml-auto">

@@ -1,5 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Calendar, Link2, MessageSquare, Paperclip, Plus, Send, ShieldAlert, Timer, Trash2, X } from 'lucide-react'
+import { callLLM, getLLMConfig } from '@/lib/ai'
+import type { LLMMessage } from '@/lib/ai'
 import { supabase } from '@/lib/supabase'
 import { IssueTypeBadge, PriorityBadge } from '@/components/common/IssueBadges'
 import { UserAvatar } from '@/components/common/UserAvatar'
@@ -261,6 +263,24 @@ export function TaskDrawer() {
     setLinkedTaskId('')
   }
 
+  async function handleAiSuggestDescription(currentText: string): Promise<string | null> {
+    if (!getLLMConfig().apiKey) return null
+    const assigneeName = assigneeDisplay?.person?.full_name || assigneeDisplay?.person?.email || null
+    const messages: LLMMessage[] = [
+      {
+        role: 'system',
+        content: 'You are an assistant helping software teams write clear, actionable task descriptions. Your job is to SUPPLEMENT (not replace) an existing description with 1–3 concise sentences: add missing acceptance criteria, clarify scope, or note edge cases. Write in the same language as the task title and existing description. Output only the supplemental text — no preamble, no labels.',
+      },
+      {
+        role: 'user',
+        content: `Task: ${currentTask.title}\nAssignee: ${assigneeName ?? 'unassigned'}\nCurrent description:\n${currentText || '(empty)'}\n\nWrite a brief, useful supplement.`,
+      },
+    ]
+    const result = await callLLM(messages, { maxTokens: 250 })
+    if (result.error || !result.content) return null
+    return result.content
+  }
+
   function getLinkText(type: TaskLinkType, isIncoming: boolean) {
     if (type === 'blocks') return t(isIncoming ? 'task.link.blockedBy' : 'task.link.blocks')
     if (type === 'duplicates') return t(isIncoming ? 'task.link.duplicatedBy' : 'task.link.duplicates')
@@ -421,6 +441,7 @@ export function TaskDrawer() {
                   rows={10}
                   placeholder={t('task.emptyDescription')}
                   members={members}
+                  onAiSuggest={handleAiSuggestDescription}
                 />
               )}
             </div>
