@@ -18,7 +18,7 @@ export function KanbanColumn({ status, tasks, sprintId }: KanbanColumnProps) {
 
   return (
     <>
-      <section className="flex h-full w-[80vw] max-w-[320px] flex-shrink-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm sm:w-[300px] lg:w-[340px] lg:max-w-none">
+      <section className="flex h-full w-[80vw] max-w-[280px] flex-shrink-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm sm:w-[260px] lg:w-[300px] lg:max-w-none">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <div>
             <p className="text-sm font-semibold text-slate-900">{t(`status.${status}`)}</p>
