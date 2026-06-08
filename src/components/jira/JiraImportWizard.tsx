@@ -388,13 +388,17 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
     if (data) setPreview(data as JiraImportPreview)
   }
 
-  async function savePreferences(connId: string) {
+  async function savePreferences(connId: string, explicitLocalProjectId?: string | null) {
     try {
       await supabase.functions.invoke('jira-import', {
         body: {
           action: 'save_preferences',
           connection_id: connId,
-          local_project_id: useExistingProject && selectedLocalProjectId ? selectedLocalProjectId : null,
+          // After an import we know the real project id (even for newly-created
+          // projects) — persist it so one-click Quick Sync can target it later.
+          local_project_id:
+            explicitLocalProjectId ??
+            (useExistingProject && selectedLocalProjectId ? selectedLocalProjectId : null),
           jira_project_key: selectedProjectKey,
           jira_board_id: selectedBoardId || null,
           options,
@@ -474,6 +478,8 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
 
   async function finishImport(job: JiraImportJob) {
     const importedProjectId = job.local_project_id ?? selectedLocalProjectId ?? null
+    // Persist the actual imported project id so Quick Sync can target it.
+    if (connectionId && importedProjectId) void savePreferences(connectionId, importedProjectId)
     await fetchProjects()
     if (importedProjectId) setActiveProjectId(importedProjectId)
     await Promise.all([fetchBacklog(), fetchSprints(), fetchEpics()])

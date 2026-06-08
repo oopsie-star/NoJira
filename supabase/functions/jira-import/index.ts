@@ -402,6 +402,16 @@ class JiraClient {
     return { issues: result.issues ?? [], total: result.total ?? 0 }
   }
 
+  // Issues that belong to a sprint — the authoritative source for sprint→task
+  // linkage (the issue's Sprint custom field is unreliable: localized field
+  // names, legacy string serialisation, missing field permissions).
+  async listSprintIssues(sprintId: string, startAt = 0): Promise<{ issues: any[]; total: number }> {
+    const result = await this.request<{ issues: any[]; total: number; maxResults: number; startAt: number }>(
+      `/rest/agile/1.0/sprint/${sprintId}/issue?startAt=${startAt}&maxResults=50&fields=id`,
+    )
+    return { issues: result.issues ?? [], total: result.total ?? 0 }
+  }
+
   async discoverFields(): Promise<Record<string, string>> {
     const fields = await this.request<any[]>('/rest/api/3/field')
     const map: Record<string, string> = {}
@@ -609,6 +619,7 @@ interface ImportCursor {
   import_users: boolean
   board_id: string | null            // board used for Board/Backlog placement
   backlog_issue_ids: string[]        // Jira issue ids in the board backlog
+  sprint_issue_map: Record<string, string>  // Jira issue id → local sprint id
 }
 
 /** Deserialise cursor from DB, filling in defaults for backward compat with pre-v2 cursors. */
@@ -633,6 +644,9 @@ function normaliseCursor(raw: Record<string, unknown>): ImportCursor {
     import_users: raw.import_users !== false,
     board_id: (raw.board_id as string | null) ?? null,
     backlog_issue_ids: Array.isArray(raw.backlog_issue_ids) ? (raw.backlog_issue_ids as string[]).map(String) : [],
+    sprint_issue_map: (raw.sprint_issue_map && typeof raw.sprint_issue_map === 'object')
+      ? (raw.sprint_issue_map as Record<string, string>)
+      : {},
   }
 }
 
@@ -854,6 +868,9 @@ async function runSetup(
   // ── Step C: Sprints ──────────────────────────────────────────────────────
   await updateJobStep(supabase, jobId, 'step_sprints')
 
+  // Jira issue id → local sprint id, built authoritatively from the Agile API.
+  const sprintIssueMap: Record<string, string> = {}
+
   if (boardId) {
     try {
       let sprintStart = 0
@@ -862,34 +879,52 @@ async function runSetup(
         for (const sprint of sprints) {
           const sprintState: string = sprint.state ?? 'future'
           if (sprintState === 'closed' && !options.include_completed_sprints) continue
-          const existing = await getMappedId(supabase, userId, siteUrl, 'sprint', String(sprint.id), localProjectId)
-          if (existing) continue
 
-          let sprintStatus: 'planned' | 'active' | 'completed' = 'planned'
-          if (sprintState === 'active') sprintStatus = 'active'
-          else if (sprintState === 'closed') sprintStatus = 'completed'
+          // Resolve the local sprint id — reuse an existing mapping or create it.
+          let localSprintId = await getMappedId(supabase, userId, siteUrl, 'sprint', String(sprint.id), localProjectId)
+          if (!localSprintId) {
+            let sprintStatus: 'planned' | 'active' | 'completed' = 'planned'
+            if (sprintState === 'active') sprintStatus = 'active'
+            else if (sprintState === 'closed') sprintStatus = 'completed'
 
-          const { data: newSprint, error: sprintErr } = await supabase
-            .from('sprints')
-            .insert({
-              project_id: localProjectId,
-              name: sprint.name,
-              goal: sprint.goal ?? '',
-              status: sprintStatus,
-              start_date: sprint.startDate ? sprint.startDate.split('T')[0] : null,
-              end_date: sprint.endDate ? sprint.endDate.split('T')[0] : null,
+            const { data: newSprint, error: sprintErr } = await supabase
+              .from('sprints')
+              .insert({
+                project_id: localProjectId,
+                name: sprint.name,
+                goal: sprint.goal ?? '',
+                status: sprintStatus,
+                start_date: sprint.startDate ? sprint.startDate.split('T')[0] : null,
+                end_date: sprint.endDate ? sprint.endDate.split('T')[0] : null,
+              })
+              .select()
+              .single()
+            if (sprintErr || !newSprint) {
+              await addWarning(supabase, jobId, warnings, `Failed to create sprint: ${sprint.name}`)
+              continue
+            }
+            localSprintId = newSprint.id
+            await upsertMapping(supabase, {
+              userId, localProjectId, localEntityType: 'sprint', localEntityId: newSprint.id,
+              externalId: String(sprint.id), externalKey: sprint.name, jiraSiteUrl: siteUrl,
+              rawJson: { goal: sprint.goal, startDate: sprint.startDate, endDate: sprint.endDate, completeDate: sprint.completeDate },
             })
-            .select()
-            .single()
-          if (sprintErr || !newSprint) {
-            await addWarning(supabase, jobId, warnings, `Failed to create sprint: ${sprint.name}`)
-            continue
           }
-          await upsertMapping(supabase, {
-            userId, localProjectId, localEntityType: 'sprint', localEntityId: newSprint.id,
-            externalId: String(sprint.id), externalKey: sprint.name, jiraSiteUrl: siteUrl,
-            rawJson: { goal: sprint.goal, startDate: sprint.startDate, endDate: sprint.endDate, completeDate: sprint.completeDate },
-          })
+
+          // Authoritative sprint → issue assignment via the Agile API. This fixes
+          // sprints that imported with 0 issues because the Sprint custom field
+          // couldn't be read (localized name / legacy format).
+          try {
+            let issueStart = 0
+            while (true) {
+              const { issues: sprintIssues, total } = await jiraClient.listSprintIssues(String(sprint.id), issueStart)
+              for (const it of sprintIssues) if (it?.id != null) sprintIssueMap[String(it.id)] = localSprintId
+              issueStart += sprintIssues.length
+              if (sprintIssues.length === 0 || issueStart >= total) break
+            }
+          } catch (sprintIssuesErr) {
+            console.warn('[jira-import] SPRINT_ISSUES_FETCH_FAILED', { sprintId: sprint.id, msg: String(sprintIssuesErr) })
+          }
         }
         if (isLast || sprints.length === 0) break
         sprintStart += sprints.length
@@ -985,6 +1020,7 @@ async function runSetup(
     import_users: options.import_users,
     board_id: boardId,
     backlog_issue_ids: backlogIssueIds,
+    sprint_issue_map: sprintIssueMap,
   }
 }
 
@@ -1376,7 +1412,12 @@ async function runFinalization(
         }
       }
 
-      if (discovered.sprint) {
+      // Prefer the authoritative Agile-API sprint assignment; fall back to the
+      // issue's Sprint custom field only when the map has nothing for this issue.
+      const sprintFromMap = cursor.sprint_issue_map[mapping.external_id]
+      if (sprintFromMap) {
+        update.sprint_id = sprintFromMap
+      } else if (discovered.sprint) {
         const sprintValues = raw[discovered.sprint]
         if (Array.isArray(sprintValues) && sprintValues.length > 0) {
           const activeSprint = sprintValues.find((s: any) => s.state === 'active') ?? sprintValues[sprintValues.length - 1]
