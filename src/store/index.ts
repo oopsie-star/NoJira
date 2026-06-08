@@ -327,6 +327,23 @@ async function signWebhookPayload(secret: string, body: string) {
   return toHex(signature)
 }
 
+const WEBHOOK_EVENT_LABELS: Record<WebhookEvent, string> = {
+  'task.created': '🆕 created',
+  'task.updated': '✏️ updated',
+  'task.completed': '✅ done',
+  'task.unblocked': '🔓 unblocked',
+}
+
+/** Short human-readable line for Discord/Slack messages. */
+function buildWebhookSummary(event: WebhookEvent, payload: unknown): string {
+  const p = (payload ?? {}) as { task?: { key?: string; title?: string }; comment?: string }
+  const key = p.task?.key ? `[${p.task.key}] ` : ''
+  const title = p.task?.title ?? ''
+  let line = `${WEBHOOK_EVENT_LABELS[event] ?? event}: ${key}${title}`.trim()
+  if (p.comment) line += `\n💬 ${String(p.comment).slice(0, 300)}`
+  return line
+}
+
 async function postWebhook(event: WebhookEvent, webhook: ProjectWebhook, payload: unknown) {
   const body = JSON.stringify(payload)
   const signature = await signWebhookPayload(webhook.secret, body)
@@ -374,6 +391,10 @@ interface AppState {
   activeProjectRole: ProjectRole | null
   activeSprintId: string | null
   openTaskId: string | null
+  selectedTaskIds: string[]
+  toggleTaskSelection: (id: string) => void
+  clearTaskSelection: () => void
+  bulkUpdateTasks: (fields: Partial<Task>) => Promise<void>
   setProfile: (profile: Profile | null) => void
   setOpenTaskId: (id: string | null) => void
   setActiveSprintId: (id: string | null) => void
@@ -402,7 +423,8 @@ interface AppState {
   createSubtask: (parentTaskId: string, title: string) => Promise<Task | null>
   createTaskComment: (taskId: string, body: string, attachments?: string[], mentionedProfileIds?: string[]) => Promise<void>
   createTaskLink: (sourceTaskId: string, targetTaskId: string, linkType: TaskLinkType) => Promise<TaskLink | null>
-  createProjectWebhook: (fields: Pick<ProjectWebhook, 'name' | 'endpoint_url' | 'events' | 'secret'>) => Promise<ProjectWebhook | null>
+  createProjectWebhook: (fields: Pick<ProjectWebhook, 'name' | 'endpoint_url' | 'events' | 'secret' | 'webhook_type'>) => Promise<ProjectWebhook | null>
+  testProjectWebhook: (webhook: ProjectWebhook) => Promise<{ ok: boolean; error?: string }>
   deleteTaskComment: (commentId: string) => Promise<void>
   deleteTaskLink: (id: string) => Promise<void>
   updateTask: (id: string, fields: Partial<Task>) => Promise<void>
@@ -446,7 +468,17 @@ export const useStore = create<AppState>((set, get) => {
     const failures: string[] = []
     for (const webhook of matchingWebhooks) {
       try {
-        await postWebhook(event, webhook, payload)
+        if (webhook.webhook_type === 'discord' || webhook.webhook_type === 'slack') {
+          // Browser can't POST to Discord/Slack (CORS) — relay server-side.
+          const { data, error } = await supabase.functions.invoke('notify-webhook', {
+            body: { webhook_id: webhook.id, event, summary: buildWebhookSummary(event, payload) },
+          })
+          if (error) throw error
+          const res = data as { ok?: boolean; status?: number; error?: string } | null
+          if (res && res.ok === false) throw new Error(res.status ? `HTTP ${res.status}` : (res.error ?? 'delivery failed'))
+        } else {
+          await postWebhook(event, webhook, payload)
+        }
       } catch (error) {
         failures.push(`${webhook.name}: ${error instanceof Error ? error.message : String(error)}`)
       }
@@ -487,6 +519,7 @@ export const useStore = create<AppState>((set, get) => {
     epics: [],
     members: [],
     placeholders: [],
+    selectedTaskIds: [],
     pendingMembers: [],
     loadingProjects: false,
     loadingBoard: false,
@@ -503,6 +536,37 @@ export const useStore = create<AppState>((set, get) => {
   })),
   setOpenTaskId: (openTaskId) => set({ openTaskId }),
   setActiveSprintId: (activeSprintId) => set({ activeSprintId }),
+
+  toggleTaskSelection: (id) =>
+    set((state) => ({
+      selectedTaskIds: state.selectedTaskIds.includes(id)
+        ? state.selectedTaskIds.filter((value) => value !== id)
+        : [...state.selectedTaskIds, id],
+    })),
+
+  clearTaskSelection: () => set({ selectedTaskIds: [] }),
+
+  bulkUpdateTasks: async (fields) => {
+    const ids = get().selectedTaskIds
+    if (!ids.length) return
+    const sprints = get().sprints
+
+    // When moving to a sprint, inherit the sprint's epic (mirrors single update).
+    const resolved: Partial<Task> = { ...fields }
+    if (Object.prototype.hasOwnProperty.call(fields, 'sprint_id')) {
+      const sprint = fields.sprint_id ? sprints.find((s) => s.id === fields.sprint_id) ?? null : null
+      resolved.epic_id = sprint ? (sprint.epic_id ?? null) : (fields.epic_id ?? null)
+    }
+
+    const idSet = new Set(ids)
+    set((state) => ({ tasks: state.tasks.map((task) => (idSet.has(task.id) ? { ...task, ...resolved } : task)) }))
+
+    for (let i = 0; i < ids.length; i += 10) {
+      await Promise.all(ids.slice(i, i + 10).map((id) => supabase.from('tasks').update(resolved).eq('id', id)))
+    }
+    // Refetch so joined assignee/reporter reflect bulk changes.
+    await get().fetchBacklog()
+  },
   setActiveProjectId: (activeProjectId) => {
     const membership = get().projectMemberships.find((item) => item.project_id === activeProjectId)
     storeActiveProjectId(activeProjectId)
@@ -521,6 +585,7 @@ export const useStore = create<AppState>((set, get) => {
         notifications: [],
         members: [],
         placeholders: [],
+        selectedTaskIds: [],
         projectMembers: [],
         projectInvites: [],
         assignableProfiles: [],
@@ -1186,6 +1251,7 @@ export const useStore = create<AppState>((set, get) => {
         endpoint_url: fields.endpoint_url.trim(),
         events: fields.events,
         secret: fields.secret.trim(),
+        webhook_type: fields.webhook_type,
         created_by: profile.id,
       })
       .select('*')
@@ -1196,6 +1262,25 @@ export const useStore = create<AppState>((set, get) => {
 
     set((state) => ({ projectWebhooks: [data as ProjectWebhook, ...state.projectWebhooks] }))
     return data as ProjectWebhook
+  },
+
+  testProjectWebhook: async (webhook) => {
+    const summary = `🔔 NoJira test — webhook "${webhook.name}" is connected.`
+    try {
+      if (webhook.webhook_type === 'discord' || webhook.webhook_type === 'slack') {
+        const { data, error } = await supabase.functions.invoke('notify-webhook', {
+          body: { webhook_id: webhook.id, event: 'task.updated', summary },
+        })
+        if (error) return { ok: false, error: error.message }
+        const res = data as { ok?: boolean; status?: number; error?: string } | null
+        if (res && res.ok === false) return { ok: false, error: res.status ? `HTTP ${res.status}` : (res.error ?? 'failed') }
+        return { ok: true }
+      }
+      await postWebhook('task.updated', webhook, { event: 'test', summary, task: { key: 'TEST', title: summary } })
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
   },
 
   deleteTaskComment: async (commentId) => {
@@ -1569,6 +1654,7 @@ export const useStore = create<AppState>((set, get) => {
         notifications: [],
         members: [],
         placeholders: [],
+        selectedTaskIds: [],
         projectMembers: [],
         projectInvites: [],
         taskComments: [],

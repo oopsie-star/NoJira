@@ -205,10 +205,13 @@ export interface ProjectWebhook {
   endpoint_url: string
   events:       WebhookEvent[]
   secret:       string
+  webhook_type: WebhookType
   is_active:    boolean
   created_by:   string
   created_at:   string
 }
+
+export type WebhookType = 'generic' | 'discord' | 'slack'
 
 export type TaskLinkType = 'blocks' | 'relates_to' | 'duplicates'
 

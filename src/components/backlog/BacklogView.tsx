@@ -3,6 +3,7 @@ import { DragDropContext, Droppable, type DropResult } from '@hello-pangea/dnd'
 import { ChevronDown, ChevronRight, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
 import { BacklogRow } from './BacklogRow'
 import { BacklogStatusSummary } from './BacklogStatusSummary'
+import { BulkActionBar } from './BulkActionBar'
 import { SectionMenu, type SectionMenuItem } from './SectionMenu'
 import { SprintContainer } from './SprintContainer'
 import { UserAvatar } from '@/components/common/UserAvatar'
@@ -467,6 +468,10 @@ export function BacklogView() {
   const activeProjectId = useStore((state) => state.activeProjectId)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const profileId = useStore((state) => state.profile?.id ?? null)
+  const clearTaskSelection = useStore((state) => state.clearTaskSelection)
+
+  // Drop any multi-select when leaving the backlog.
+  useEffect(() => () => clearTaskSelection(), [clearTaskSelection])
 
   const [search, setSearch] = useState('')
   const [epicFilter, setEpicFilter] = useState('')
@@ -1007,6 +1012,8 @@ export function BacklogView() {
       {showSprintModal && <CreateSprintModal initialEpicId={sprintSeedEpicId} onClose={closeSprintModal} />}
       {showEpicModal && <CreateEpicModal onClose={() => setShowEpicModal(false)} />}
       {showCreateTask && <CreateTaskModal onClose={closeTaskModal} initialValues={taskSeed ?? undefined} />}
+
+      <BulkActionBar />
     </DragDropContext>
   )
 }

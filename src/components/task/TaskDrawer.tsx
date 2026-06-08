@@ -11,27 +11,12 @@ import { useI18n } from '@/lib/i18n'
 import { formatDate, formatPerson, parseLabels } from '@/lib/format'
 import { calculateAverageCycleTimeHours, formatCycleTime, formatStatusAge } from '@/lib/ops'
 import { canDeleteAuthoredContent } from '@/lib/permissions'
-import { activeMentionQuery, extractMentionedIds, mentionLabel, splitMentionParts } from '@/lib/mentions'
+import { activeMentionQuery, extractMentionedIds, mentionLabel } from '@/lib/mentions'
+import { MarkdownRenderer } from '@/lib/markdown'
+import { MarkdownEditor } from '@/components/common/MarkdownEditor'
 import { placeholderAsPerson, taskAssigneeDisplay, taskReporterDisplay } from '@/lib/people'
 import { useStore } from '@/store'
 import type { IssuePriority, IssueType, Profile, Task, TaskLinkType, TaskStatus } from '@/types'
-
-function CommentBody({ body, members }: { body: string; members: Profile[] }) {
-  const parts = splitMentionParts(body, members)
-  return (
-    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-      {parts.map((part, i) =>
-        part.type === 'mention' ? (
-          <span key={i} className="rounded bg-qira-pistachio-lt px-1 font-medium text-qira-pistachio-dk">
-            {part.value}
-          </span>
-        ) : (
-          <span key={i}>{part.value}</span>
-        ),
-      )}
-    </p>
-  )
-}
 
 function MetaSection({
   title,
@@ -429,13 +414,13 @@ export function TaskDrawer() {
                   attachments={currentTask.attachments}
                 />
               ) : (
-                <textarea
+                <MarkdownEditor
                   value={draftDescription}
-                  onChange={(event) => setDraftDescription(event.target.value)}
+                  onChange={setDraftDescription}
                   onBlur={persistDrafts}
                   rows={10}
                   placeholder={t('task.emptyDescription')}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
+                  members={members}
                 />
               )}
             </div>
@@ -612,7 +597,7 @@ export function TaskDrawer() {
                           </button>
                         )}
                       </div>
-                      <CommentBody body={comment.body} members={members} />
+                      <MarkdownRenderer source={comment.body} members={members} className="mt-2" />
                     </div>
                     )
                   })

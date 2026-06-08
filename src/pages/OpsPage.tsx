@@ -15,7 +15,7 @@ import {
   type LLMProvider,
 } from '@/lib/ai'
 import { useStore } from '@/store'
-import { WEBHOOK_EVENT_OPTIONS, type ProjectAutomationSettings, type WebhookEvent } from '@/types'
+import { WEBHOOK_EVENT_OPTIONS, type ProjectAutomationSettings, type ProjectWebhook, type WebhookEvent, type WebhookType } from '@/types'
 
 function CopyButton({ text }: { text: string }) {
   const { t } = useI18n()
@@ -91,6 +91,7 @@ export function OpsPage() {
   const updateAutomationSettings = useStore((state) => state.updateAutomationSettings)
   const createProjectWebhook = useStore((state) => state.createProjectWebhook)
   const deleteProjectWebhook = useStore((state) => state.deleteProjectWebhook)
+  const testProjectWebhook = useStore((state) => state.testProjectWebhook)
 
   const initialAiConfig = useMemo(() => getLLMConfig(), [])
 
@@ -98,7 +99,9 @@ export function OpsPage() {
   const [name, setName] = useState('')
   const [endpointUrl, setEndpointUrl] = useState('')
   const [secret, setSecret] = useState('')
+  const [webhookType, setWebhookType] = useState<WebhookType>('discord')
   const [events, setEvents] = useState<WebhookEvent[]>(['task.created', 'task.updated'])
+  const [webhookTest, setWebhookTest] = useState<Record<string, { ok: boolean; error?: string }>>({})
   const [aiProvider, setAiProvider] = useState<LLMProvider>(initialAiConfig.provider)
   const [aiModel, setAiModel] = useState(initialAiConfig.model)
   const [aiApiKey, setAiApiKey] = useState(initialAiConfig.apiKey)
@@ -251,12 +254,20 @@ export function OpsPage() {
       endpoint_url: endpointUrl.trim(),
       secret: secret.trim(),
       events,
+      webhook_type: webhookType,
     })
 
     setName('')
     setEndpointUrl('')
     setSecret('')
+    setWebhookType('discord')
     setEvents(['task.created', 'task.updated'])
+  }
+
+  async function handleTestWebhook(webhook: ProjectWebhook) {
+    setWebhookTest((prev) => ({ ...prev, [webhook.id]: { ok: true, error: '…' } }))
+    const result = await testProjectWebhook(webhook)
+    setWebhookTest((prev) => ({ ...prev, [webhook.id]: result }))
   }
 
   function toggleEvent(nextEvent: WebhookEvent) {
@@ -352,12 +363,25 @@ export function OpsPage() {
                   placeholder={t('ops.webhookUrl')}
                   className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio"
                 />
-                <input
-                  value={secret}
-                  onChange={(event) => setSecret(event.target.value)}
-                  placeholder={t('ops.webhookSecret')}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio"
-                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <select
+                    value={webhookType}
+                    onChange={(event) => setWebhookType(event.target.value as WebhookType)}
+                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none focus:border-qira-pistachio"
+                  >
+                    <option value="discord">Discord</option>
+                    <option value="slack">Slack</option>
+                    <option value="generic">{t('ops.webhookGeneric')}</option>
+                  </select>
+                  <input
+                    value={secret}
+                    onChange={(event) => setSecret(event.target.value)}
+                    placeholder={webhookType === 'generic' ? t('ops.webhookSecret') : t('ops.webhookSecretNA')}
+                    disabled={webhookType !== 'generic'}
+                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio disabled:bg-slate-50 disabled:text-slate-400"
+                  />
+                </div>
+                <p className="-mt-1 text-xs text-slate-400">{t('ops.webhookTypeHint')}</p>
 
                 <div>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('ops.webhookEvents')}</p>
@@ -396,7 +420,12 @@ export function OpsPage() {
                     <div key={webhook.id} className="rounded-2xl border border-slate-200 px-4 py-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-900">{webhook.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-semibold text-slate-900">{webhook.name}</p>
+                            <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold uppercase text-indigo-600">
+                              {webhook.webhook_type}
+                            </span>
+                          </div>
                           <p className="truncate text-sm text-slate-500">{webhook.endpoint_url}</p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {webhook.events.map((eventName) => (
@@ -405,14 +434,29 @@ export function OpsPage() {
                               </span>
                             ))}
                           </div>
+                          {webhookTest[webhook.id] && webhookTest[webhook.id].error !== '…' && (
+                            <p className={`mt-2 text-xs font-medium ${webhookTest[webhook.id].ok ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {webhookTest[webhook.id].ok ? t('ops.webhookTestOk') : `${t('ops.webhookTestFail')}: ${webhookTest[webhook.id].error}`}
+                            </p>
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => void deleteProjectWebhook(webhook.id)}
-                          className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => void handleTestWebhook(webhook)}
+                            disabled={webhookTest[webhook.id]?.error === '…'}
+                            className="rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            {webhookTest[webhook.id]?.error === '…' ? '…' : t('ops.webhookTest')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void deleteProjectWebhook(webhook.id)}
+                            className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))

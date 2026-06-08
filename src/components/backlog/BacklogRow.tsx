@@ -36,9 +36,13 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
   const tasks = useStore((state) => state.tasks)
   const taskLinks = useStore((state) => state.taskLinks)
   const placeholders = useStore((state) => state.placeholders)
+  const selectedTaskIds = useStore((state) => state.selectedTaskIds)
+  const toggleTaskSelection = useStore((state) => state.toggleTaskSelection)
   const assignee = taskAssigneeDisplay(task, placeholders)
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
   const isOpen = task.id === openTaskId
+  const isSelected = selectedTaskIds.includes(task.id)
+  const bulkActive = selectedTaskIds.length > 0
   const subtaskCount = useMemo(
     () => tasks.reduce((n, t) => n + (t.parent_task_id === task.id ? 1 : 0), 0),
     [tasks, task.id],
@@ -54,15 +58,28 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
             ref={provided.innerRef}
             {...provided.draggableProps}
             className={[
-              'flex items-start gap-3 rounded-xl border px-3 py-2.5 transition',
+              'group flex items-start gap-3 rounded-xl border px-3 py-2.5 transition',
               mobile ? 'min-h-[68px]' : 'min-h-[52px]',
-              isOpen
-                ? 'border-qira-pistachio bg-qira-pistachio-lt/50 ring-1 ring-qira-pistachio/40'
-                : snapshot.isDragging
-                  ? 'border-slate-200 bg-white shadow-xl ring-2 ring-qira-pistachio/20'
-                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80',
+              isSelected
+                ? 'border-qira-pistachio bg-qira-pistachio-lt/40 ring-1 ring-qira-pistachio/30'
+                : isOpen
+                  ? 'border-qira-pistachio bg-qira-pistachio-lt/50 ring-1 ring-qira-pistachio/40'
+                  : snapshot.isDragging
+                    ? 'border-slate-200 bg-white shadow-xl ring-2 ring-qira-pistachio/20'
+                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80',
             ].join(' ')}
           >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => toggleTaskSelection(task.id)}
+              onClick={(event) => event.stopPropagation()}
+              aria-label={t('bulk.select')}
+              className={[
+                'mt-2 h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 text-qira-pistachio focus:ring-qira-pistachio',
+                isSelected || bulkActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+              ].join(' ')}
+            />
             <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${issueTypeClasses[task.issue_type]}`}>
               <IssueTypeIcon type={task.issue_type} />
             </div>
