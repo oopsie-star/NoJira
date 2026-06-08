@@ -396,7 +396,7 @@ interface AppState {
   createPortfolioItem: (fields: Partial<PortfolioItem>) => Promise<PortfolioItem | null>
   createTask: (fields: Partial<Task>) => Promise<Task | null>
   createSubtask: (parentTaskId: string, title: string) => Promise<Task | null>
-  createTaskComment: (taskId: string, body: string, attachments?: string[]) => Promise<void>
+  createTaskComment: (taskId: string, body: string, attachments?: string[], mentionedProfileIds?: string[]) => Promise<void>
   createTaskLink: (sourceTaskId: string, targetTaskId: string, linkType: TaskLinkType) => Promise<TaskLink | null>
   createProjectWebhook: (fields: Pick<ProjectWebhook, 'name' | 'endpoint_url' | 'events' | 'secret'>) => Promise<ProjectWebhook | null>
   deleteTaskComment: (commentId: string) => Promise<void>
@@ -1037,7 +1037,7 @@ export const useStore = create<AppState>((set, get) => {
     return subtask
   },
 
-  createTaskComment: async (taskId, body, attachments) => {
+  createTaskComment: async (taskId, body, attachments, mentionedProfileIds) => {
     const profile = get().profile
     const currentTask = get().tasks.find((task) => task.id === taskId)
     const trimmedBody = body.trim()
@@ -1057,6 +1057,22 @@ export const useStore = create<AppState>((set, get) => {
 
     if (data) {
       set((state) => ({ taskComments: [...state.taskComments, data as TaskComment] }))
+    }
+
+    // Notify mentioned project members (never the author).
+    const recipients = [...new Set(mentionedProfileIds ?? [])].filter((id) => id && id !== profile.id)
+    if (recipients.length) {
+      const authorName = profile.full_name || profile.email
+      await supabase.from('notifications').insert(
+        recipients.map((profileId) => ({
+          project_id: currentTask.project_id,
+          profile_id: profileId,
+          task_id: taskId,
+          notification_type: 'comment' as const,
+          title: `${authorName} mentioned you`,
+          body: `${currentTask.key}: ${trimmedBody.slice(0, 140)}`,
+        })),
+      )
     }
 
     await supabase.from('task_activities').insert({

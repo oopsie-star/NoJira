@@ -11,8 +11,26 @@ import { useI18n } from '@/lib/i18n'
 import { formatDate, formatPerson, parseLabels } from '@/lib/format'
 import { calculateAverageCycleTimeHours, formatCycleTime, formatStatusAge } from '@/lib/ops'
 import { canDeleteAuthoredContent } from '@/lib/permissions'
+import { activeMentionQuery, extractMentionedIds, mentionLabel, splitMentionParts } from '@/lib/mentions'
 import { useStore } from '@/store'
-import type { IssuePriority, IssueType, Task, TaskLinkType, TaskStatus } from '@/types'
+import type { IssuePriority, IssueType, Profile, Task, TaskLinkType, TaskStatus } from '@/types'
+
+function CommentBody({ body, members }: { body: string; members: Profile[] }) {
+  const parts = splitMentionParts(body, members)
+  return (
+    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+      {parts.map((part, i) =>
+        part.type === 'mention' ? (
+          <span key={i} className="rounded bg-qira-pistachio-lt px-1 font-medium text-qira-pistachio-dk">
+            {part.value}
+          </span>
+        ) : (
+          <span key={i}>{part.value}</span>
+        ),
+      )}
+    </p>
+  )
+}
 
 function MetaSection({
   title,
@@ -89,6 +107,8 @@ export function TaskDrawer() {
   const [commentUploading, setCommentUploading] = useState(false)
   const [deleteRequestSending, setDeleteRequestSending] = useState(false)
   const commentFileRef = useRef<HTMLInputElement>(null)
+  const commentRef = useRef<HTMLTextAreaElement>(null)
+  const [mention, setMention] = useState<{ start: number; end: number; query: string } | null>(null)
   const [linkType, setLinkType] = useState<TaskLinkType>('blocks')
   const [linkedTaskId, setLinkedTaskId] = useState('')
   const [saving, setSaving] = useState(false)
@@ -211,12 +231,35 @@ export function TaskDrawer() {
         const { error } = await supabase.storage.from('attachments').upload(path, file, { upsert: false })
         if (!error) uploadedPaths.push(path)
       }
-      await createTaskComment(currentTask.id, commentBody, uploadedPaths)
+      const mentionedIds = extractMentionedIds(commentBody, members)
+      await createTaskComment(currentTask.id, commentBody, uploadedPaths, mentionedIds)
       setCommentBody('')
       setCommentFiles([])
+      setMention(null)
     } finally {
       setCommentUploading(false)
     }
+  }
+
+  function handleCommentChange(event: ChangeEvent<HTMLTextAreaElement>) {
+    const value = event.target.value
+    setCommentBody(value)
+    const caret = event.target.selectionStart ?? value.length
+    const found = activeMentionQuery(value.slice(0, caret))
+    setMention(found ? { start: found.start, end: caret, query: found.query } : null)
+  }
+
+  function insertMention(member: Profile) {
+    if (!mention) return
+    const label = mentionLabel(member)
+    const next = `${commentBody.slice(0, mention.start)}@${label} ${commentBody.slice(mention.end)}`
+    setCommentBody(next)
+    setMention(null)
+    const pos = mention.start + label.length + 2
+    requestAnimationFrame(() => {
+      const el = commentRef.current
+      if (el) { el.focus(); el.setSelectionRange(pos, pos) }
+    })
   }
 
   function handleCommentFileInput(event: ChangeEvent<HTMLInputElement>) {
@@ -238,6 +281,12 @@ export function TaskDrawer() {
   }
 
   const canDelete = profile?.role === 'admin'
+
+  const mentionCandidates = mention
+    ? members
+        .filter((member) => mentionLabel(member).toLowerCase().includes(mention.query.toLowerCase()))
+        .slice(0, 6)
+    : []
 
   return (
     <>
@@ -443,14 +492,31 @@ export function TaskDrawer() {
                 <p className="text-sm font-semibold text-slate-900">{t('task.comments')}</p>
               </div>
 
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="relative mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                 <textarea
+                  ref={commentRef}
                   value={commentBody}
-                  onChange={(event) => setCommentBody(event.target.value)}
+                  onChange={handleCommentChange}
+                  onKeyDown={(event) => { if (event.key === 'Escape') setMention(null) }}
                   rows={3}
                   placeholder={t('task.commentPlaceholder')}
                   className="w-full resize-none bg-transparent text-sm text-slate-900 outline-none"
                 />
+                {mention && mentionCandidates.length > 0 && (
+                  <div className="absolute left-3 top-[3.25rem] z-10 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                    {mentionCandidates.map((member) => (
+                      <button
+                        key={member.id}
+                        type="button"
+                        onMouseDown={(event) => { event.preventDefault(); insertMention(member) }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                      >
+                        <UserAvatar profile={member} size={22} muted={false} />
+                        <span className="truncate">{mentionLabel(member)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {commentFiles.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {commentFiles.map((file, idx) => (
@@ -528,7 +594,7 @@ export function TaskDrawer() {
                           </button>
                         )}
                       </div>
-                      <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{comment.body}</p>
+                      <CommentBody body={comment.body} members={members} />
                     </div>
                     )
                   })
