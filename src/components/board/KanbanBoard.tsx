@@ -9,10 +9,13 @@ export function KanbanBoard() {
   const activeSprintId = useStore((state) => state.activeSprintId)
   const moveTask = useStore((state) => state.moveTask)
 
-  const visibleTasks = useMemo(
-    () => tasks.filter((task) => !task.parent_task_id),
-    [tasks]
-  )
+  const visibleTasks = useMemo(() => {
+    // In a specific sprint: show ALL sprint tasks — subtasks are valid work items
+    // and their parent may be in the backlog or a different sprint.
+    // In all-sprints / kanban mode: show only top-level tasks to avoid duplication.
+    const isSpecificSprint = activeSprintId && activeSprintId !== 'all'
+    return tasks.filter((task) => isSpecificSprint || !task.parent_task_id)
+  }, [tasks, activeSprintId])
 
   const columns = useMemo(() => {
     const map: Record<TaskStatus, typeof visibleTasks> = {

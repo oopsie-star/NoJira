@@ -286,7 +286,14 @@ function adfDocOrNull(raw: unknown): Record<string, unknown> | null {
 // ── Field / status / priority mapping ─────────────────────────────────────────
 
 // Returns null for unrecognised statuses so callers can add a warning.
-function mapJiraStatus(jiraStatus: string): 'todo' | 'in_progress' | 'done' | null {
+// categoryKey is the language-independent Jira status category (new / indeterminate / done).
+function mapJiraStatus(jiraStatus: string, categoryKey?: string): 'todo' | 'in_progress' | 'done' | null {
+  // Category key is authoritative and language-independent — prefer it over the localized name.
+  if (categoryKey) {
+    if (categoryKey === 'new' || categoryKey === 'undefined') return 'todo'
+    if (categoryKey === 'indeterminate') return 'in_progress'
+    if (categoryKey === 'done') return 'done'
+  }
   const s = jiraStatus.toLowerCase().trim()
   if (['to do', 'todo', 'open', 'backlog', 'new', 'created', 'ready', 'selected for development'].includes(s)) return 'todo'
   if (['in progress', 'in_progress', 'in review', 'review', 'testing', 'doing', 'started', 'in development', 'development'].includes(s)) return 'in_progress'
@@ -1073,10 +1080,11 @@ async function processIssuesBatch(
     }
 
     const statusName: string = fields.status?.name ?? 'To Do'
+    const statusCategoryKey: string | undefined = fields.status?.statusCategory?.key
     const priorityName: string = fields.priority?.name ?? 'Medium'
-    const mappedStatusOrNull = mapJiraStatus(statusName)
+    const mappedStatusOrNull = mapJiraStatus(statusName, statusCategoryKey)
     if (mappedStatusOrNull === null) {
-      await addWarning(supabase, jobId, warnings, `Unknown Jira status "${statusName}" on ${issueKey} — mapped to "todo"`)
+      await addWarning(supabase, jobId, warnings, `Unknown Jira status "${statusName}" (category: ${statusCategoryKey ?? 'none'}) on ${issueKey} — mapped to "todo"`)
     }
     const mappedStatus = mappedStatusOrNull ?? 'todo'
     const mappedPriority = mapJiraPriority(priorityName)
@@ -1381,7 +1389,7 @@ async function runFinalization(
     // Board/Backlog placement — applied here too so re-imports (which skip existing
     // issues at insert) still populate placement on already-imported tasks.
     const backlogIdSet = new Set(cursor.backlog_issue_ids)
-    const batchUpdates: Array<{ id: string; parent_task_id?: string | null; epic_id?: string | null; sprint_id?: string | null }> = []
+    const batchUpdates: Array<{ id: string; parent_task_id?: string | null; epic_id?: string | null; sprint_id?: string | null; status?: string }> = []
 
     for (const mapping of issueMappings) {
       const raw = mapping.raw_json as Record<string, any> | null
@@ -1390,6 +1398,17 @@ async function runFinalization(
       const discovered: Record<string, string> = raw._discoveredFields ?? {}
       const taskId = mapping.local_entity_id
       const update: Record<string, string | null> = {}
+
+      // Re-map status on every finalization pass — fixes tasks imported when Jira was
+      // non-English or when mapJiraStatus didn't know the status name yet.
+      const rawStatusObj = raw.status as Record<string, any> | null | undefined
+      if (rawStatusObj) {
+        const remapped = mapJiraStatus(
+          rawStatusObj.name ?? '',
+          rawStatusObj.statusCategory?.key,
+        )
+        if (remapped) update.status = remapped
+      }
 
       const parent = raw.parent
       if (parent?.id) {
@@ -1610,11 +1629,41 @@ Deno.serve(async (request) => {
         upsertPayload._access_token = apiToken
       }
 
-      const { data: conn, error: connErr } = await adminClient
+      // Look up existing connection by (user, site, jira_account_id) — the new 3-column unique key.
+      // If found: update token. If not: insert new row.
+      const { data: existing } = await adminClient
         .from('jira_connections')
-        .upsert(upsertPayload, { onConflict: 'user_id,jira_site_url' })
-        .select('id, jira_site_url, jira_user_email, jira_account_id, status')
-        .single()
+        .select('id')
+        .eq('user_id', userId)
+        .eq('jira_site_url', siteUrl)
+        .eq('jira_account_id', myself.accountId)
+        .maybeSingle()
+
+      let conn: { id: string; jira_site_url: string; jira_user_email: string | null; jira_account_id: string | null; status: string } | null = null
+      let connErr: unknown = null
+
+      upsertPayload.display_name = myself.displayName ?? null
+
+      if (existing) {
+        // Update token for the existing connection.
+        const { data: updated, error: updateErr } = await adminClient
+          .from('jira_connections')
+          .update({ ...upsertPayload })
+          .eq('id', existing.id)
+          .select('id, jira_site_url, jira_user_email, jira_account_id, status')
+          .single()
+        conn = updated
+        connErr = updateErr
+      } else {
+        // Insert new connection row.
+        const { data: inserted, error: insertErr } = await adminClient
+          .from('jira_connections')
+          .insert(upsertPayload)
+          .select('id, jira_site_url, jira_user_email, jira_account_id, status')
+          .single()
+        conn = inserted
+        connErr = insertErr
+      }
 
       if (connErr || !conn) return json(200, { error: 'Failed to save connection.', error_code: 'DB_SAVE_FAILED' })
 
@@ -1683,6 +1732,59 @@ Deno.serve(async (request) => {
       }
 
       return json(200, { boards })
+    }
+
+    // ── list_connections ─────────────────────────────────────────────────────
+    if (action === 'list_connections') {
+      const { data: conns } = await adminClient
+        .from('jira_connections')
+        .select('id, jira_site_url, jira_user_email, jira_account_id, display_name, status, last_sync_at, encrypted_token, _access_token')
+        .eq('user_id', userId)
+        .order('last_sync_at', { ascending: false })
+
+      const connections = (conns ?? []).map((c: {
+        id: string
+        jira_site_url: string
+        jira_user_email: string | null
+        jira_account_id: string | null
+        display_name: string | null
+        status: string
+        last_sync_at: string | null
+        encrypted_token: string | null
+        _access_token: string | null
+      }) => ({
+        connection_id: c.id,
+        jira_site_url: c.jira_site_url,
+        email: c.jira_user_email ?? null,
+        display_name: c.display_name ?? null,
+        status: c.status,
+        last_sync_at: c.last_sync_at ?? null,
+        token_saved: !!(c.encrypted_token || c._access_token),
+      }))
+
+      return json(200, { connections })
+    }
+
+    // ── delete_connection ────────────────────────────────────────────────────
+    if (action === 'delete_connection') {
+      const connectionId = String(body.connection_id ?? '').trim()
+      if (!connectionId) return json(400, { error: 'connection_id is required.' })
+
+      const { data: connCheck } = await adminClient
+        .from('jira_connections')
+        .select('id')
+        .eq('id', connectionId)
+        .eq('user_id', userId)
+        .single()
+      if (!connCheck) return json(404, { error: 'Connection not found.' })
+
+      const { error: delErr } = await adminClient
+        .from('jira_connections')
+        .delete()
+        .eq('id', connectionId)
+        .eq('user_id', userId)
+      if (delErr) return json(200, { error: 'Failed to delete connection.', error_code: 'DB_DELETE_FAILED' })
+      return json(200, { ok: true })
     }
 
     // ── preview ──────────────────────────────────────────────────────────────
@@ -1979,12 +2081,23 @@ Deno.serve(async (request) => {
     }
 
     // ── get_last_connection ──────────────────────────────────────────────────
+    // Returns the most-recently-updated preferences row (with its connection).
+    // If body.connection_id is provided, returns preferences for that specific
+    // connection instead (used when the wizard user picks a connection from the list).
     if (action === 'get_last_connection') {
-      const { data: prefs } = await adminClient
+      const specificConnectionId = body.connection_id ? String(body.connection_id) : null
+
+      let prefsQ = adminClient
         .from('jira_import_preferences')
         .select('connection_id, local_project_id, last_jira_project_key, last_jira_board_id, include_attachments, include_completed_sprints, include_comments, max_attachment_size_mb, skip_attachments_over_limit, import_users')
         .eq('user_id', userId)
-        .single()
+        .order('updated_at', { ascending: false })
+        .limit(1)
+
+      if (specificConnectionId) prefsQ = prefsQ.eq('connection_id', specificConnectionId)
+
+      const { data: prefsRows } = await prefsQ
+      const prefs = prefsRows?.[0] ?? null
 
       if (!prefs?.connection_id) {
         return json(200, { connection: null, preferences: null })
@@ -2064,7 +2177,7 @@ Deno.serve(async (request) => {
           max_attachment_size_mb: Number(rawOptions.max_attachment_size_mb ?? 10),
           skip_attachments_over_limit: rawOptions.skip_attachments_over_limit !== false,
           import_users: rawOptions.import_users !== false,
-        }, { onConflict: 'user_id' })
+        }, { onConflict: 'user_id,connection_id' })
 
       return json(200, { ok: true })
     }
