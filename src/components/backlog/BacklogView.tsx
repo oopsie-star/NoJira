@@ -568,8 +568,12 @@ export function BacklogView() {
 
   const hasActiveFilters = Boolean(search.trim() || epicFilter || assigneeFilter || quickFilters.length)
 
+  // Jira's backlog only lists active + future sprints — completed sprints live in
+  // reports, not the backlog. Mirror that so old closed sprints from the board's
+  // history (imported when "include completed sprints" was on) don't clutter it.
   const sprintSections = useMemo(
     () => sortedSprints
+      .filter((sprint) => sprint.status !== 'completed')
       .map((sprint) => ({
         sprint,
         tasks: filteredTasks.filter(
@@ -580,20 +584,29 @@ export function BacklogView() {
     [filteredTasks, orphanInSection, hasActiveFilters, sortedSprints]
   )
 
-  const backlogTasks = useMemo(
-    () => filteredTasks.filter(
-      (task) =>
-        !task.sprint_id && !task.epic_id &&
-        orphanInSection(task, (parent) => !parent.sprint_id && !parent.epic_id),
-    ),
-    [filteredTasks, orphanInSection]
+  // Completed sprints are hidden (above); their tasks fall back into the Backlog
+  // so nothing is lost — mirrors Jira moving incomplete issues to the backlog.
+  const completedSprintIds = useMemo(
+    () => new Set(sprints.filter((sprint) => sprint.status === 'completed').map((sprint) => sprint.id)),
+    [sprints]
+  )
+  const inBacklog = useMemo(
+    () => (task: Task) => (!task.sprint_id || completedSprintIds.has(task.sprint_id)) && !task.epic_id,
+    [completedSprintIds]
   )
 
-  // Jira Board/Backlog split: only when the project was imported from a board
-  // (some task carries a placement). Otherwise the single Backlog section is kept.
+  const backlogTasks = useMemo(
+    () => filteredTasks.filter((task) => inBacklog(task) && orphanInSection(task, inBacklog)),
+    [filteredTasks, inBacklog, orphanInSection]
+  )
+
+  // Jira Board/Backlog split is a Kanban concept — show it only when the project
+  // has no (non-completed) sprints. Scrum projects use sprint sections + Backlog,
+  // so they must not get a spurious empty "Board" section.
+  const isKanbanStyle = useMemo(() => !sprints.some((sprint) => sprint.status !== 'completed'), [sprints])
   const hasBoardPlacement = useMemo(
-    () => rootTasks.some((task) => task.jira_board_placement === 'board' || task.jira_board_placement === 'backlog'),
-    [rootTasks]
+    () => isKanbanStyle && rootTasks.some((task) => task.jira_board_placement === 'board' || task.jira_board_placement === 'backlog'),
+    [isKanbanStyle, rootTasks]
   )
   const boardPlacementTasks = useMemo(
     () => backlogTasks.filter((task) => task.jira_board_placement === 'board'),
