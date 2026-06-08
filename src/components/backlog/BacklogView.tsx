@@ -505,7 +505,16 @@ export function BacklogView() {
     { id: 'unassigned', label: t('board.quick.unassigned') },
   ]), [t])
 
-  const rootTasks = useMemo(() => {
+  const taskById = useMemo(() => {
+    const map = new Map<string, Task>()
+    for (const task of tasks) map.set(task.id, task)
+    return map
+  }, [tasks])
+
+  // All tasks (incl. subtasks) matching the active filters. Subtasks are kept so
+  // sections can surface ones whose parent lives elsewhere (e.g. a subtask in a
+  // sprint whose parent isn't) — Jira shows those; hiding them looked like "0".
+  const filteredTasks = useMemo(() => {
     const query = search.trim().toLowerCase()
     const activeQuickFilters = quickFilters
       .map((filterId) => quickFilterMap[filterId])
@@ -513,8 +522,6 @@ export function BacklogView() {
 
     return tasks
       .filter((task) => {
-        if (task.parent_task_id) return false
-
         const matchesQuery = !query || [
           task.key,
           task.title,
@@ -530,6 +537,19 @@ export function BacklogView() {
       })
       .sort((left, right) => left.position - right.position)
   }, [assigneeFilter, epicFilter, quickFilterMap, quickFilters, search, tasks])
+
+  const rootTasks = useMemo(() => filteredTasks.filter((task) => !task.parent_task_id), [filteredTasks])
+
+  // A subtask should appear in a section only when its parent is NOT already in
+  // that same section (otherwise it stays nested under the parent).
+  const orphanInSection = useMemo(
+    () => (task: Task, parentBelongs: (parent: Task) => boolean): boolean => {
+      if (!task.parent_task_id) return true
+      const parent = taskById.get(task.parent_task_id)
+      return !parent || !parentBelongs(parent)
+    },
+    [taskById]
+  )
 
   const sortedEpics = useMemo(
     () => epics.slice().sort((left, right) => left.created_at.localeCompare(right.created_at)),
@@ -552,15 +572,21 @@ export function BacklogView() {
     () => sortedSprints
       .map((sprint) => ({
         sprint,
-        tasks: rootTasks.filter((task) => task.sprint_id === sprint.id),
+        tasks: filteredTasks.filter(
+          (task) => task.sprint_id === sprint.id && orphanInSection(task, (parent) => parent.sprint_id === sprint.id),
+        ),
       }))
       .filter(({ tasks }) => !hasActiveFilters || tasks.length > 0),
-    [hasActiveFilters, rootTasks, sortedSprints]
+    [filteredTasks, orphanInSection, hasActiveFilters, sortedSprints]
   )
 
   const backlogTasks = useMemo(
-    () => rootTasks.filter((task) => !task.sprint_id && !task.epic_id),
-    [rootTasks]
+    () => filteredTasks.filter(
+      (task) =>
+        !task.sprint_id && !task.epic_id &&
+        orphanInSection(task, (parent) => !parent.sprint_id && !parent.epic_id),
+    ),
+    [filteredTasks, orphanInSection]
   )
 
   // Jira Board/Backlog split: only when the project was imported from a board
