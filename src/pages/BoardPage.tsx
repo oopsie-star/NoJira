@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { KanbanBoard } from '@/components/board/KanbanBoard'
@@ -30,6 +30,7 @@ export function BoardPage() {
   const { locale, t } = useI18n()
   const fetchProjects = useStore((state) => state.fetchProjects)
   const fetchBoard = useStore((state) => state.fetchBoard)
+  const fetchBacklog = useStore((state) => state.fetchBacklog)
   const fetchEpics = useStore((state) => state.fetchEpics)
   const fetchMembers = useStore((state) => state.fetchMembers)
   const fetchSprints = useStore((state) => state.fetchSprints)
@@ -42,38 +43,65 @@ export function BoardPage() {
   const tasks = useStore((state) => state.tasks)
   const taskLinks = useStore((state) => state.taskLinks)
   const loadingBoard = useStore((state) => state.loadingBoard)
+  const loadingBacklog = useStore((state) => state.loadingBacklog)
+
+  // Track when sprints have been fetched so we can distinguish "loading" from "truly empty"
+  const [sprintsLoaded, setSprintsLoaded] = useState(false)
+  // Prevent re-initialization when user manually changes sprint
+  const sprintsInitialized = useRef(false)
 
   useEffect(() => {
     fetchProjects()
   }, [fetchProjects])
 
   useEffect(() => {
-    if (activeProjectId) {
-      Promise.all([fetchSprints(), fetchEpics(), fetchMembers(), fetchTaskLinks()])
+    if (!activeProjectId) {
+      setSprintsLoaded(false)
+      return
     }
+    setSprintsLoaded(false)
+    sprintsInitialized.current = false
+    Promise.all([
+      fetchSprints().then(() => setSprintsLoaded(true)),
+      fetchEpics(),
+      fetchMembers(),
+      fetchTaskLinks(),
+    ])
   }, [activeProjectId, fetchSprints, fetchEpics, fetchMembers, fetchTaskLinks])
 
+  // One-shot sprint initialization — only runs once per project, never overrides user selection
   useEffect(() => {
-    const activeSprint = sprints.find((sprint) => sprint.status === 'active') ?? sprints[0]
-    if (activeSprint && activeSprint.id !== activeSprintId) {
-      setActiveSprintId(activeSprint.id)
-    }
-    if (!activeSprint && activeSprintId) {
-      setActiveSprintId(null)
-    }
-  }, [sprints, activeSprintId, setActiveSprintId])
+    if (!sprintsLoaded || sprints.length === 0) return
+    if (sprintsInitialized.current) return
+    sprintsInitialized.current = true
+    const activeSprint = sprints.find((s) => s.status === 'active') ?? sprints[0]
+    setActiveSprintId(activeSprint.id)
+  }, [sprintsLoaded, sprints, setActiveSprintId])
 
+  // Load board tasks whenever the sprint selection changes
   useEffect(() => {
-    if (activeSprintId) {
+    if (!activeProjectId) return
+    if (activeSprintId === 'all') {
+      fetchBacklog()
+    } else if (activeSprintId) {
       fetchBoard(activeSprintId)
     }
-  }, [activeSprintId, fetchBoard])
+  }, [activeProjectId, activeSprintId, fetchBoard, fetchBacklog])
 
+  // For no-sprint projects: load all tasks once sprints are confirmed empty
   useEffect(() => {
-    if (!activeProjectId || !activeSprintId) return
+    if (!activeProjectId || !sprintsLoaded || sprints.length > 0 || activeSprintId) return
+    fetchBacklog()
+  }, [activeProjectId, sprintsLoaded, sprints.length, activeSprintId, fetchBacklog])
+
+  // Realtime subscription — covers sprint, all-sprint, and kanban modes
+  useEffect(() => {
+    if (!activeProjectId) return
+    const isKanbanMode = sprintsLoaded && sprints.length === 0
+    if (!activeSprintId && !isKanbanMode) return
 
     const channel = supabase
-      .channel(`board-${activeProjectId}-${activeSprintId}`)
+      .channel(`board-${activeProjectId}-${activeSprintId ?? 'kanban'}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tasks', filter: `project_id=eq.${activeProjectId}` },
@@ -82,7 +110,11 @@ export function BoardPage() {
             patchTask(payload.new.id, payload.new as Partial<Task>)
             return
           }
-          fetchBoard(activeSprintId)
+          if (activeSprintId === 'all' || isKanbanMode) {
+            fetchBacklog()
+          } else {
+            fetchBoard(activeSprintId!)
+          }
         }
       )
       .subscribe()
@@ -90,9 +122,22 @@ export function BoardPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [activeProjectId, activeSprintId, fetchBoard, patchTask])
+  }, [activeProjectId, activeSprintId, sprintsLoaded, sprints.length, fetchBoard, fetchBacklog, patchTask])
 
-  const activeSprint = sprints.find((sprint) => sprint.id === activeSprintId)
+  const isKanbanMode = sprintsLoaded && sprints.length === 0
+  const activeSprint = activeSprintId && activeSprintId !== 'all'
+    ? sprints.find((sprint) => sprint.id === activeSprintId)
+    : null
+
+  const displaySprintName =
+    isKanbanMode ? t('board.kanbanMode') :
+    activeSprintId === 'all' ? t('board.allSprints') :
+    activeSprint?.name ?? t('board.noActiveSprint')
+
+  const isLoading = isKanbanMode || activeSprintId === 'all'
+    ? loadingBacklog
+    : loadingBoard
+
   const doneCount = useMemo(() => tasks.filter((task) => task.status === 'done').length, [tasks])
   const progress = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0
   const blockedCount = useMemo(() => tasks.filter((task) => isTaskBlocked(task.id, taskLinks, tasks)).length, [taskLinks, tasks])
@@ -113,17 +158,20 @@ export function BoardPage() {
               {/* Sprint name row */}
               <div className="flex min-w-0 items-center gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{t('board.currentSprint')}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    {isKanbanMode ? t('board.kanbanMode') : t('board.currentSprint')}
+                  </p>
                   <div className="flex min-w-0 items-center gap-2">
                     <h1 className="mt-0.5 truncate text-base font-bold text-slate-900 sm:text-xl">
-                      {activeSprint?.name ?? t('board.noActiveSprint')}
+                      {displaySprintName}
                     </h1>
-                    {sprints.length > 1 && (
+                    {sprints.length > 0 && (
                       <select
-                        value={activeSprintId ?? ''}
-                        onChange={(event) => setActiveSprintId(event.target.value || null)}
+                        value={activeSprintId ?? 'all'}
+                        onChange={(event) => setActiveSprintId(event.target.value)}
                         className="mt-0.5 shrink-0 rounded-xl border border-slate-200 px-2 py-1 text-sm text-slate-700 outline-none transition focus:border-qira-pistachio"
                       >
+                        <option value="all">{t('board.allSprints')}</option>
                         {sprints.map((sprint) => (
                           <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
                         ))}
@@ -155,10 +203,19 @@ export function BoardPage() {
             </section>
 
             <div className="min-h-0 flex-1 overflow-auto">
-              {loadingBoard ? (
+              {isLoading ? (
                 <BoardSkeleton />
-              ) : activeSprint ? (
-                <KanbanBoard />
+              ) : (activeSprintId || isKanbanMode) ? (
+                <div className="flex h-full min-h-0 flex-col gap-3">
+                  {isKanbanMode && (
+                    <div className="shrink-0 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
+                      {t('board.kanbanBanner')}
+                    </div>
+                  )}
+                  <div className="min-h-0 flex-1">
+                    <KanbanBoard />
+                  </div>
+                </div>
               ) : (
                 <section className="flex h-full items-center justify-center rounded-[28px] bg-white p-16 text-center shadow-sm">
                   <div>
