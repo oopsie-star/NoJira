@@ -15,6 +15,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
   const { profile } = useAuthContext()
   const fetchProjects = useStore((state) => state.fetchProjects)
   const fetchMembers = useStore((state) => state.fetchMembers)
+  const fetchPlaceholders = useStore((state) => state.fetchPlaceholders)
   const fetchProjectWebhooks = useStore((state) => state.fetchProjectWebhooks)
   const fetchTaskLinks = useStore((state) => state.fetchTaskLinks)
   const fetchPendingMembers = useStore((state) => state.fetchPendingMembers)
@@ -31,9 +32,9 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
 
   useEffect(() => {
     if (activeProjectId) {
-      void Promise.all([fetchMembers(), fetchProjectWebhooks(), fetchTaskLinks()])
+      void Promise.all([fetchMembers(), fetchPlaceholders(), fetchProjectWebhooks(), fetchTaskLinks()])
     }
-  }, [activeProjectId, fetchMembers, fetchProjectWebhooks, fetchTaskLinks])
+  }, [activeProjectId, fetchMembers, fetchPlaceholders, fetchProjectWebhooks, fetchTaskLinks])
 
   useEffect(() => {
     if (isAdmin) void fetchPendingMembers()

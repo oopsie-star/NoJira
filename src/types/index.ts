@@ -158,6 +158,10 @@ export interface Task {
   sprint_id:      string | null
   assignee_id:    string | null
   reporter_id:    string | null
+  // Set when the assignee/reporter is an imported Jira person with no NoJira
+  // account (a project_member_placeholders row) instead of a real profile.
+  assignee_placeholder_id?: string | null
+  reporter_placeholder_id?: string | null
   due_date:       string | null
   attachments:    string[]
   // Jira rich-content import: raw ADF body + media refs extracted from it.

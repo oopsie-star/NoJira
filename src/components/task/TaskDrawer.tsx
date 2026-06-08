@@ -12,6 +12,7 @@ import { formatDate, formatPerson, parseLabels } from '@/lib/format'
 import { calculateAverageCycleTimeHours, formatCycleTime, formatStatusAge } from '@/lib/ops'
 import { canDeleteAuthoredContent } from '@/lib/permissions'
 import { activeMentionQuery, extractMentionedIds, mentionLabel, splitMentionParts } from '@/lib/mentions'
+import { placeholderAsPerson, taskAssigneeDisplay, taskReporterDisplay } from '@/lib/people'
 import { useStore } from '@/store'
 import type { IssuePriority, IssueType, Profile, Task, TaskLinkType, TaskStatus } from '@/types'
 
@@ -53,6 +54,7 @@ export function TaskDrawer() {
   const epics = useStore((state) => state.epics)
   const sprints = useStore((state) => state.sprints)
   const members = useStore((state) => state.members)
+  const placeholders = useStore((state) => state.placeholders)
   const taskLinks = useStore((state) => state.taskLinks)
   const taskComments = useStore((state) => state.taskComments)
   const taskActivities = useStore((state) => state.taskActivities)
@@ -288,6 +290,20 @@ export function TaskDrawer() {
         .slice(0, 6)
     : []
 
+  // Assignee/reporter may be a real profile or an imported Jira placeholder.
+  const assigneeDisplay = taskAssigneeDisplay(currentTask, placeholders)
+  const reporterDisplay = taskReporterDisplay(currentTask, placeholders)
+  const assigneeValue = currentTask.assignee_id ?? (currentTask.assignee_placeholder_id ? `placeholder:${currentTask.assignee_placeholder_id}` : '')
+  const reporterValue = currentTask.reporter_id ?? (currentTask.reporter_placeholder_id ? `placeholder:${currentTask.reporter_placeholder_id}` : '')
+
+  function personFields(value: string, kind: 'assignee' | 'reporter'): Partial<Task> {
+    const real = value && !value.startsWith('placeholder:') ? value : null
+    const placeholder = value.startsWith('placeholder:') ? value.slice('placeholder:'.length) : null
+    return kind === 'assignee'
+      ? { assignee_id: real, assignee_placeholder_id: placeholder }
+      : { reporter_id: real, reporter_placeholder_id: placeholder }
+  }
+
   return (
     <>
       {/* Dimming backdrop only on small screens; on desktop the drawer is a side
@@ -373,12 +389,14 @@ export function TaskDrawer() {
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="mb-2 text-sm font-semibold text-slate-900">{t('task.reporter')}</p>
                 <div className="flex items-center gap-3">
-                  <UserAvatar profile={currentTask.reporter} size={34} muted={!currentTask.reporter} />
+                  <UserAvatar profile={reporterDisplay?.person} size={34} muted={!reporterDisplay} />
                   <div>
                     <p className="text-sm font-medium text-slate-900">
-                      {currentTask.reporter?.full_name || currentTask.reporter?.email || '—'}
+                      {reporterDisplay?.person.full_name || reporterDisplay?.person.email || '—'}
                     </p>
-                    <p className="text-xs text-slate-500">{t('task.reporter')}</p>
+                    <p className="text-xs text-slate-500">
+                      {reporterDisplay?.imported ? t('people.fromJira') : t('task.reporter')}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -666,8 +684,8 @@ export function TaskDrawer() {
 
               <MetaSection title={t('task.assignee')}>
                 <select
-                  value={currentTask.assignee_id ?? ''}
-                  onChange={(event) => void quickUpdate({ assignee_id: event.target.value || null })}
+                  value={assigneeValue}
+                  onChange={(event) => void quickUpdate(personFields(event.target.value, 'assignee'))}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 >
                   <option value="">{t('common.unassigned')}</option>
@@ -676,13 +694,22 @@ export function TaskDrawer() {
                       {member.full_name || member.email}
                     </option>
                   ))}
+                  {placeholders.length > 0 && (
+                    <optgroup label={t('people.fromJira')}>
+                      {placeholders.map((placeholder) => (
+                        <option key={placeholder.id} value={`placeholder:${placeholder.id}`}>
+                          {placeholder.display_name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </MetaSection>
 
               <MetaSection title={t('task.reporter')}>
                 <select
-                  value={currentTask.reporter_id ?? ''}
-                  onChange={(event) => void quickUpdate({ reporter_id: event.target.value || null })}
+                  value={reporterValue}
+                  onChange={(event) => void quickUpdate(personFields(event.target.value, 'reporter'))}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
                 >
                   <option value="">{t('common.unassigned')}</option>
@@ -691,6 +718,15 @@ export function TaskDrawer() {
                       {member.full_name || member.email}
                     </option>
                   ))}
+                  {placeholders.length > 0 && (
+                    <optgroup label={t('people.fromJira')}>
+                      {placeholders.map((placeholder) => (
+                        <option key={placeholder.id} value={`placeholder:${placeholder.id}`}>
+                          {placeholder.display_name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </MetaSection>
 

@@ -7,6 +7,7 @@ import { parseSandboxDeliveryNote } from '@/lib/approvalNotifications'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { canInviteToProject, canManageProject } from '@/lib/permissions'
+import { placeholderAsPerson } from '@/lib/people'
 import { useStore } from '@/store'
 import type { Locale, Profile, ProjectRole } from '@/types'
 
@@ -129,9 +130,13 @@ export function PeoplePage() {
   const projectMembers = useStore((state) => state.projectMembers)
   const projectInvites = useStore((state) => state.projectInvites)
   const pendingMembers = useStore((state) => state.pendingMembers)
+  const placeholders = useStore((state) => state.placeholders)
+  const fetchPlaceholders = useStore((state) => state.fetchPlaceholders)
+  const deletePlaceholder = useStore((state) => state.deletePlaceholder)
   const updateProfile = useStore((state) => state.updateProfile)
   const updateProjectMemberRole = useStore((state) => state.updateProjectMemberRole)
 
+  const [removingPlaceholderId, setRemovingPlaceholderId] = useState<string | null>(null)
   const [retryingProfileId, setRetryingProfileId] = useState<string | null>(null)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
   const [addingProfileId, setAddingProfileId] = useState<string | null>(null)
@@ -149,8 +154,21 @@ export function PeoplePage() {
 
   useEffect(() => {
     if (!activeProjectId) return
-    void Promise.all([fetchMembers(), fetchProjectInvites()])
-  }, [activeProjectId, fetchMembers, fetchProjectInvites])
+    void Promise.all([fetchMembers(), fetchProjectInvites(), fetchPlaceholders()])
+  }, [activeProjectId, fetchMembers, fetchProjectInvites, fetchPlaceholders])
+
+  async function handleRemovePlaceholder(id: string, name: string) {
+    if (!window.confirm(t('people.removePlaceholderConfirm', { name }))) return
+    setRemovingPlaceholderId(id)
+    setProjectActionError(null)
+    try {
+      await deletePlaceholder(id)
+    } catch (err) {
+      setProjectActionError(getErrorMessage(err))
+    } finally {
+      setRemovingPlaceholderId(null)
+    }
+  }
 
   useEffect(() => {
     if (!activeProjectId || !canInvite) return
@@ -602,6 +620,40 @@ export function PeoplePage() {
                 </div>
               )}
             </section>
+
+            {placeholders.length > 0 && (
+              <section className="rounded-[28px] bg-white shadow-sm">
+                <div className="border-b border-slate-200 px-6 py-5">
+                  <h2 className="text-lg font-semibold text-slate-900">{t('people.importedTitle')}</h2>
+                  <p className="mt-1 text-sm text-slate-500">{t('people.importedHint')}</p>
+                </div>
+                <div className="grid gap-3 p-4 xl:grid-cols-2">
+                  {placeholders.map((placeholder) => (
+                    <div key={placeholder.id} className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+                      <UserAvatar profile={placeholderAsPerson(placeholder)} size={38} muted={!placeholder.avatar_url} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-900">{placeholder.display_name}</p>
+                        <p className="truncate text-xs text-slate-500">{placeholder.email || t('people.fromJira')}</p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600">
+                        {t('people.fromJira')}
+                      </span>
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={() => void handleRemovePlaceholder(placeholder.id, placeholder.display_name)}
+                          disabled={removingPlaceholderId === placeholder.id}
+                          className="shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                          title={t('common.delete')}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <datalist id="job-title-options">
               {JOB_TITLE_OPTIONS.map((option) => (

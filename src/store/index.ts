@@ -6,6 +6,7 @@ import type {
   DeletionRequest,
   DeletionRequestEntityType,
   Epic,
+  JiraUserPlaceholder,
   Notification,
   PortfolioItem,
   Profile,
@@ -364,6 +365,7 @@ interface AppState {
   sprints: Sprint[]
   epics: Epic[]
   members: Profile[]
+  placeholders: JiraUserPlaceholder[]
   pendingMembers: Profile[]
   loadingProjects: boolean
   loadingBoard: boolean
@@ -384,6 +386,8 @@ interface AppState {
   fetchSprints: () => Promise<void>
   fetchEpics: () => Promise<void>
   fetchMembers: () => Promise<void>
+  fetchPlaceholders: () => Promise<void>
+  deletePlaceholder: (id: string) => Promise<void>
   fetchProjectInvites: () => Promise<void>
   fetchPortfolioItems: () => Promise<void>
   fetchAutomationSettings: () => Promise<void>
@@ -482,6 +486,7 @@ export const useStore = create<AppState>((set, get) => {
     sprints: [],
     epics: [],
     members: [],
+    placeholders: [],
     pendingMembers: [],
     loadingProjects: false,
     loadingBoard: false,
@@ -515,6 +520,7 @@ export const useStore = create<AppState>((set, get) => {
         taskLinks: [],
         notifications: [],
         members: [],
+        placeholders: [],
         projectMembers: [],
         projectInvites: [],
         assignableProfiles: [],
@@ -727,6 +733,34 @@ export const useStore = create<AppState>((set, get) => {
       .filter((profile): profile is Profile => Boolean(profile))
 
     set({ projectMembers, members })
+  },
+
+  fetchPlaceholders: async () => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) {
+      set({ placeholders: [] })
+      return
+    }
+    const { data } = await supabase
+      .from('project_member_placeholders')
+      .select('*')
+      .eq('project_id', activeProjectId)
+      .order('display_name')
+    set({ placeholders: (data ?? []) as JiraUserPlaceholder[] })
+  },
+
+  deletePlaceholder: async (id) => {
+    const { error } = await supabase.from('project_member_placeholders').delete().eq('id', id)
+    if (error) throw error
+    // The FK is ON DELETE SET NULL, so unassign locally to match the DB.
+    set((state) => ({
+      placeholders: state.placeholders.filter((placeholder) => placeholder.id !== id),
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        assignee_placeholder_id: task.assignee_placeholder_id === id ? null : task.assignee_placeholder_id,
+        reporter_placeholder_id: task.reporter_placeholder_id === id ? null : task.reporter_placeholder_id,
+      })),
+    }))
   },
 
   fetchProjectInvites: async () => {
@@ -1534,6 +1568,7 @@ export const useStore = create<AppState>((set, get) => {
         taskLinks: [],
         notifications: [],
         members: [],
+        placeholders: [],
         projectMembers: [],
         projectInvites: [],
         taskComments: [],

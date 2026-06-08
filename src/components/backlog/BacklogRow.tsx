@@ -6,6 +6,7 @@ import { UserAvatar } from '@/components/common/UserAvatar'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
 import { isTaskBlocked } from '@/lib/ops'
+import { taskAssigneeDisplay } from '@/lib/people'
 import { useStore } from '@/store'
 import type { IssueType, Task } from '@/types'
 
@@ -34,6 +35,8 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
   const openTaskId = useStore((state) => state.openTaskId)
   const tasks = useStore((state) => state.tasks)
   const taskLinks = useStore((state) => state.taskLinks)
+  const placeholders = useStore((state) => state.placeholders)
+  const assignee = taskAssigneeDisplay(task, placeholders)
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
   const isOpen = task.id === openTaskId
   const subtaskCount = useMemo(
@@ -128,7 +131,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
 
                 {mobile && (
                   <div className="flex shrink-0 items-center gap-2">
-                    <UserAvatar profile={task.assignee} size={28} muted={!task.assignee} />
+                    <UserAvatar profile={assignee?.person} size={28} muted={!assignee} />
                     <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400">
                       <MoreHorizontal size={15} />
                     </span>
@@ -139,7 +142,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
 
             {!mobile && (
               <div className="flex shrink-0 items-center gap-2 pl-2">
-                <UserAvatar profile={task.assignee} size={28} muted={!task.assignee} />
+                <UserAvatar profile={assignee?.person} size={28} muted={!assignee} />
                 {!dragDisabled && (
                   <button
                     type="button"

@@ -5,6 +5,7 @@ import { UserAvatar } from '@/components/common/UserAvatar'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
 import { formatStatusAge, isTaskBlocked } from '@/lib/ops'
+import { taskAssigneeDisplay } from '@/lib/people'
 import { useStore } from '@/store'
 import type { Task } from '@/types'
 
@@ -18,6 +19,8 @@ export function TaskCard({ task, index }: TaskCardProps) {
   const setOpenTaskId = useStore((state) => state.setOpenTaskId)
   const tasks = useStore((state) => state.tasks)
   const taskLinks = useStore((state) => state.taskLinks)
+  const placeholders = useStore((state) => state.placeholders)
+  const assignee = taskAssigneeDisplay(task, placeholders)
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
 
   return (
@@ -87,7 +90,7 @@ export function TaskCard({ task, index }: TaskCardProps) {
               )}
             </div>
 
-            <UserAvatar profile={task.assignee} size={28} muted={!task.assignee} />
+            <UserAvatar profile={assignee?.person} size={28} muted={!assignee} />
           </div>
         </div>
       )}
