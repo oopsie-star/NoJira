@@ -146,7 +146,7 @@ export function BoardPage() {
 
   return (
     <GlobalLayout>
-      <div className="flex h-full min-h-0 flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-5">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-5">
         {!activeProjectId ? (
           <section className="rounded-[28px] bg-white p-16 text-center shadow-sm">
             <h2 className="text-2xl font-semibold text-slate-900">{t('project.noProjects')}</h2>
@@ -154,22 +154,26 @@ export function BoardPage() {
           </section>
         ) : (
           <>
-            <section className="shrink-0 rounded-[28px] bg-white px-4 py-3 shadow-sm sm:px-5 sm:py-4">
+            <section className="shrink-0 overflow-hidden rounded-[28px] bg-white px-4 py-3 shadow-sm sm:px-5 sm:py-4">
               {/* Sprint name row */}
               <div className="flex min-w-0 items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                     {isKanbanMode ? t('board.kanbanMode') : t('board.currentSprint')}
                   </p>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <h1 className="mt-0.5 truncate text-base font-bold text-slate-900 sm:text-xl">
+                  <div className="mt-0.5 flex min-w-0 items-center gap-2">
+                    {/* On phones the select doubles as the title; the standalone h1 only shows once there's room */}
+                    <h1 className={[
+                      'min-w-0 truncate text-base font-bold text-slate-900 sm:text-xl',
+                      sprints.length > 0 ? 'hidden sm:block' : 'block',
+                    ].join(' ')}>
                       {displaySprintName}
                     </h1>
                     {sprints.length > 0 && (
                       <select
                         value={activeSprintId ?? 'all'}
                         onChange={(event) => setActiveSprintId(event.target.value)}
-                        className="mt-0.5 shrink-0 rounded-xl border border-slate-200 px-2 py-1 text-sm text-slate-700 outline-none transition focus:border-qira-pistachio"
+                        className="min-w-0 max-w-full flex-1 truncate rounded-xl border border-slate-200 px-2 py-1.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-qira-pistachio sm:max-w-[240px] sm:flex-none sm:py-1 sm:font-normal"
                       >
                         <option value="all">{t('board.allSprints')}</option>
                         {sprints.map((sprint) => (
@@ -184,8 +188,8 @@ export function BoardPage() {
                 )}
               </div>
 
-              {/* Metrics row — 3-up grid on phones, single row on wide screens */}
-              <div className="mt-2.5 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+              {/* Metrics row — 2-up grid on phones, single row on wide screens */}
+              <div className="mt-2.5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 {[
                   { label: t('board.metrics.total'), value: tasks.length },
                   { label: t('status.done'), value: doneCount },
