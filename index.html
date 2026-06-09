@@ -16,9 +16,9 @@
     <div id="root"></div>
     <script>
       (function () {
-        var redirect = sessionStorage.getItem('qira-gh-redirect');
+        var redirect = sessionStorage.getItem('nojira-gh-redirect');
         if (redirect) {
-          sessionStorage.removeItem('qira-gh-redirect');
+          sessionStorage.removeItem('nojira-gh-redirect');
           if (redirect !== window.location.pathname + window.location.search + window.location.hash) {
             history.replaceState(null, '', redirect);
           }

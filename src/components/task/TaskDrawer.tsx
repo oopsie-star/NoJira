@@ -1,4 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Calendar, Link2, MessageSquare, Paperclip, Plus, Send, ShieldAlert, Timer, Trash2, X } from 'lucide-react'
 import { callLLM, getLLMConfig } from '@/lib/ai'
 import type { LLMMessage } from '@/lib/ai'
@@ -59,6 +60,7 @@ export function TaskDrawer() {
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const { profile } = useAuthContext()
   const { locale, t } = useI18n()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [savedFlash, setSavedFlash] = useState(false)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -134,6 +136,30 @@ export function TaskDrawer() {
     setLinkedTaskId('')
     void fetchTaskContext(task.id)
   }, [task, fetchTaskContext, clearTaskContext])
+
+  // Restore the open task from the URL once on mount, so a hard refresh or a
+  // shared deep link (e.g. /board?task=<id>) re-opens the same task instead of
+  // dropping the user back on the board.
+  useEffect(() => {
+    const param = searchParams.get('task')
+    if (param && !openTaskId) setOpenTaskId(param)
+    // mount-only — intentionally reads the initial URL
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Mirror the open task into the URL (?task=<id>) so refresh/back/share work.
+  useEffect(() => {
+    const current = searchParams.get('task')
+    if (openTaskId && current !== openTaskId) {
+      const next = new URLSearchParams(searchParams)
+      next.set('task', openTaskId)
+      setSearchParams(next, { replace: true })
+    } else if (!openTaskId && current) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('task')
+      setSearchParams(next, { replace: true })
+    }
+  }, [openTaskId, searchParams, setSearchParams])
 
   if (!task) return null
 
@@ -317,18 +343,19 @@ export function TaskDrawer() {
       <div className="fixed inset-0 z-[60] bg-slate-950/25 lg:hidden" onClick={handleClose} />
 
       <aside className="fixed bottom-0 right-0 top-0 z-[70] flex w-full flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl lg:max-w-[760px]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-3 sm:px-6 sm:py-4">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
               {currentTask.key}
             </span>
-            <IssueTypeBadge type={currentTask.issue_type} />
-            <PriorityBadge priority={currentTask.priority} />
+            <span className="shrink-0"><IssueTypeBadge type={currentTask.issue_type} /></span>
+            <span className="hidden shrink-0 sm:inline-flex"><PriorityBadge priority={currentTask.priority} /></span>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Action group is shrink-0 so Save + Close stay on-screen on phones */}
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {savedFlash && !isDirty && (
-              <span className="flex items-center gap-1 text-sm font-medium text-emerald-600 transition-opacity">
+              <span className="hidden items-center gap-1 text-sm font-medium text-emerald-600 sm:flex">
                 ✓ {t('common.saved')}
               </span>
             )}
@@ -346,6 +373,7 @@ export function TaskDrawer() {
               <button
                 type="button"
                 onClick={handleDelete}
+                aria-label={t('common.delete')}
                 className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
               >
                 <Trash2 size={18} />
@@ -355,15 +383,18 @@ export function TaskDrawer() {
                 type="button"
                 onClick={() => void handleRequestDelete()}
                 disabled={deleteRequestSending}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-60"
+                title={t('task.requestDelete')}
+                aria-label={t('task.requestDelete')}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-2.5 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-60"
               >
                 <ShieldAlert size={15} />
-                {deleteRequestSending ? t('backlog.deletionRequestSending') : t('task.requestDelete')}
+                <span className="hidden sm:inline">{deleteRequestSending ? t('backlog.deletionRequestSending') : t('task.requestDelete')}</span>
               </button>
             )}
             <button
               type="button"
               onClick={handleClose}
+              aria-label={t('common.close')}
               className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
             >
               <X size={18} />
