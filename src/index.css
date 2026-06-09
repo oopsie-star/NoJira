@@ -13,6 +13,9 @@
 
   html {
     font-family: 'Inter', system-ui, sans-serif;
+    /* Prevent iOS from auto-inflating text in landscape, keep our sizes intentional */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
@@ -21,6 +24,15 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  /* Touch scrolling: momentum + keep nested scroll gestures from leaking to the page */
+  .overflow-y-auto,
+  .overflow-x-auto,
+  .overflow-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
 
   button,
   input,

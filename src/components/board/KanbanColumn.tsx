@@ -18,11 +18,11 @@ export function KanbanColumn({ status, tasks, sprintId }: KanbanColumnProps) {
 
   return (
     <>
-      <section className="flex h-full w-[80vw] max-w-[280px] flex-shrink-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm sm:w-[260px] lg:w-[300px] lg:max-w-none">
+      <section className="flex h-full w-[86vw] max-w-[420px] flex-shrink-0 snap-start flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm sm:w-[260px] lg:w-[300px] lg:max-w-none">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <div>
-            <p className="text-sm font-semibold text-slate-900">{t(`status.${status}`)}</p>
-            <p className="text-xs text-slate-500">{t('kanban.issues', { count: tasks.length })}</p>
+            <p className="text-[15px] font-semibold text-slate-900 sm:text-sm">{t(`status.${status}`)}</p>
+            <p className="text-[13px] text-slate-500 sm:text-xs">{t('kanban.issues', { count: tasks.length })}</p>
           </div>
           <button
             onClick={() => setShowCreate(true)}

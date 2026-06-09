@@ -371,8 +371,8 @@ export function TaskDrawer() {
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[1.6fr_0.9fr]">
-          <div className="min-h-0 overflow-y-auto p-6">
+        <div className="flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto lg:grid lg:overflow-hidden lg:grid-cols-[1.6fr_0.9fr]">
+          <div className="p-5 sm:p-6 lg:min-h-0 lg:overflow-y-auto">
             {parentTask && (
               <button
                 type="button"
@@ -653,7 +653,7 @@ export function TaskDrawer() {
             </div>
           </div>
 
-          <div className="min-h-0 overflow-y-auto border-l border-slate-200 bg-slate-50 p-6">
+          <div className="border-t border-slate-200 bg-slate-50 p-5 sm:p-6 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0">
             <div className="space-y-5">
               <MetaSection title={t('task.status')}>
                 <StatusDropdown

@@ -41,24 +41,24 @@ export function TaskCard({ task, index }: TaskCardProps) {
             <PriorityBadge priority={task.priority} />
             {task.epic && (
               <span
-                className="inline-flex rounded-full px-2 py-1 text-[11px] font-semibold"
+                className="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
                 style={{ backgroundColor: `${task.epic.color}20`, color: task.epic.color }}
               >
                 {task.epic.title}
               </span>
             )}
-            <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
+            <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
               {t('board.daysInStatus', { days: formatStatusAge(locale, task) })}
             </span>
             {blocked && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700">
+              <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700">
                 <CircleAlert size={12} />
                 {t('board.blocked')}
               </span>
             )}
           </div>
 
-          <h3 className="mt-3 text-sm font-semibold leading-6 text-slate-900">{task.title}</h3>
+          <h3 className="mt-3 text-[15px] font-semibold leading-6 text-slate-900 sm:text-sm">{task.title}</h3>
           {task.description && (
             <p className="mt-1 line-clamp-3 text-sm leading-6 text-slate-500">{task.description}</p>
           )}
@@ -66,7 +66,7 @@ export function TaskCard({ task, index }: TaskCardProps) {
           {task.labels.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {task.labels.slice(0, 3).map((label) => (
-                <span key={label} className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+                <span key={label} className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
                   {label}
                 </span>
               ))}
@@ -74,7 +74,7 @@ export function TaskCard({ task, index }: TaskCardProps) {
           )}
 
           <div className="mt-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 text-xs text-slate-500">
+            <div className="flex items-center gap-3 text-[13px] text-slate-500 sm:text-xs">
               <span className="font-semibold uppercase tracking-[0.12em]">{task.key}</span>
               {task.attachments.length > 0 && (
                 <span className="inline-flex items-center gap-1">

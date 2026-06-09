@@ -42,7 +42,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
   }, [isAdmin, fetchPendingMembers])
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#F7F8F9]">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#F7F8F9]">
       <TopNavbar onToggleSidebar={() => setSidebarOpen((v) => !v)} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {sidebarOpen && (
@@ -52,7 +52,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
           />
         )}
         <LeftSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#F7F8F9] pb-24 lg:pb-0">
+        <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#F7F8F9] pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0">
           {children}
         </main>
       </div>

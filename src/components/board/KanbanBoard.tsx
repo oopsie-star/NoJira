@@ -110,9 +110,9 @@ export function KanbanBoard() {
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-4 py-4">
+      <div className="min-h-0 flex-1 snap-x snap-proximity overflow-x-auto overflow-y-hidden px-3 py-3 sm:snap-none sm:px-4 sm:py-4">
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex h-full gap-4">
+          <div className="flex h-full gap-3 sm:gap-4">
             {STATUS_COLUMNS.map((status) => (
               <KanbanColumn
                 key={status}

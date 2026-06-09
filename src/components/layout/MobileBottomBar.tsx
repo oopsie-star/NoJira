@@ -25,11 +25,11 @@ export function MobileBottomBar() {
             end={to === '/board'}
             aria-label={t(key)}
             className={({ isActive }) => [
-              'flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium transition',
+              'flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2.5 text-xs font-semibold transition',
               isActive ? 'bg-qira-pistachio-lt text-qira-pistachio' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
             ].join(' ')}
           >
-            <Icon size={18} />
+            <Icon size={22} />
             <span className="truncate">{t(key)}</span>
           </NavLink>
         ))}

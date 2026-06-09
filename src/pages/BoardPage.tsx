@@ -146,7 +146,7 @@ export function BoardPage() {
 
   return (
     <GlobalLayout>
-      <div className="flex h-full min-h-0 flex-1 flex-col gap-4 p-4 sm:p-5">
+      <div className="flex h-full min-h-0 flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-5">
         {!activeProjectId ? (
           <section className="rounded-[28px] bg-white p-16 text-center shadow-sm">
             <h2 className="text-2xl font-semibold text-slate-900">{t('project.noProjects')}</h2>
@@ -184,8 +184,8 @@ export function BoardPage() {
                 )}
               </div>
 
-              {/* Metrics row */}
-              <div className="mt-2.5 flex flex-wrap gap-1.5 sm:gap-2">
+              {/* Metrics row — 3-up grid on phones, single row on wide screens */}
+              <div className="mt-2.5 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
                 {[
                   { label: t('board.metrics.total'), value: tasks.length },
                   { label: t('status.done'), value: doneCount },
@@ -194,9 +194,9 @@ export function BoardPage() {
                   { label: t('board.metrics.blocked'), value: blockedCount },
                   { label: t('board.metrics.stale'), value: agingCount },
                 ].map(({ label, value }) => (
-                  <div key={label} className="min-w-[72px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 sm:px-3 sm:py-2">
-                    <p className="text-[10px] uppercase tracking-[0.10em] text-slate-500 sm:text-[11px]">{label}</p>
-                    <p className="mt-0.5 text-base font-semibold text-slate-900 sm:mt-1 sm:text-xl">{value}</p>
+                  <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 sm:min-w-[72px] sm:flex-1 sm:px-3">
+                    <p className="truncate text-[11px] uppercase tracking-[0.08em] text-slate-500 sm:text-[11px]">{label}</p>
+                    <p className="mt-0.5 text-lg font-semibold text-slate-900 sm:mt-1 sm:text-xl">{value}</p>
                   </div>
                 ))}
               </div>
