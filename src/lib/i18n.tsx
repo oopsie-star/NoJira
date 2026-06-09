@@ -957,6 +957,13 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     }
   }, [profile?.locale, locale])
 
+  // Keep <html lang> in sync with the active UI locale. Without this the page
+  // stays lang="en" while showing Russian, so mobile browsers auto-translate an
+  // already-localized app and mangle short strings (e.g. "Сохранить" → "Чувак").
+  useEffect(() => {
+    document.documentElement.lang = locale
+  }, [locale])
+
   const setLocale = useCallback((nextLocale: Locale) => {
     setLocaleState(nextLocale)
     window.localStorage.setItem(STORAGE_KEY, nextLocale)
