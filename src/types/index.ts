@@ -116,7 +116,7 @@ export interface Sprint {
   created_at: string
 }
 
-export type TaskStatus = 'todo' | 'in_progress' | 'done'
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled' | 'archived' | 'deleted'
 export type IssueType = 'task' | 'story' | 'bug'
 export type IssuePriority = 'lowest' | 'low' | 'medium' | 'high' | 'highest'
 
@@ -279,7 +279,15 @@ export interface TaskActivity {
   actor?:        Profile | null
 }
 
+// Active workflow columns shown on the board.
 export const STATUS_COLUMNS: TaskStatus[] = ['todo', 'in_progress', 'done']
+// Terminal statuses: tasks here leave the active board into the "Closed" view.
+// `deleted` is a soft-delete marker — the row stays in the DB and is recoverable.
+export const TERMINAL_STATUSES: TaskStatus[] = ['cancelled', 'archived', 'deleted']
+export const ALL_TASK_STATUSES: TaskStatus[] = [...STATUS_COLUMNS, ...TERMINAL_STATUSES]
+export function isTerminalStatus(status: TaskStatus): boolean {
+  return TERMINAL_STATUSES.includes(status)
+}
 export const ISSUE_TYPE_OPTIONS: IssueType[] = ['task', 'story', 'bug']
 export const PRIORITY_OPTIONS: IssuePriority[] = ['lowest', 'low', 'medium', 'high', 'highest']
 export const ROLE_OPTIONS: UserRole[] = ['admin', 'manager', 'member', 'viewer']

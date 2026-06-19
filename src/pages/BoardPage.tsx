@@ -7,7 +7,7 @@ import { useI18n } from '@/lib/i18n'
 import { calculateAverageCycleTimeHours, formatCycleTime, getStatusAgeDays, isTaskBlocked } from '@/lib/ops'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store'
-import type { Task } from '@/types'
+import { isTerminalStatus, type Task } from '@/types'
 
 function BoardSkeleton() {
   return (
@@ -138,11 +138,13 @@ export function BoardPage() {
     ? loadingBacklog
     : loadingBoard
 
-  const doneCount = useMemo(() => tasks.filter((task) => task.status === 'done').length, [tasks])
-  const progress = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0
-  const blockedCount = useMemo(() => tasks.filter((task) => isTaskBlocked(task.id, taskLinks, tasks)).length, [taskLinks, tasks])
-  const agingCount = useMemo(() => tasks.filter((task) => task.status !== 'done' && getStatusAgeDays(task) >= 3).length, [tasks])
-  const cycleTime = useMemo(() => formatCycleTime(locale, calculateAverageCycleTimeHours(tasks)), [locale, tasks])
+  // Metrics reflect the active board only — closed (cancelled/archived/deleted) tasks are excluded.
+  const activeTasks = useMemo(() => tasks.filter((task) => !isTerminalStatus(task.status)), [tasks])
+  const doneCount = useMemo(() => activeTasks.filter((task) => task.status === 'done').length, [activeTasks])
+  const progress = activeTasks.length ? Math.round((doneCount / activeTasks.length) * 100) : 0
+  const blockedCount = useMemo(() => activeTasks.filter((task) => isTaskBlocked(task.id, taskLinks, tasks)).length, [activeTasks, taskLinks, tasks])
+  const agingCount = useMemo(() => activeTasks.filter((task) => task.status !== 'done' && getStatusAgeDays(task) >= 3).length, [activeTasks])
+  const cycleTime = useMemo(() => formatCycleTime(locale, calculateAverageCycleTimeHours(activeTasks)), [locale, activeTasks])
 
   return (
     <GlobalLayout>
@@ -191,7 +193,7 @@ export function BoardPage() {
               {/* Metrics — compact horizontal strip on phones, card row on wide screens */}
               <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 sm:mt-2.5 sm:flex-wrap sm:gap-2 sm:overflow-visible sm:pb-0">
                 {[
-                  { label: t('board.metrics.total'), value: tasks.length },
+                  { label: t('board.metrics.total'), value: activeTasks.length },
                   { label: t('status.done'), value: doneCount },
                   { label: t('board.metrics.progress'), value: `${progress}%` },
                   { label: t('board.metrics.cycleTime'), value: cycleTime },

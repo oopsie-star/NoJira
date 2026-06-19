@@ -39,6 +39,9 @@ export function BulkActionBar() {
           <option value="todo">{t('status.todo')}</option>
           <option value="in_progress">{t('status.in_progress')}</option>
           <option value="done">{t('status.done')}</option>
+          <option value="cancelled">{t('status.cancelled')}</option>
+          <option value="archived">{t('status.archived')}</option>
+          <option value="deleted">{t('status.deleted')}</option>
         </select>
 
         <select className={selectClass} value="" onChange={(e) => { if (e.target.value) apply({ sprint_id: e.target.value === 'backlog' ? null : e.target.value }) }}>

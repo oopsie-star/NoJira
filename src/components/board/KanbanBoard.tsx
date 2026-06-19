@@ -4,7 +4,9 @@ import { KanbanColumn } from './KanbanColumn'
 import { useI18n } from '@/lib/i18n'
 import { isTaskBlocked } from '@/lib/ops'
 import { useStore } from '@/store'
-import { STATUS_COLUMNS, type TaskStatus } from '@/types'
+import { STATUS_COLUMNS, isTerminalStatus, type TaskStatus } from '@/types'
+
+const CLOSED_DROPPABLE_ID = '__closed__'
 
 const DUE_SOON_MS = 3 * 24 * 60 * 60 * 1000
 
@@ -17,6 +19,7 @@ export function KanbanBoard() {
   const { t } = useI18n()
 
   const [quickFilters, setQuickFilters] = useState<string[]>([])
+  const [showClosed, setShowClosed] = useState(false)
 
   const quickFilterOptions = [
     { id: 'blocked', label: t('board.quick.blocked') },
@@ -48,23 +51,32 @@ export function KanbanBoard() {
     return result
   }, [tasks, taskLinks, profileId, activeSprintId, quickFilters])
 
+  // Active workflow columns never include terminal-status tasks (cancelled /
+  // archived / deleted) — those live in the separate "Closed" column.
   const columns = useMemo(() => {
-    const map: Record<TaskStatus, typeof visibleTasks> = {
+    const map: Record<'todo' | 'in_progress' | 'done', typeof visibleTasks> = {
       todo: [],
       in_progress: [],
       done: [],
     }
 
     for (const task of visibleTasks) {
-      map[task.status].push(task)
+      if (isTerminalStatus(task.status)) continue
+      map[task.status as 'todo' | 'in_progress' | 'done'].push(task)
     }
 
     for (const status of STATUS_COLUMNS) {
-      map[status] = map[status].slice().sort((a, b) => a.position - b.position)
+      const key = status as 'todo' | 'in_progress' | 'done'
+      map[key] = map[key].slice().sort((a, b) => a.position - b.position)
     }
 
     return map
   }, [visibleTasks])
+
+  const closedTasks = useMemo(
+    () => visibleTasks.filter((task) => isTerminalStatus(task.status)).sort((a, b) => a.position - b.position),
+    [visibleTasks]
+  )
 
   function toggleFilter(id: string) {
     setQuickFilters((prev) => prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id])
@@ -77,6 +89,10 @@ export function KanbanBoard() {
       destination.droppableId === source.droppableId &&
       destination.index === source.index
     ) return
+    // Only the three workflow columns are valid drop targets. Dropping onto the
+    // Closed column is a no-op (close a task via its status dropdown); dragging a
+    // closed task back onto a workflow column restores it to that status.
+    if (!STATUS_COLUMNS.includes(destination.droppableId as TaskStatus)) return
     moveTask(draggableId, destination.droppableId as TaskStatus, destination.index)
   }
 
@@ -108,6 +124,18 @@ export function KanbanBoard() {
             {t('board.quick.clear')}
           </button>
         )}
+
+        {/* Reveal the terminal (cancelled / archived / deleted) tasks */}
+        <button
+          type="button"
+          onClick={() => setShowClosed((v) => !v)}
+          className={[
+            'ml-auto shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition',
+            showClosed ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+          ].join(' ')}
+        >
+          {t('board.closed')}{closedTasks.length > 0 ? ` · ${closedTasks.length}` : ''}
+        </button>
       </div>
 
       <div className="min-h-0 flex-1 snap-x snap-proximity overflow-x-auto overflow-y-hidden px-3 py-3 sm:snap-none sm:px-4 sm:py-4">
@@ -117,10 +145,20 @@ export function KanbanBoard() {
               <KanbanColumn
                 key={status}
                 status={status}
-                tasks={columns[status]}
+                tasks={columns[status as 'todo' | 'in_progress' | 'done']}
                 sprintId={activeSprintId}
               />
             ))}
+            {showClosed && (
+              <KanbanColumn
+                status="archived"
+                title={t('board.closed')}
+                droppableId={CLOSED_DROPPABLE_ID}
+                disableCreate
+                tasks={closedTasks}
+                sprintId={activeSprintId}
+              />
+            )}
           </div>
         </DragDropContext>
       </div>

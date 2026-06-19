@@ -1,13 +1,13 @@
 import { Draggable } from '@hello-pangea/dnd'
 import { Calendar, CircleAlert, Paperclip } from 'lucide-react'
-import { IssueTypeBadge, PriorityBadge } from '@/components/common/IssueBadges'
+import { IssueTypeBadge, PriorityBadge, StatusBadge } from '@/components/common/IssueBadges'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
 import { formatStatusAge, isTaskBlocked } from '@/lib/ops'
 import { taskAssigneeDisplay } from '@/lib/people'
 import { useStore } from '@/store'
-import type { Task } from '@/types'
+import { isTerminalStatus, type Task } from '@/types'
 
 interface TaskCardProps {
   task: Task
@@ -37,6 +37,7 @@ export function TaskCard({ task, index }: TaskCardProps) {
           ].join(' ')}
         >
           <div className="flex flex-wrap items-center gap-2">
+            {isTerminalStatus(task.status) && <StatusBadge status={task.status} />}
             <IssueTypeBadge type={task.issue_type} />
             <PriorityBadge priority={task.priority} />
             {task.epic && (

@@ -2,9 +2,7 @@
 import { Check, ChevronDown } from 'lucide-react'
 import { StatusBadge } from '@/components/common/IssueBadges'
 import { useI18n } from '@/lib/i18n'
-import type { TaskStatus } from '@/types'
-
-const statuses: TaskStatus[] = ['todo', 'in_progress', 'done']
+import { STATUS_COLUMNS, TERMINAL_STATUSES, type TaskStatus } from '@/types'
 
 interface StatusDropdownProps {
   value: TaskStatus
@@ -38,7 +36,7 @@ export function StatusDropdown({ value, onChange }: StatusDropdownProps) {
 
       {open && (
         <div className="absolute left-0 top-[calc(100%+8px)] z-50 min-w-[190px] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-          {statuses.map((status) => (
+          {STATUS_COLUMNS.map((status) => (
             <button
               key={status}
               onClick={() => {
@@ -53,7 +51,25 @@ export function StatusDropdown({ value, onChange }: StatusDropdownProps) {
               {status === value && <Check size={16} className="text-qira-pistachio" />}
             </button>
           ))}
-          <p className="px-3 pt-2 text-xs text-slate-500">{t('task.status')}</p>
+
+          {/* Terminal statuses — move the task off the active board */}
+          <div className="my-1 border-t border-slate-100" />
+          <p className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('board.closed')}</p>
+          {TERMINAL_STATUSES.map((status) => (
+            <button
+              key={status}
+              onClick={() => {
+                onChange(status)
+                setOpen(false)
+              }}
+              className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+            >
+              <div>
+                <StatusBadge status={status} />
+              </div>
+              {status === value && <Check size={16} className="text-qira-pistachio" />}
+            </button>
+          ))}
         </div>
       )}
     </div>

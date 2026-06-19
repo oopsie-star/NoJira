@@ -25,7 +25,7 @@ function getStatusCounts(tasks: Task[]): Record<TaskStatus, number> {
       counts[task.status] += 1
       return counts
     },
-    { todo: 0, in_progress: 0, done: 0 }
+    { todo: 0, in_progress: 0, done: 0, cancelled: 0, archived: 0, deleted: 0 }
   )
 }
 

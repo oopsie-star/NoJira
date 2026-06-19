@@ -6,6 +6,9 @@ const statusClasses: Record<TaskStatus, string> = {
   todo: 'bg-slate-200 text-slate-700',
   in_progress: 'bg-blue-100 text-qira-pistachio',
   done: 'bg-emerald-100 text-emerald-700',
+  cancelled: 'bg-amber-100 text-amber-700',
+  archived: 'bg-slate-100 text-slate-500',
+  deleted: 'bg-rose-100 text-rose-700',
 }
 
 const priorityClasses: Record<IssuePriority, string> = {

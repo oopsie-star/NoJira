@@ -25,7 +25,7 @@ function getStatusCounts(tasks: Task[]): Record<TaskStatus, number> {
       counts[task.status] += 1
       return counts
     },
-    { todo: 0, in_progress: 0, done: 0 }
+    { todo: 0, in_progress: 0, done: 0, cancelled: 0, archived: 0, deleted: 0 }
   )
 }
 
@@ -456,7 +456,10 @@ function TaskListSection({
 export function BacklogView() {
   const { profile } = useAuthContext()
   const { t } = useI18n()
-  const tasks = useStore((state) => state.tasks)
+  const allTasks = useStore((state) => state.tasks)
+  // Soft-deleted tasks are hidden everywhere except the board's Closed view (where
+  // they can be recovered). Cancelled/archived stay visible here as closed records.
+  const tasks = useMemo(() => allTasks.filter((task) => task.status !== 'deleted'), [allTasks])
   const sprints = useStore((state) => state.sprints)
   const epics = useStore((state) => state.epics)
   const members = useStore((state) => state.members)
