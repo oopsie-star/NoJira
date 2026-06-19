@@ -1071,13 +1071,17 @@ async function processIssuesBatch(
     const issueTypeName: string = fields.issuetype?.name ?? 'Task'
     const isEpic = issueTypeName === 'Epic'
 
-    const existing = isEpic
-      ? await getMappedId(supabase, userId, siteUrl, 'epic', issueId, localProjectId)
-      : await getMappedId(supabase, userId, siteUrl, 'issue', issueId, localProjectId)
-    if (existing) {
-      processedIssues++
-      continue
-    }
+    // Look up an existing mapping *with* its stored Jira update time, so we can
+    // re-sync old issues that changed in Jira instead of skipping them outright.
+    const { data: existingRow } = await supabase
+      .from('jira_external_mappings')
+      .select('local_entity_id, jira_updated_at')
+      .eq('user_id', userId)
+      .eq('jira_site_url', siteUrl)
+      .eq('local_entity_type', isEpic ? 'epic' : 'issue')
+      .eq('external_id', issueId)
+      .eq('local_project_id', localProjectId)
+      .maybeSingle()
 
     const statusName: string = fields.status?.name ?? 'To Do'
     const statusCategoryKey: string | undefined = fields.status?.statusCategory?.key
@@ -1096,6 +1100,58 @@ async function processIssuesBatch(
     const mediaRefs = descriptionAdf ? extractAdfMediaRefs(descriptionAdf) : []
     const labels: string[] = (fields.labels ?? []).filter(Boolean)
     const dueDate: string | null = fields.duedate ?? null
+
+    // ── Already imported: re-sync the content when Jira reports a newer version.
+    // Refreshing raw_json also lets the attachment phase pick up new files and
+    // lets finalization re-resolve sprint/parent/epic from the fresh data.
+    if (existingRow?.local_entity_id) {
+      const changedInJira =
+        !existingRow.jira_updated_at ||
+        (fields.updated && fields.updated !== existingRow.jira_updated_at)
+
+      if (changedInJira) {
+        if (isEpic) {
+          const epicStatus = mappedStatus === 'done' ? 'done' : mappedStatus === 'in_progress' ? 'in_progress' : 'planned'
+          await supabase.from('epics')
+            .update({ title, description, status: epicStatus })
+            .eq('id', existingRow.local_entity_id)
+        } else {
+          const [assignee, reporter] = await Promise.all([
+            resolveUser(fields.assignee),
+            resolveUser(fields.reporter),
+          ])
+          await supabase.from('tasks')
+            .update({
+              title,
+              description,
+              jira_description_adf: descriptionAdf,
+              description_media_refs: descriptionAdf ? mediaRefs : null,
+              status: mappedStatus,
+              issue_type: mapJiraIssueType(issueTypeName),
+              priority: mappedPriority,
+              labels,
+              due_date: dueDate,
+              assignee_id: assignee.assigneeId,
+              assignee_placeholder_id: assignee.placeholderId,
+              reporter_placeholder_id: reporter.placeholderId ?? assignee.placeholderId ?? null,
+              // sprint_id, parent_task_id, epic_id, board placement re-resolved in finalization
+            })
+            .eq('id', existingRow.local_entity_id)
+        }
+
+        await upsertMapping(supabase, {
+          userId, localProjectId,
+          localEntityType: isEpic ? 'epic' : 'issue',
+          localEntityId: existingRow.local_entity_id,
+          externalId: issueId, externalKey: issueKey, jiraSiteUrl: siteUrl,
+          rawJson: isEpic ? fields : { ...fields, _discoveredFields: fieldMap },
+          jiraUpdatedAt: fields.updated ?? null,
+        })
+      }
+
+      processedIssues++
+      continue
+    }
 
     if (isEpic) {
       const epicColor = EPIC_COLORS[processedIssues % EPIC_COLORS.length]
