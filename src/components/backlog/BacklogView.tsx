@@ -12,7 +12,7 @@ import { useAuthContext } from '@/auth/AuthContext'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { isTaskBlocked } from '@/lib/ops'
-import { EPIC_COLORS, EPIC_STATUS_OPTIONS, type Epic, type Profile, type Sprint, type Task, type TaskStatus } from '@/types'
+import { EPIC_COLORS, EPIC_STATUS_OPTIONS, isTerminalStatus, type Epic, type Profile, type Sprint, type Task, type TaskStatus } from '@/types'
 import { useStore } from '@/store'
 
 const DUE_SOON_MS = 3 * 24 * 60 * 60 * 1000
@@ -457,9 +457,9 @@ export function BacklogView() {
   const { profile } = useAuthContext()
   const { t } = useI18n()
   const allTasks = useStore((state) => state.tasks)
-  // Soft-deleted tasks are hidden everywhere except the board's Closed view (where
-  // they can be recovered). Cancelled/archived stay visible here as closed records.
-  const tasks = useMemo(() => allTasks.filter((task) => task.status !== 'deleted'), [allTasks])
+  // Terminal tasks (cancelled / archived / deleted) leave the backlog entirely —
+  // they live only in the board's "Closed" view, where they can be recovered.
+  const tasks = useMemo(() => allTasks.filter((task) => !isTerminalStatus(task.status)), [allTasks])
   const sprints = useStore((state) => state.sprints)
   const epics = useStore((state) => state.epics)
   const members = useStore((state) => state.members)
