@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { CornerDownLeft, FolderKanban, Search, SquareCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useI18n } from '@/lib/i18n'
+import { projectPath } from '@/lib/projectRoutes'
 import { useStore } from '@/store'
 
 interface TaskHit { id: string; key: string; title: string; project_id: string }
@@ -84,16 +85,12 @@ export function CommandPalette() {
 
   async function select(item: Item) {
     setOpen(false)
-    if (item.kind === 'project') {
-      setActiveProjectId(item.id)
-      navigate('/backlog')
-      await fetchBacklog()
-    } else {
-      setActiveProjectId(item.projectId)
-      navigate('/backlog')
-      await fetchBacklog()
-      setOpenTaskId(item.id)
-    }
+    const projectId = item.kind === 'project' ? item.id : item.projectId
+    const projectKey = projects.find((p) => p.id === projectId)?.key
+    setActiveProjectId(projectId)
+    navigate(projectKey ? projectPath(projectKey, 'backlog') : '/backlog')
+    await fetchBacklog()
+    if (item.kind === 'task') setOpenTaskId(item.id)
   }
 
   function onKeyDown(event: React.KeyboardEvent) {

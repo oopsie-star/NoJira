@@ -16,6 +16,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useI18n } from '@/lib/i18n'
+import { projectPath, useCurrentProjectKey } from '@/lib/projectRoutes'
 import { useStore } from '@/store'
 import type {
   JiraBoardInfo,
@@ -125,6 +126,7 @@ function PreviewStat({ label, value }: { label: string; value: string | number }
 export function JiraImportWizard({ onClose }: { onClose: () => void }) {
   const { t } = useI18n()
   const navigate = useNavigate()
+  const currentKey = useCurrentProjectKey()
   const projects = useStore((s) => s.projects)
   const fetchProjects = useStore((s) => s.fetchProjects)
   const fetchBacklog = useStore((s) => s.fetchBacklog)
@@ -1063,7 +1065,7 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
           {isSuccess && (
             <button
               type="button"
-              onClick={() => { navigate('/backlog'); onClose() }}
+              onClick={() => { navigate(currentKey ? projectPath(currentKey, 'backlog') : '/backlog'); onClose() }}
               className="inline-flex items-center justify-center gap-2 rounded-2xl bg-qira-pistachio px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
             >
               {t('ops.jira.step5.openBacklog')}

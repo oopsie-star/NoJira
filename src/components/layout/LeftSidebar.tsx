@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { LayoutDashboard, ListTodo, Plus, Users, Workflow, X } from 'lucide-react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { CreateProjectModal } from '@/components/project/CreateProjectModal'
 import { useI18n } from '@/lib/i18n'
+import { projectPath, sectionFromPathname, type AppSection } from '@/lib/projectRoutes'
 import { useStore } from '@/store'
 
 const NAV_ITEMS = [
-  { to: '/board', key: 'nav.board', Icon: LayoutDashboard },
-  { to: '/backlog', key: 'nav.backlog', Icon: ListTodo },
-  { to: '/people', key: 'nav.people', Icon: Users },
-  { to: '/ops', key: 'nav.ops', Icon: Workflow },
+  { section: 'board' as AppSection, key: 'nav.board', Icon: LayoutDashboard },
+  { section: 'backlog' as AppSection, key: 'nav.backlog', Icon: ListTodo },
+  { section: 'people' as AppSection, key: 'nav.people', Icon: Users },
+  { section: 'ops' as AppSection, key: 'nav.ops', Icon: Workflow },
 ] as const
 
 interface LeftSidebarProps {
@@ -19,11 +20,14 @@ interface LeftSidebarProps {
 
 export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
   const { t } = useI18n()
+  const navigate = useNavigate()
+  const location = useLocation()
   const projects = useStore((state) => state.projects)
   const projectMembers = useStore((state) => state.projectMembers)
   const activeProjectId = useStore((state) => state.activeProjectId)
-  const setActiveProjectId = useStore((state) => state.setActiveProjectId)
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
+  const currentKey = activeProject?.key
+  const currentSection = sectionFromPathname(location.pathname)
   const [showCreateProject, setShowCreateProject] = useState(false)
 
   return (
@@ -60,10 +64,10 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
       </div>
 
       <nav className="p-2">
-        {NAV_ITEMS.map(({ to, key, Icon }) => (
+        {NAV_ITEMS.map(({ section, key, Icon }) => (
           <NavLink
-            key={to}
-            to={to}
+            key={section}
+            to={currentKey ? projectPath(currentKey, section) : `/${section}`}
             onClick={onClose}
             className={({ isActive }) => [
               'mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
@@ -99,7 +103,7 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
                 key={project.id}
                 type="button"
                 onClick={() => {
-                  setActiveProjectId(project.id)
+                  navigate(projectPath(project.key, currentSection))
                   onClose()
                 }}
                 className={[

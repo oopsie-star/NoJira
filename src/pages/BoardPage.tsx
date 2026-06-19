@@ -7,6 +7,7 @@ import { useI18n } from '@/lib/i18n'
 import { calculateAverageCycleTimeHours, formatCycleTime, getStatusAgeDays, isTaskBlocked } from '@/lib/ops'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store'
+import { projectPath, useCurrentProjectKey } from '@/lib/projectRoutes'
 import { isTerminalStatus, type Task } from '@/types'
 
 function BoardSkeleton() {
@@ -28,6 +29,7 @@ function BoardSkeleton() {
 
 export function BoardPage() {
   const { locale, t } = useI18n()
+  const currentKey = useCurrentProjectKey()
   const fetchProjects = useStore((state) => state.fetchProjects)
   const fetchBoard = useStore((state) => state.fetchBoard)
   const fetchBacklog = useStore((state) => state.fetchBacklog)
@@ -230,7 +232,7 @@ export function BoardPage() {
                   <div>
                     <h2 className="text-2xl font-semibold text-slate-900">{t('board.noActiveSprint')}</h2>
                     <p className="mt-2 text-sm text-slate-500">{t('board.openBacklog')}</p>
-                    <Link to="/backlog" className="mt-5 inline-flex rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk">
+                    <Link to={currentKey ? projectPath(currentKey, 'backlog') : '/backlog'} className="mt-5 inline-flex rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk">
                       {t('board.openBacklog')}
                     </Link>
                   </div>

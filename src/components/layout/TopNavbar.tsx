@@ -6,6 +6,7 @@ import { UserAvatar } from '@/components/common/UserAvatar'
 import { CreateProjectModal } from '@/components/project/CreateProjectModal'
 import { CreateTaskModal } from '@/components/task/CreateTaskModal'
 import { useI18n } from '@/lib/i18n'
+import { projectPath, sectionFromPathname, useCurrentProjectKey } from '@/lib/projectRoutes'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store'
 import type { Locale } from '@/types'
@@ -13,9 +14,10 @@ import type { Locale } from '@/types'
 function ProjectSwitcher() {
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
+  const navigate = useNavigate()
+  const location = useLocation()
   const projects = useStore((state) => state.projects)
   const activeProjectId = useStore((state) => state.activeProjectId)
-  const setActiveProjectId = useStore((state) => state.setActiveProjectId)
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
@@ -50,7 +52,7 @@ function ProjectSwitcher() {
             <button
               key={project.id}
               onClick={() => {
-                setActiveProjectId(project.id)
+                navigate(projectPath(project.key, sectionFromPathname(location.pathname)))
                 setOpen(false)
               }}
               className={[
@@ -81,6 +83,7 @@ function NotificationMenu() {
   const markNotificationRead = useStore((state) => state.markNotificationRead)
   const markAllNotificationsRead = useStore((state) => state.markAllNotificationsRead)
   const setOpenTaskId = useStore((state) => state.setOpenTaskId)
+  const currentKey = useCurrentProjectKey()
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
@@ -118,7 +121,7 @@ function NotificationMenu() {
     await markNotificationRead(notificationId)
     setOpen(false)
     if (taskId) {
-      navigate('/backlog')
+      navigate(currentKey ? projectPath(currentKey, 'backlog') : '/backlog')
       setOpenTaskId(taskId)
     }
   }
@@ -286,9 +289,10 @@ export function TopNavbar({ onToggleSidebar }: { onToggleSidebar: () => void }) 
   const [projectOpen, setProjectOpen] = useState(false)
 
   const currentLabel = useMemo(() => {
-    if (location.pathname.startsWith('/backlog')) return t('nav.backlog')
-    if (location.pathname.startsWith('/people')) return t('nav.people')
-    if (location.pathname.startsWith('/ops')) return t('nav.ops')
+    const section = sectionFromPathname(location.pathname)
+    if (section === 'backlog') return t('nav.backlog')
+    if (section === 'people') return t('nav.people')
+    if (section === 'ops') return t('nav.ops')
     return t('nav.board')
   }, [location.pathname, t])
 
