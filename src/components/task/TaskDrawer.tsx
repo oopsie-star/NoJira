@@ -17,7 +17,9 @@ import { canDeleteAuthoredContent } from '@/lib/permissions'
 import { activeMentionQuery, extractMentionedIds, mentionLabel } from '@/lib/mentions'
 import { MarkdownRenderer } from '@/lib/markdown'
 import { MarkdownEditor } from '@/components/common/MarkdownEditor'
+import { ShareTaskMenu } from './ShareTaskMenu'
 import { placeholderAsPerson, taskAssigneeDisplay, taskReporterDisplay } from '@/lib/people'
+import { useCurrentProjectKey } from '@/lib/projectRoutes'
 import { useStore } from '@/store'
 import type { IssuePriority, IssueType, Profile, Task, TaskLinkType, TaskStatus } from '@/types'
 
@@ -60,6 +62,7 @@ export function TaskDrawer() {
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const { profile } = useAuthContext()
   const { locale, t } = useI18n()
+  const currentProjectKey = useCurrentProjectKey()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [savedFlash, setSavedFlash] = useState(false)
@@ -369,6 +372,7 @@ export function TaskDrawer() {
                 {saving ? '…' : t('common.save')}
               </button>
             )}
+            <ShareTaskMenu task={currentTask} projectKey={currentProjectKey} />
             {canDelete ? (
               <button
                 type="button"
