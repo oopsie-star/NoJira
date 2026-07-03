@@ -187,6 +187,40 @@ export function PeoplePage() {
   const canInvite = canInviteToProject(activeProjectRole)
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
 
+  // Accepted placeholders belong to the team roster; the rest still need action
+  // (import / invite) and stay in the "Imported from Jira" section.
+  const teamPlaceholders = placeholders.filter((p) => p.status === 'accepted')
+  const importedPlaceholders = placeholders.filter((p) => p.status !== 'accepted')
+
+  function renderLinkPicker(placeholderId: string) {
+    if (linkingPlaceholderId !== placeholderId) return null
+    return (
+      <div className="flex flex-col gap-2 rounded-xl bg-slate-50 p-3 sm:flex-row sm:items-center">
+        <p className="text-xs text-slate-500 sm:flex-1">{t('people.linkAccountHint')}</p>
+        <select
+          value={linkTargetId}
+          onChange={(event) => setLinkTargetId(event.target.value)}
+          className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-qira-pistachio"
+        >
+          <option value="">{t('people.linkAccountSelect')}</option>
+          {projectMembers.map((member) => member.profile && (
+            <option key={member.id} value={member.profile.id}>
+              {member.profile.full_name || member.profile.email}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => void handleLinkPlaceholder(placeholderId)}
+          disabled={!linkTargetId || linkSubmitting}
+          className="rounded-xl bg-qira-pistachio px-3 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
+        >
+          {linkSubmitting ? t('people.linking') : t('people.linkConfirm')}
+        </button>
+      </div>
+    )
+  }
+
   useEffect(() => {
     void fetchProjects()
   }, [fetchProjects])
@@ -683,14 +717,14 @@ export function PeoplePage() {
             <section className="rounded-[28px] bg-white shadow-sm">
               <div className="border-b border-slate-200 px-6 py-5">
                 <h2 className="text-lg font-semibold text-slate-900">{t('people.title')}</h2>
-                <p className="mt-1 text-sm text-slate-500">{t('people.memberCount', { count: projectMembers.length })}</p>
+                <p className="mt-1 text-sm text-slate-500">{t('people.memberCount', { count: projectMembers.length + teamPlaceholders.length })}</p>
               </div>
 
               {memberActionError && (
                 <p className="mx-4 mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{memberActionError}</p>
               )}
 
-              {projectMembers.length === 0 ? (
+              {projectMembers.length === 0 && teamPlaceholders.length === 0 ? (
                 <div className="p-10 text-sm text-slate-500">{t('people.empty')}</div>
               ) : (
                 <div className="space-y-3 p-4">
@@ -779,18 +813,66 @@ export function PeoplePage() {
                       </div>
                     )
                   })}
+
+                  {/* Accepted Jira placeholders — part of the team, unregistered. */}
+                  {teamPlaceholders.map((placeholder) => (
+                    <div key={placeholder.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 px-4 py-4">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <UserAvatar profile={placeholderAsPerson(placeholder)} size={40} muted={!placeholder.avatar_url} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-slate-900">{placeholder.display_name}</p>
+                          <p className="truncate text-sm text-slate-500">{placeholder.email || t('people.fromJira')}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <span className="shrink-0 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600">
+                            {t('people.fromJira')}
+                          </span>
+                          {canManage && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLinkTargetId('')
+                                setLinkingPlaceholderId((cur) => (cur === placeholder.id ? null : placeholder.id))
+                              }}
+                              className={[
+                                'inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition',
+                                linkingPlaceholderId === placeholder.id
+                                  ? 'border-qira-pistachio bg-qira-pistachio-lt text-qira-pistachio'
+                                  : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                              ].join(' ')}
+                            >
+                              <Link2 size={14} />
+                              {t('people.linkAccount')}
+                            </button>
+                          )}
+                          {canManage && (
+                            <button
+                              type="button"
+                              onClick={() => void handleRemovePlaceholder(placeholder.id, placeholder.display_name)}
+                              disabled={removingPlaceholderId === placeholder.id}
+                              className="shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                              title={t('common.delete')}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {renderLinkPicker(placeholder.id)}
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
 
-            {placeholders.length > 0 && (
+            {importedPlaceholders.length > 0 && (
               <section className="rounded-[28px] bg-white shadow-sm">
                 <div className="border-b border-slate-200 px-6 py-5">
                   <h2 className="text-lg font-semibold text-slate-900">{t('people.importedTitle')}</h2>
                   <p className="mt-1 text-sm text-slate-500">{t('people.importedHint')}</p>
                 </div>
                 <div className="grid gap-3 p-4 xl:grid-cols-2">
-                  {placeholders.map((placeholder) => (
+                  {importedPlaceholders.map((placeholder) => (
                     <div key={placeholder.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 px-4 py-3">
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         <UserAvatar profile={placeholderAsPerson(placeholder)} size={38} muted={!placeholder.avatar_url} />
@@ -799,15 +881,9 @@ export function PeoplePage() {
                           <p className="truncate text-xs text-slate-500">{placeholder.email || t('people.fromJira')}</p>
                         </div>
                         <div className="flex flex-wrap items-center justify-end gap-2">
-                          {placeholder.status === 'accepted' ? (
-                            <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600">
-                              {t('people.inTeam')}
-                            </span>
-                          ) : (
-                            <span className="shrink-0 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600">
-                              {t('people.fromJira')}
-                            </span>
-                          )}
+                          <span className="shrink-0 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600">
+                            {t('people.fromJira')}
+                          </span>
                           {canManage && placeholder.status === 'imported_placeholder' && (
                             <button
                               type="button"
@@ -866,32 +942,7 @@ export function PeoplePage() {
                           )}
                         </div>
                       </div>
-
-                      {linkingPlaceholderId === placeholder.id && (
-                        <div className="flex flex-col gap-2 rounded-xl bg-slate-50 p-3 sm:flex-row sm:items-center">
-                          <p className="text-xs text-slate-500 sm:flex-1">{t('people.linkAccountHint')}</p>
-                          <select
-                            value={linkTargetId}
-                            onChange={(event) => setLinkTargetId(event.target.value)}
-                            className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-qira-pistachio"
-                          >
-                            <option value="">{t('people.linkAccountSelect')}</option>
-                            {projectMembers.map((member) => member.profile && (
-                              <option key={member.id} value={member.profile.id}>
-                                {member.profile.full_name || member.profile.email}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => void handleLinkPlaceholder(placeholder.id)}
-                            disabled={!linkTargetId || linkSubmitting}
-                            className="rounded-xl bg-qira-pistachio px-3 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
-                          >
-                            {linkSubmitting ? t('people.linking') : t('people.linkConfirm')}
-                          </button>
-                        </div>
-                      )}
+                      {renderLinkPicker(placeholder.id)}
                     </div>
                   ))}
                 </div>
