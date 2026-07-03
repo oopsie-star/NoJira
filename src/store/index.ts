@@ -455,6 +455,7 @@ interface AppState {
   inviteToProject: (email: string, role: ProjectRole, message?: string | null) => Promise<{ emailSent: boolean } | null>
   cancelInvite: (inviteId: string) => Promise<void>
   invitePlaceholder: (placeholderId: string, email: string, role: ProjectRole) => Promise<{ emailSent: boolean } | null>
+  linkPlaceholder: (placeholderId: string, profileId: string) => Promise<void>
   fetchPendingMembers: () => Promise<void>
   approveMember: (profileId: string) => Promise<void>
   declineMember: (profileId: string) => Promise<void>
@@ -1800,6 +1801,18 @@ export const useStore = create<AppState>((set, get) => {
     await supabase.from('project_member_placeholders').update({ status: 'invited' }).eq('id', placeholderId)
     await get().fetchPlaceholders()
     return result
+  },
+
+  linkPlaceholder: async (placeholderId, profileId) => {
+    const { error } = await supabase.rpc('link_placeholder_to_member', {
+      placeholder_uuid: placeholderId,
+      target_profile_id: profileId,
+    })
+    if (error) throw error
+    await Promise.all([
+      get().fetchPlaceholders(),
+      get().fetchMembers(),
+    ])
   },
 
   removeProjectMember: async (profileId) => {
