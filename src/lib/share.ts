@@ -3,7 +3,10 @@ import { getFilename, storageBucket } from '@/lib/attachments'
 
 // Attachment links shared into a chat must outlive the default 1h preview URLs.
 const SHARE_EXPIRY_SECONDS = 60 * 60 * 24 * 7 // 7 days
-const MAX_DESCRIPTION_CHARS = 1000
+// Messenger deep links are GET requests — long signed attachment URLs blow past
+// the server's URI limit (Telegram/nginx returns 400). Keep the messenger text
+// compact; the full links go to the clipboard instead.
+const MAX_MESSENGER_TEXT = 1500
 
 export type ShareTarget = 'telegram' | 'whatsapp' | 'viber'
 
@@ -26,25 +29,32 @@ export async function signedAttachmentLinks(paths: string[]): Promise<{ name: st
 }
 
 /** Title + (clipped) description — the message body without attachments/link. */
-export function taskShareBase(key: string, title: string, description: string): string {
+export function taskShareBase(key: string, title: string, description: string, maxDescription = 1000): string {
   const header = `${key} — ${title}`.trim()
   const desc = (description ?? '').trim()
-  const clipped = desc.length > MAX_DESCRIPTION_CHARS ? `${desc.slice(0, MAX_DESCRIPTION_CHARS).trimEnd()}…` : desc
+  const clipped = desc.length > maxDescription ? `${desc.slice(0, maxDescription).trimEnd()}…` : desc
   return clipped ? `${header}\n\n${clipped}` : header
 }
 
-/** Appends an attachment list (name + link) to a message body. */
+/** Appends full attachment links (name + url) — for the clipboard (no length limit). */
 export function withAttachments(body: string, attachments: { name: string; url: string }[], label: string): string {
   if (!attachments.length) return body
   const lines = attachments.map((a) => `• ${a.name}: ${a.url}`).join('\n')
   return `${body}\n\n${label}\n${lines}`
 }
 
-/** Builds the deep-link share URL for the chosen messenger. */
+/** Appends only attachment names — compact, safe for messenger deep links. */
+export function withAttachmentNames(body: string, names: string[], label: string): string {
+  if (!names.length) return body
+  return `${body}\n\n${label} ${names.join(', ')}`
+}
+
+/** Builds the deep-link share URL for the chosen messenger (compact body). */
 export function shareHref(target: ShareTarget, body: string, taskUrl: string): string {
-  const full = `${body}\n\n${taskUrl}`
+  const safeBody = body.length > MAX_MESSENGER_TEXT ? `${body.slice(0, MAX_MESSENGER_TEXT).trimEnd()}…` : body
+  const full = `${safeBody}\n\n${taskUrl}`
   if (target === 'telegram') {
-    return `https://t.me/share/url?url=${encodeURIComponent(taskUrl)}&text=${encodeURIComponent(body)}`
+    return `https://t.me/share/url?url=${encodeURIComponent(taskUrl)}&text=${encodeURIComponent(safeBody)}`
   }
   if (target === 'whatsapp') {
     return `https://wa.me/?text=${encodeURIComponent(full)}`
