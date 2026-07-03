@@ -456,6 +456,7 @@ interface AppState {
   cancelInvite: (inviteId: string) => Promise<void>
   invitePlaceholder: (placeholderId: string, email: string, role: ProjectRole) => Promise<{ emailSent: boolean } | null>
   linkPlaceholder: (placeholderId: string, profileId: string) => Promise<void>
+  acceptPlaceholder: (placeholderId: string) => Promise<void>
   fetchPendingMembers: () => Promise<void>
   approveMember: (profileId: string) => Promise<void>
   declineMember: (profileId: string) => Promise<void>
@@ -1813,6 +1814,18 @@ export const useStore = create<AppState>((set, get) => {
       get().fetchPlaceholders(),
       get().fetchMembers(),
     ])
+  },
+
+  acceptPlaceholder: async (placeholderId) => {
+    // Acknowledge an imported Jira person as a team member. They have no NoJira
+    // account (auth.users is never created manually), so they stay a placeholder
+    // with status 'accepted' — assignable, and no longer a pending import.
+    const { error } = await supabase
+      .from('project_member_placeholders')
+      .update({ status: 'accepted' })
+      .eq('id', placeholderId)
+    if (error) throw error
+    await get().fetchPlaceholders()
   },
 
   removeProjectMember: async (profileId) => {

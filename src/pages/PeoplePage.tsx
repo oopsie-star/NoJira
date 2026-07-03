@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { CheckCircle, Link2, Mail, Plus, ShieldCheck, Trash2, UserMinus, XCircle } from 'lucide-react'
+import { CheckCircle, Link2, Mail, Plus, ShieldCheck, Trash2, UserCheck, UserMinus, XCircle } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { useAuthContext } from '@/auth/AuthContext'
@@ -146,6 +146,7 @@ export function PeoplePage() {
   const cancelInvite = useStore((state) => state.cancelInvite)
   const invitePlaceholder = useStore((state) => state.invitePlaceholder)
   const linkPlaceholder = useStore((state) => state.linkPlaceholder)
+  const acceptPlaceholder = useStore((state) => state.acceptPlaceholder)
   const deleteProject = useStore((state) => state.deleteProject)
   const addProfileToProject = useStore((state) => state.addProfileToProject)
   const resolveDeletionRequest = useStore((state) => state.resolveDeletionRequest)
@@ -169,6 +170,7 @@ export function PeoplePage() {
   const [decliningProfileId, setDecliningProfileId] = useState<string | null>(null)
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null)
   const [invitingPlaceholderId, setInvitingPlaceholderId] = useState<string | null>(null)
+  const [acceptingPlaceholderId, setAcceptingPlaceholderId] = useState<string | null>(null)
   const [linkingPlaceholderId, setLinkingPlaceholderId] = useState<string | null>(null)
   const [linkTargetId, setLinkTargetId] = useState<string>('')
   const [linkSubmitting, setLinkSubmitting] = useState(false)
@@ -243,6 +245,18 @@ export function PeoplePage() {
       setMemberActionError(getErrorMessage(err))
     } finally {
       setInvitingPlaceholderId(null)
+    }
+  }
+
+  async function handleAcceptPlaceholder(placeholderId: string) {
+    setAcceptingPlaceholderId(placeholderId)
+    setMemberActionError(null)
+    try {
+      await acceptPlaceholder(placeholderId)
+    } catch (err) {
+      setMemberActionError(getErrorMessage(err))
+    } finally {
+      setAcceptingPlaceholderId(null)
     }
   }
 
@@ -778,60 +792,79 @@ export function PeoplePage() {
                 <div className="grid gap-3 p-4 xl:grid-cols-2">
                   {placeholders.map((placeholder) => (
                     <div key={placeholder.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 px-4 py-3">
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         <UserAvatar profile={placeholderAsPerson(placeholder)} size={38} muted={!placeholder.avatar_url} />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-slate-900">{placeholder.display_name}</p>
                           <p className="truncate text-xs text-slate-500">{placeholder.email || t('people.fromJira')}</p>
                         </div>
-                        <span className="shrink-0 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600">
-                          {t('people.fromJira')}
-                        </span>
-                        {canManage && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setLinkTargetId('')
-                              setLinkingPlaceholderId((cur) => (cur === placeholder.id ? null : placeholder.id))
-                            }}
-                            className={[
-                              'inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition',
-                              linkingPlaceholderId === placeholder.id
-                                ? 'border-qira-pistachio bg-qira-pistachio-lt text-qira-pistachio'
-                                : 'border-slate-200 text-slate-600 hover:bg-slate-50',
-                            ].join(' ')}
-                          >
-                            <Link2 size={14} />
-                            {t('people.linkAccount')}
-                          </button>
-                        )}
-                        {canInvite && placeholder.email && placeholder.status !== 'invited' && (
-                          <button
-                            type="button"
-                            onClick={() => void handleInvitePlaceholder(placeholder.id, placeholder.email)}
-                            disabled={invitingPlaceholderId === placeholder.id}
-                            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-qira-pistachio/30 px-3 py-1.5 text-xs font-semibold text-qira-pistachio transition hover:bg-qira-pistachio-lt disabled:opacity-60"
-                          >
-                            <Mail size={14} />
-                            {invitingPlaceholderId === placeholder.id ? t('people.placeholderInviting') : t('people.placeholderInvite')}
-                          </button>
-                        )}
-                        {placeholder.status === 'invited' && (
-                          <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600">
-                            {t('people.inviteStatusInvited')}
-                          </span>
-                        )}
-                        {canManage && (
-                          <button
-                            type="button"
-                            onClick={() => void handleRemovePlaceholder(placeholder.id, placeholder.display_name)}
-                            disabled={removingPlaceholderId === placeholder.id}
-                            className="shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
-                            title={t('common.delete')}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {placeholder.status === 'accepted' ? (
+                            <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600">
+                              {t('people.inTeam')}
+                            </span>
+                          ) : (
+                            <span className="shrink-0 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600">
+                              {t('people.fromJira')}
+                            </span>
+                          )}
+                          {canManage && placeholder.status === 'imported_placeholder' && (
+                            <button
+                              type="button"
+                              onClick={() => void handleAcceptPlaceholder(placeholder.id)}
+                              disabled={acceptingPlaceholderId === placeholder.id}
+                              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-qira-pistachio px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
+                            >
+                              <UserCheck size={14} />
+                              {t('people.convertToTeam')}
+                            </button>
+                          )}
+                          {canManage && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLinkTargetId('')
+                                setLinkingPlaceholderId((cur) => (cur === placeholder.id ? null : placeholder.id))
+                              }}
+                              className={[
+                                'inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition',
+                                linkingPlaceholderId === placeholder.id
+                                  ? 'border-qira-pistachio bg-qira-pistachio-lt text-qira-pistachio'
+                                  : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                              ].join(' ')}
+                            >
+                              <Link2 size={14} />
+                              {t('people.linkAccount')}
+                            </button>
+                          )}
+                          {canInvite && placeholder.email && placeholder.status === 'imported_placeholder' && (
+                            <button
+                              type="button"
+                              onClick={() => void handleInvitePlaceholder(placeholder.id, placeholder.email)}
+                              disabled={invitingPlaceholderId === placeholder.id}
+                              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-qira-pistachio/30 px-3 py-1.5 text-xs font-semibold text-qira-pistachio transition hover:bg-qira-pistachio-lt disabled:opacity-60"
+                            >
+                              <Mail size={14} />
+                              {invitingPlaceholderId === placeholder.id ? t('people.placeholderInviting') : t('people.placeholderInvite')}
+                            </button>
+                          )}
+                          {placeholder.status === 'invited' && (
+                            <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-600">
+                              {t('people.inviteStatusInvited')}
+                            </span>
+                          )}
+                          {canManage && (
+                            <button
+                              type="button"
+                              onClick={() => void handleRemovePlaceholder(placeholder.id, placeholder.display_name)}
+                              disabled={removingPlaceholderId === placeholder.id}
+                              className="shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                              title={t('common.delete')}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {linkingPlaceholderId === placeholder.id && (
