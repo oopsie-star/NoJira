@@ -9,7 +9,22 @@ export function PendingApprovalPage() {
   const { signOut, profile } = useAuthContext()
   const { t } = useI18n()
   const triggerApprovalNotification = useStore((state) => state.triggerApprovalNotification)
+  const requestAccessAgain = useStore((state) => state.requestAccessAgain)
   const [notificationState, setNotificationState] = useState<ApprovalNotificationResponse | null>(null)
+  const [reRequested, setReRequested] = useState(false)
+  const [reRequesting, setReRequesting] = useState(false)
+  const isDeclined = Boolean(profile?.access_declined) && !reRequested
+
+  async function handleRequestAgain() {
+    setReRequesting(true)
+    try {
+      await requestAccessAgain()
+      setReRequested(true)
+      void triggerApprovalNotification({ force: true })
+    } finally {
+      setReRequesting(false)
+    }
+  }
   const sandboxInfo = useMemo(
     () => parseSandboxDeliveryNote(notificationState?.message),
     [notificationState?.message]
@@ -94,6 +109,26 @@ export function PendingApprovalPage() {
             })}
           </p>
         )}
+        {isDeclined && (
+          <div className="mt-5 rounded-2xl bg-rose-50 px-4 py-4 text-left">
+            <p className="text-sm font-semibold text-rose-700">{t('pendingApproval.declinedTitle')}</p>
+            <p className="mt-1 text-xs text-rose-600">{t('pendingApproval.declinedBody')}</p>
+            <button
+              onClick={() => void handleRequestAgain()}
+              disabled={reRequesting}
+              className="mt-3 w-full rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
+            >
+              {reRequesting ? t('pendingApproval.requesting') : t('pendingApproval.requestAgain')}
+            </button>
+          </div>
+        )}
+
+        {reRequested && (
+          <p className="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {t('pendingApproval.requestSent')}
+          </p>
+        )}
+
         <button
           onClick={() => signOut()}
           className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"

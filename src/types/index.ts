@@ -21,6 +21,8 @@ export interface Profile {
   approval_email_last_attempt_at: string | null
   approval_email_attempts:        number
   approval_email_last_error:      string | null
+  access_declined:                boolean
+  access_declined_at:             string | null
 }
 
 // ─── Domain ───────────────────────────────────────────────────────────────────
@@ -53,6 +55,7 @@ export interface ProjectInvite {
   status:       ProjectInviteStatus
   invited_by:   string
   created_at:   string
+  message:      string | null
 }
 
 export type DeletionRequestEntityType = 'task' | 'sprint' | 'epic'
@@ -365,7 +368,7 @@ export interface JiraUserPlaceholder {
   email: string | null
   display_name: string
   avatar_url: string | null
-  status: 'imported_placeholder'
+  status: 'imported_placeholder' | 'invited' | 'accepted'
   created_at: string
   updated_at: string
 }

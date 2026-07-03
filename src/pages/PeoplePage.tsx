@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { CheckCircle, Plus, ShieldCheck, Trash2 } from 'lucide-react'
+import { CheckCircle, Mail, Plus, ShieldCheck, Trash2, UserMinus, XCircle } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { useAuthContext } from '@/auth/AuthContext'
@@ -38,21 +38,32 @@ const DEPARTMENT_OPTIONS = [
 function InviteForm() {
   const { t } = useI18n()
   const inviteToProject = useStore((state) => state.inviteToProject)
+  const projectMembers = useStore((state) => state.projectMembers)
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<ProjectRole>('member')
+  const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    if (!email.trim()) return
+    const normalized = email.trim().toLowerCase()
+    if (!normalized) return
+
+    // Already-in-project short-circuit — the RPC upserts, but tell the admin plainly.
+    if (projectMembers.some((m) => m.profile?.email?.toLowerCase() === normalized)) {
+      setFeedback(t('people.alreadyInProject'))
+      return
+    }
+
     setLoading(true)
     setFeedback(null)
     try {
-      const result = await inviteToProject(email, role)
+      const result = await inviteToProject(email, role, message.trim() || null)
       setFeedback(result?.emailSent ? t('people.inviteSuccess') : t('people.invitePartial'))
       setEmail('')
       setRole('member')
+      setMessage('')
     } catch (err) {
       setFeedback(getErrorMessage(err))
     } finally {
@@ -62,6 +73,10 @@ function InviteForm() {
 
   return (
     <form onSubmit={handleSubmit} className="rounded-[28px] bg-white p-6 shadow-sm">
+      <div className="mb-3">
+        <h2 className="text-lg font-semibold text-slate-900">{t('people.addUser')}</h2>
+        <p className="mt-1 text-sm text-slate-500">{t('people.addUserHint')}</p>
+      </div>
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(160px,0.7fr)_auto]">
         <input
           type="email"
@@ -86,9 +101,17 @@ function InviteForm() {
           disabled={!email.trim() || loading}
           className="rounded-2xl bg-qira-pistachio px-4 py-3 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
         >
-          {t('people.inviteAction')}
+          {loading ? t('people.addingUser') : t('people.addUserAction')}
         </button>
       </div>
+
+      <textarea
+        value={message}
+        onChange={(event) => setMessage(event.target.value)}
+        placeholder={t('people.inviteMessagePlaceholder')}
+        rows={2}
+        className="mt-3 w-full resize-y rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
+      />
 
       {feedback && (
         <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -117,6 +140,11 @@ export function PeoplePage() {
   const fetchAssignableProfiles = useStore((state) => state.fetchAssignableProfiles)
   const fetchDeletionRequests = useStore((state) => state.fetchDeletionRequests)
   const approveMember = useStore((state) => state.approveMember)
+  const declineMember = useStore((state) => state.declineMember)
+  const removeProjectMember = useStore((state) => state.removeProjectMember)
+  const inviteToProject = useStore((state) => state.inviteToProject)
+  const cancelInvite = useStore((state) => state.cancelInvite)
+  const invitePlaceholder = useStore((state) => state.invitePlaceholder)
   const deleteProject = useStore((state) => state.deleteProject)
   const addProfileToProject = useStore((state) => state.addProfileToProject)
   const resolveDeletionRequest = useStore((state) => state.resolveDeletionRequest)
@@ -137,6 +165,11 @@ export function PeoplePage() {
   const updateProjectMemberRole = useStore((state) => state.updateProjectMemberRole)
 
   const [removingPlaceholderId, setRemovingPlaceholderId] = useState<string | null>(null)
+  const [decliningProfileId, setDecliningProfileId] = useState<string | null>(null)
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null)
+  const [invitingPlaceholderId, setInvitingPlaceholderId] = useState<string | null>(null)
+  const [cancelingInviteId, setCancelingInviteId] = useState<string | null>(null)
+  const [memberActionError, setMemberActionError] = useState<string | null>(null)
   const [retryingProfileId, setRetryingProfileId] = useState<string | null>(null)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
   const [addingProfileId, setAddingProfileId] = useState<string | null>(null)
@@ -167,6 +200,58 @@ export function PeoplePage() {
       setProjectActionError(getErrorMessage(err))
     } finally {
       setRemovingPlaceholderId(null)
+    }
+  }
+
+  async function handleDeclineMember(profileId: string) {
+    if (!window.confirm(t('people.declineConfirm'))) return
+    setDecliningProfileId(profileId)
+    try {
+      await declineMember(profileId)
+    } catch (err) {
+      setProjectActionError(getErrorMessage(err))
+    } finally {
+      setDecliningProfileId(null)
+    }
+  }
+
+  async function handleRemoveMember(profileId: string, name: string) {
+    if (!window.confirm(t('people.removeMemberConfirm', { name }))) return
+    setRemovingMemberId(profileId)
+    setMemberActionError(null)
+    try {
+      await removeProjectMember(profileId)
+    } catch (err) {
+      const raw = getErrorMessage(err)
+      setMemberActionError(raw.includes('last_project_admin') ? t('people.cannotRemoveLastAdmin') : raw)
+    } finally {
+      setRemovingMemberId(null)
+    }
+  }
+
+  async function handleInvitePlaceholder(placeholderId: string, email: string | null) {
+    if (!email) return
+    setInvitingPlaceholderId(placeholderId)
+    setMemberActionError(null)
+    try {
+      await invitePlaceholder(placeholderId, email, 'member')
+    } catch (err) {
+      setMemberActionError(getErrorMessage(err))
+    } finally {
+      setInvitingPlaceholderId(null)
+    }
+  }
+
+  async function handleCancelInvite(inviteId: string) {
+    if (!window.confirm(t('people.cancelInviteConfirm'))) return
+    setCancelingInviteId(inviteId)
+    setMemberActionError(null)
+    try {
+      await cancelInvite(inviteId)
+    } catch (err) {
+      setMemberActionError(getErrorMessage(err))
+    } finally {
+      setCancelingInviteId(null)
     }
   }
 
@@ -298,11 +383,19 @@ export function PeoplePage() {
                         {retryingProfileId === pending.id ? t('people.approvalEmailRetrying') : t('people.retryApprovalEmail')}
                       </button>
                       <button
+                        onClick={() => void handleDeclineMember(pending.id)}
+                        disabled={decliningProfileId === pending.id}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60 sm:w-auto"
+                      >
+                        <XCircle size={16} />
+                        {t('people.decline')}
+                      </button>
+                      <button
                         onClick={() => approveMember(pending.id)}
                         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-qira-pistachio px-4 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk sm:w-auto"
                       >
                         <CheckCircle size={16} />
-                        Одобрить
+                        {t('people.approve')}
                       </button>
                     </div>
                   </div>
@@ -511,34 +604,58 @@ export function PeoplePage() {
               </section>
             )}
 
-            {canInvite && (
+            {canInvite && (() => {
+              const openInvites = projectInvites.filter((invite) => invite.status !== 'accepted')
+              return (
               <section className="rounded-[28px] bg-white p-6 shadow-sm">
                 <h2 className="text-lg font-semibold text-slate-900">{t('people.pendingInvites')}</h2>
-                {projectInvites.length === 0 ? (
+                <p className="mt-1 text-sm text-slate-500">{t('people.pendingInvitesHint')}</p>
+                {openInvites.length === 0 ? (
                   <p className="mt-4 text-sm text-slate-500">{t('people.noInvites')}</p>
                 ) : (
                   <div className="mt-4 space-y-3">
-                    {projectInvites.map((invite) => (
+                    {openInvites.map((invite) => (
                       <div key={invite.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
                           <p className="break-all text-sm font-semibold text-slate-900">{invite.email}</p>
-                          <p className="text-xs text-slate-500">{t(`projectRole.${invite.project_role}`)}</p>
+                          <p className="text-xs text-slate-500">{t(`projectRole.${invite.project_role}`)} · {t('people.inviteStatusPending')}</p>
                         </div>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                          {invite.status}
-                        </span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void inviteToProject(invite.email, invite.project_role)}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                          >
+                            <Mail size={14} />
+                            {t('people.resendInvite')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleCancelInvite(invite.id)}
+                            disabled={cancelingInviteId === invite.id}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
+                          >
+                            <XCircle size={14} />
+                            {t('people.cancelInvite')}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
               </section>
-            )}
+              )
+            })()}
 
             <section className="rounded-[28px] bg-white shadow-sm">
               <div className="border-b border-slate-200 px-6 py-5">
                 <h2 className="text-lg font-semibold text-slate-900">{t('people.title')}</h2>
                 <p className="mt-1 text-sm text-slate-500">{t('people.memberCount', { count: projectMembers.length })}</p>
               </div>
+
+              {memberActionError && (
+                <p className="mx-4 mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{memberActionError}</p>
+              )}
 
               {projectMembers.length === 0 ? (
                 <div className="p-10 text-sm text-slate-500">{t('people.empty')}</div>
@@ -554,10 +671,22 @@ export function PeoplePage() {
                         <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
                           <div className="flex min-w-0 items-center gap-3 xl:w-[280px] xl:flex-shrink-0">
                             <UserAvatar profile={person} size={40} muted={!person.avatar_url} />
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-semibold text-slate-900">{person.full_name || person.email}</p>
                               <p className="truncate text-sm text-slate-500">{person.email}</p>
                             </div>
+                            {canManage && (
+                              <button
+                                type="button"
+                                onClick={() => void handleRemoveMember(person.id, person.full_name || person.email)}
+                                disabled={removingMemberId === person.id}
+                                title={t('people.removeMember')}
+                                aria-label={t('people.removeMember')}
+                                className="ml-auto shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                              >
+                                <UserMinus size={16} />
+                              </button>
+                            )}
                           </div>
 
                           <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(160px,180px)_minmax(0,1fr)_minmax(0,1fr)_160px]">
@@ -638,6 +767,22 @@ export function PeoplePage() {
                       <span className="shrink-0 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600">
                         {t('people.fromJira')}
                       </span>
+                      {canInvite && placeholder.email && placeholder.status !== 'invited' && (
+                        <button
+                          type="button"
+                          onClick={() => void handleInvitePlaceholder(placeholder.id, placeholder.email)}
+                          disabled={invitingPlaceholderId === placeholder.id}
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-qira-pistachio/30 px-3 py-1.5 text-xs font-semibold text-qira-pistachio transition hover:bg-qira-pistachio-lt disabled:opacity-60"
+                        >
+                          <Mail size={14} />
+                          {invitingPlaceholderId === placeholder.id ? t('people.placeholderInviting') : t('people.placeholderInvite')}
+                        </button>
+                      )}
+                      {placeholder.status === 'invited' && (
+                        <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600">
+                          {t('people.inviteStatusInvited')}
+                        </span>
+                      )}
                       {canManage && (
                         <button
                           type="button"

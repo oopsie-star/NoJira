@@ -451,9 +451,14 @@ interface AppState {
   markAllNotificationsRead: () => Promise<void>
   updateProfile: (id: string, fields: Partial<Profile>) => Promise<void>
   updateProjectMemberRole: (membershipId: string, role: ProjectRole) => Promise<void>
-  inviteToProject: (email: string, role: ProjectRole) => Promise<{ emailSent: boolean } | null>
+  removeProjectMember: (profileId: string) => Promise<void>
+  inviteToProject: (email: string, role: ProjectRole, message?: string | null) => Promise<{ emailSent: boolean } | null>
+  cancelInvite: (inviteId: string) => Promise<void>
+  invitePlaceholder: (placeholderId: string, email: string, role: ProjectRole) => Promise<{ emailSent: boolean } | null>
   fetchPendingMembers: () => Promise<void>
   approveMember: (profileId: string) => Promise<void>
+  declineMember: (profileId: string) => Promise<void>
+  requestAccessAgain: () => Promise<void>
   triggerApprovalNotification: (options?: { profileId?: string, force?: boolean }) => Promise<ApprovalNotificationResponse | null>
 }
 
@@ -1752,17 +1757,19 @@ export const useStore = create<AppState>((set, get) => {
     await get().fetchMembers()
   },
 
-  inviteToProject: async (email, role) => {
+  inviteToProject: async (email, role, message = null) => {
     const activeProjectId = get().activeProjectId
     if (!activeProjectId) return null
 
     const normalizedEmail = email.trim().toLowerCase()
 
-    await supabase.rpc('invite_to_project', {
+    const { error: rpcError } = await supabase.rpc('invite_to_project', {
       project_uuid: activeProjectId,
       invite_email: normalizedEmail,
       invite_role: role,
+      invite_message: message,
     })
+    if (rpcError) throw rpcError
 
     const { error } = await supabase.auth.signInWithOtp({
       email: normalizedEmail,
@@ -1779,6 +1786,38 @@ export const useStore = create<AppState>((set, get) => {
       get().fetchAssignableProfiles(),
     ])
     return { emailSent: !error }
+  },
+
+  cancelInvite: async (inviteId) => {
+    const { error } = await supabase.from('project_invites').delete().eq('id', inviteId)
+    if (error) throw error
+    await get().fetchProjectInvites()
+  },
+
+  invitePlaceholder: async (placeholderId, email, role) => {
+    const result = await get().inviteToProject(email, role)
+    // Mark the placeholder as invited (best-effort; ignore if RLS/no-op).
+    await supabase.from('project_member_placeholders').update({ status: 'invited' }).eq('id', placeholderId)
+    await get().fetchPlaceholders()
+    return result
+  },
+
+  removeProjectMember: async (profileId) => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) return
+
+    const { error } = await supabase
+      .from('project_members')
+      .delete()
+      .eq('project_id', activeProjectId)
+      .eq('profile_id', profileId)
+    if (error) throw error
+
+    await Promise.all([
+      get().fetchMembers(),
+      get().fetchProjects(),
+      get().fetchAssignableProfiles(),
+    ])
   },
 
   addProfileToProject: async (profileId, role) => {
@@ -1808,6 +1847,7 @@ export const useStore = create<AppState>((set, get) => {
       .from('profiles')
       .select('*')
       .eq('approved', false)
+      .eq('access_declined', false)
       .order('created_at', { ascending: false })
     if (data) set({ pendingMembers: data as Profile[] })
   },
@@ -1824,6 +1864,19 @@ export const useStore = create<AppState>((set, get) => {
       get().fetchProjectInvites(),
       get().fetchAssignableProfiles(),
     ])
+  },
+
+  declineMember: async (profileId) => {
+    const { error } = await supabase.rpc('decline_member', { profile_uuid: profileId })
+    if (error) throw error
+    // Optimistically drop from the pending list, then reconcile.
+    set((state) => ({ pendingMembers: state.pendingMembers.filter((m) => m.id !== profileId) }))
+    await get().fetchPendingMembers()
+  },
+
+  requestAccessAgain: async () => {
+    const { error } = await supabase.rpc('request_access_again')
+    if (error) throw error
   },
 
   requestEntityDeletion: async (entityType, entityId, entityLabel) => {

@@ -8,7 +8,9 @@ export function canManageProject(role: ProjectRole | null) {
 }
 
 export function canInviteToProject(role: ProjectRole | null) {
-  return role === 'owner'
+  // Project managers (owner/admin/founder/ceo) may invite & manage members,
+  // matching the can_invite_to_project / can_manage_project checks on the backend.
+  return Boolean(role && MANAGE_PROJECT_ROLES.includes(role))
 }
 
 export function canOverrideDelete(role: ProjectRole | null) {
