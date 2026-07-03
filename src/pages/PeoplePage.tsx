@@ -147,6 +147,7 @@ export function PeoplePage() {
   const invitePlaceholder = useStore((state) => state.invitePlaceholder)
   const linkPlaceholder = useStore((state) => state.linkPlaceholder)
   const acceptPlaceholder = useStore((state) => state.acceptPlaceholder)
+  const updatePlaceholder = useStore((state) => state.updatePlaceholder)
   const deleteProject = useStore((state) => state.deleteProject)
   const addProfileToProject = useStore((state) => state.addProfileToProject)
   const resolveDeletionRequest = useStore((state) => state.resolveDeletionRequest)
@@ -814,48 +815,103 @@ export function PeoplePage() {
                     )
                   })}
 
-                  {/* Accepted Jira placeholders — part of the team, unregistered. */}
+                  {/* Accepted Jira placeholders — full team rows (same editable fields as members). */}
                   {teamPlaceholders.map((placeholder) => (
-                    <div key={placeholder.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 px-4 py-4">
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                        <UserAvatar profile={placeholderAsPerson(placeholder)} size={40} muted={!placeholder.avatar_url} />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-slate-900">{placeholder.display_name}</p>
-                          <p className="truncate text-sm text-slate-500">{placeholder.email || t('people.fromJira')}</p>
+                    <div key={placeholder.id} className="rounded-2xl border border-slate-200 px-4 py-4">
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+                        <div className="flex min-w-0 items-start gap-3 xl:w-[280px] xl:flex-shrink-0">
+                          <UserAvatar profile={placeholderAsPerson(placeholder)} size={40} muted={!placeholder.avatar_url} />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-slate-900">{placeholder.display_name}</p>
+                            <p className="truncate text-sm text-slate-500">{placeholder.email || t('people.fromJira')}</p>
+                            <span className="mt-1 inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-600">
+                              {t('people.fromJira')}
+                            </span>
+                          </div>
+                          {canManage && (
+                            <div className="flex shrink-0 items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLinkTargetId('')
+                                  setLinkingPlaceholderId((cur) => (cur === placeholder.id ? null : placeholder.id))
+                                }}
+                                title={t('people.linkAccount')}
+                                aria-label={t('people.linkAccount')}
+                                className={[
+                                  'rounded-xl p-2 transition',
+                                  linkingPlaceholderId === placeholder.id
+                                    ? 'bg-qira-pistachio-lt text-qira-pistachio'
+                                    : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700',
+                                ].join(' ')}
+                              >
+                                <Link2 size={16} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleRemovePlaceholder(placeholder.id, placeholder.display_name)}
+                                disabled={removingPlaceholderId === placeholder.id}
+                                title={t('common.delete')}
+                                aria-label={t('common.delete')}
+                                className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <div className="flex flex-wrap items-center justify-end gap-2">
-                          <span className="shrink-0 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600">
-                            {t('people.fromJira')}
-                          </span>
-                          {canManage && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setLinkTargetId('')
-                                setLinkingPlaceholderId((cur) => (cur === placeholder.id ? null : placeholder.id))
-                              }}
-                              className={[
-                                'inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition',
-                                linkingPlaceholderId === placeholder.id
-                                  ? 'border-qira-pistachio bg-qira-pistachio-lt text-qira-pistachio'
-                                  : 'border-slate-200 text-slate-600 hover:bg-slate-50',
-                              ].join(' ')}
+
+                        <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(160px,180px)_minmax(0,1fr)_minmax(0,1fr)_160px]">
+                          <label className="block">
+                            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.projectRole')}</span>
+                            <select
+                              disabled={!canManage}
+                              value={placeholder.project_role}
+                              onChange={(event) => void updatePlaceholder(placeholder.id, { project_role: event.target.value as ProjectRole })}
+                              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
                             >
-                              <Link2 size={14} />
-                              {t('people.linkAccount')}
-                            </button>
-                          )}
-                          {canManage && (
-                            <button
-                              type="button"
-                              onClick={() => void handleRemovePlaceholder(placeholder.id, placeholder.display_name)}
-                              disabled={removingPlaceholderId === placeholder.id}
-                              className="shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
-                              title={t('common.delete')}
+                              <option value="admin">{t('projectRole.admin')}</option>
+                              <option value="founder">{t('projectRole.founder')}</option>
+                              <option value="ceo">{t('projectRole.ceo')}</option>
+                              <option value="member">{t('projectRole.member')}</option>
+                              <option value="viewer">{t('projectRole.viewer')}</option>
+                            </select>
+                          </label>
+
+                          <label className="block">
+                            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.jobTitle')}</span>
+                            <input
+                              list="job-title-options"
+                              disabled={!canManage}
+                              defaultValue={placeholder.job_title ?? ''}
+                              onBlur={(event) => void updatePlaceholder(placeholder.id, { job_title: event.target.value })}
+                              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
+                            />
+                          </label>
+
+                          <label className="block">
+                            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.department')}</span>
+                            <input
+                              list="department-options"
+                              disabled={!canManage}
+                              defaultValue={placeholder.department ?? ''}
+                              onBlur={(event) => void updatePlaceholder(placeholder.id, { department: event.target.value })}
+                              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
+                            />
+                          </label>
+
+                          <label className="block">
+                            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.locale')}</span>
+                            <select
+                              disabled={!canManage}
+                              value={placeholder.locale as Locale}
+                              onChange={(event) => void updatePlaceholder(placeholder.id, { locale: event.target.value as Locale })}
+                              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
                             >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
+                              <option value="en">{t('common.english')}</option>
+                              <option value="ru">{t('common.russian')}</option>
+                            </select>
+                          </label>
                         </div>
                       </div>
                       {renderLinkPicker(placeholder.id)}

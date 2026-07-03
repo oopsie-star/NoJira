@@ -457,6 +457,7 @@ interface AppState {
   invitePlaceholder: (placeholderId: string, email: string, role: ProjectRole) => Promise<{ emailSent: boolean } | null>
   linkPlaceholder: (placeholderId: string, profileId: string) => Promise<void>
   acceptPlaceholder: (placeholderId: string) => Promise<void>
+  updatePlaceholder: (placeholderId: string, fields: Partial<JiraUserPlaceholder>) => Promise<void>
   fetchPendingMembers: () => Promise<void>
   approveMember: (profileId: string) => Promise<void>
   declineMember: (profileId: string) => Promise<void>
@@ -1826,6 +1827,16 @@ export const useStore = create<AppState>((set, get) => {
       .eq('id', placeholderId)
     if (error) throw error
     await get().fetchPlaceholders()
+  },
+
+  updatePlaceholder: async (placeholderId, fields) => {
+    // Optimistic — placeholder field edits (role/title/department/locale) mirror
+    // the member row editors and persist to the placeholder record.
+    set((state) => ({
+      placeholders: state.placeholders.map((p) => (p.id === placeholderId ? { ...p, ...fields } : p)),
+    }))
+    const { error } = await supabase.from('project_member_placeholders').update(fields).eq('id', placeholderId)
+    if (error) throw error
   },
 
   removeProjectMember: async (profileId) => {

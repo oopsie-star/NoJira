@@ -369,6 +369,10 @@ export interface JiraUserPlaceholder {
   display_name: string
   avatar_url: string | null
   status: 'imported_placeholder' | 'invited' | 'accepted'
+  project_role: ProjectRole
+  job_title: string
+  department: string
+  locale: Locale
   created_at: string
   updated_at: string
 }
