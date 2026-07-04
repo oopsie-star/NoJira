@@ -95,7 +95,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: {
+        data: { full_name: fullName },
+        // Must include the /NoJira/ base — otherwise the confirm link lands on the
+        // domain root (no GitHub Pages site there) and 404s.
+        emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}board`,
+      },
     })
     return error?.message ?? null
   }, [])
