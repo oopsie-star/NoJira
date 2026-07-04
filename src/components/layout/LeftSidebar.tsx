@@ -1,9 +1,7 @@
-import { useState } from 'react'
-import { LayoutDashboard, ListTodo, Plus, Users, Workflow, X } from 'lucide-react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { CreateProjectModal } from '@/components/project/CreateProjectModal'
+import { LayoutDashboard, ListTodo, Users, Workflow, X } from 'lucide-react'
+import { NavLink } from 'react-router-dom'
 import { useI18n } from '@/lib/i18n'
-import { projectPath, sectionFromPathname, type AppSection } from '@/lib/projectRoutes'
+import { projectPath, type AppSection } from '@/lib/projectRoutes'
 import { useStore } from '@/store'
 
 const NAV_ITEMS = [
@@ -20,15 +18,11 @@ interface LeftSidebarProps {
 
 export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
   const { t } = useI18n()
-  const navigate = useNavigate()
-  const location = useLocation()
   const projects = useStore((state) => state.projects)
   const projectMembers = useStore((state) => state.projectMembers)
   const activeProjectId = useStore((state) => state.activeProjectId)
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
   const currentKey = activeProject?.key
-  const currentSection = sectionFromPathname(location.pathname)
-  const [showCreateProject, setShowCreateProject] = useState(false)
 
   return (
     <>
@@ -82,51 +76,7 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
         ))}
       </nav>
 
-      <div className="min-h-0 flex-1 overflow-y-auto border-t border-slate-200 px-2.5 py-3">
-        <div className="mb-2 flex items-center justify-between px-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('project.all')}</p>
-          <button
-            type="button"
-            onClick={() => {
-              onClose()
-              setShowCreateProject(true)
-            }}
-            title={t('project.create')}
-            className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-          >
-            <Plus size={14} />
-          </button>
-        </div>
-        <div className="space-y-1">
-          {projects.map((project) => (
-              <button
-                key={project.id}
-                type="button"
-                onClick={() => {
-                  navigate(projectPath(project.key, currentSection))
-                  onClose()
-                }}
-                className={[
-                  'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition',
-                  project.id === activeProjectId
-                  ? 'bg-qira-pistachio-lt font-semibold text-qira-pistachio'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
-              ].join(' ')}
-            >
-              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-500 text-[11px] font-bold text-white">
-                {project.key.slice(0, 2)}
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate">{project.name}</span>
-                <span className="block truncate text-xs font-normal text-slate-400">{project.key}</span>
-              </span>
-            </button>
-          ))}
-          {projects.length === 0 && (
-            <p className="rounded-xl bg-slate-50 px-3 py-4 text-sm text-slate-500">{t('project.noProjects')}</p>
-          )}
-        </div>
-      </div>
+      <div className="min-h-0 flex-1" />
 
       <div className="p-2">
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -146,10 +96,6 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
         </div>
       </div>
     </aside>
-
-    {showCreateProject && (
-      <CreateProjectModal onClose={() => setShowCreateProject(false)} />
-    )}
     </>
   )
 }

@@ -19,6 +19,8 @@ function ProjectSwitcher() {
   const projects = useStore((state) => state.projects)
   const activeProjectId = useStore((state) => state.activeProjectId)
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
 
   useEffect(() => {
     function handleMouseDown(event: MouseEvent) {
@@ -31,6 +33,12 @@ function ProjectSwitcher() {
   }, [])
 
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
+  const showSearch = projects.length > 6
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return projects
+    return projects.filter((p) => p.name.toLowerCase().includes(q) || p.key.toLowerCase().includes(q))
+  }, [projects, query])
 
   return (
     <div ref={ref} className="relative">
@@ -47,27 +55,60 @@ function ProjectSwitcher() {
 
       {open && (
         <div className="absolute left-0 top-[calc(100%+8px)] z-50 w-[calc(100vw-1.5rem)] max-w-80 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl">
-          <p className="px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('project.switcher')}</p>
-          {projects.map((project) => (
+          <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('project.switcher')}</p>
+
+          {showSearch && (
+            <input
+              autoFocus
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t('project.search')}
+              className="mb-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
+            />
+          )}
+
+          <div className="max-h-[min(60vh,340px)] overflow-y-auto">
+            {filtered.map((project) => (
+              <button
+                key={project.id}
+                onClick={() => {
+                  navigate(projectPath(project.key, sectionFromPathname(location.pathname)))
+                  setOpen(false)
+                  setQuery('')
+                }}
+                className={[
+                  'flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition',
+                  project.id === activeProjectId ? 'bg-qira-pistachio-lt' : 'hover:bg-slate-100',
+                ].join(' ')}
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-500 text-[11px] font-bold text-white">
+                  {project.key.slice(0, 2)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className={['block truncate text-sm font-semibold', project.id === activeProjectId ? 'text-qira-pistachio' : 'text-slate-900'].join(' ')}>{project.name}</span>
+                  <span className="block truncate text-xs text-slate-500">{project.key}</span>
+                </span>
+                {project.id === activeProjectId && <Check size={16} className="shrink-0 text-qira-pistachio" />}
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-3 py-4 text-center text-sm text-slate-500">{t('project.noProjects')}</p>
+            )}
+          </div>
+
+          <div className="mt-1 border-t border-slate-100 pt-1">
             <button
-              key={project.id}
-              onClick={() => {
-                navigate(projectPath(project.key, sectionFromPathname(location.pathname)))
-                setOpen(false)
-              }}
-              className={[
-                'flex w-full items-start justify-between rounded-xl px-3 py-3 text-left transition',
-                project.id === activeProjectId ? 'bg-qira-pistachio-lt text-qira-pistachio' : 'hover:bg-slate-100',
-              ].join(' ')}
+              onClick={() => { setCreateOpen(true); setOpen(false) }}
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-qira-pistachio transition hover:bg-qira-pistachio-lt"
             >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{project.name}</p>
-                <p className="truncate text-xs text-slate-500">{project.key}</p>
-              </div>
+              <Plus size={16} />
+              {t('project.create')}
             </button>
-          ))}
+          </div>
         </div>
       )}
+
+      {createOpen && <CreateProjectModal onClose={() => setCreateOpen(false)} />}
     </div>
   )
 }
