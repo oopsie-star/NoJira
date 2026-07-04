@@ -99,7 +99,7 @@ export function KanbanBoard() {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       {/* Compact quick-filter strip */}
-      <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-slate-100 px-4 py-2">
+      <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-slate-100 px-3 py-1.5 sm:px-4">
         {quickFilterOptions.map((filter) => (
           <button
             key={filter.id}
@@ -138,7 +138,7 @@ export function KanbanBoard() {
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 snap-x snap-proximity overflow-x-auto overflow-y-hidden px-3 py-3 sm:snap-none sm:px-4 sm:py-4">
+      <div className="min-h-0 flex-1 snap-x snap-proximity overflow-x-auto overflow-y-hidden px-3 py-3 sm:snap-none sm:px-4 sm:py-3">
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="flex h-full gap-3 sm:gap-4">
             {STATUS_COLUMNS.map((status) => (

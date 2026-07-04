@@ -150,7 +150,7 @@ export function BoardPage() {
 
   return (
     <GlobalLayout>
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-5">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-2.5 p-3 sm:gap-3 sm:p-4">
         {!activeProjectId ? (
           <section className="rounded-[28px] bg-white p-16 text-center shadow-sm">
             <h2 className="text-2xl font-semibold text-slate-900">{t('project.noProjects')}</h2>
@@ -158,7 +158,7 @@ export function BoardPage() {
           </section>
         ) : (
           <>
-            <section className="shrink-0 overflow-hidden rounded-2xl bg-white px-3 py-2.5 shadow-sm sm:rounded-[28px] sm:px-5 sm:py-4">
+            <section className="shrink-0 overflow-hidden rounded-2xl bg-white px-3 py-2.5 shadow-sm sm:rounded-3xl sm:px-5 sm:py-3">
               {/* Sprint name row */}
               <div className="flex min-w-0 items-center gap-3">
                 <div className="min-w-0 flex-1">
@@ -168,7 +168,7 @@ export function BoardPage() {
                   <div className="mt-0.5 flex min-w-0 items-center gap-2">
                     {/* On phones the select doubles as the title; the standalone h1 only shows once there's room */}
                     <h1 className={[
-                      'min-w-0 truncate text-base font-bold text-slate-900 sm:text-xl',
+                      'min-w-0 truncate text-base font-bold text-slate-900 sm:text-lg',
                       sprints.length > 0 ? 'hidden sm:block' : 'block',
                     ].join(' ')}>
                       {displaySprintName}
@@ -192,8 +192,9 @@ export function BoardPage() {
                 )}
               </div>
 
-              {/* Metrics — compact horizontal strip on phones, card row on wide screens */}
-              <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 sm:mt-2.5 sm:flex-wrap sm:gap-2 sm:overflow-visible sm:pb-0">
+              {/* Metrics — one thin inline band (label + value on a single line) so
+                  the board columns get the vertical space. */}
+              <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">
                 {[
                   { label: t('board.metrics.total'), value: activeTasks.length },
                   { label: t('status.done'), value: doneCount },
@@ -204,10 +205,10 @@ export function BoardPage() {
                 ].map(({ label, value }) => (
                   <div
                     key={label}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 sm:min-w-[72px] sm:flex-1 sm:flex-col sm:items-start sm:gap-0 sm:px-3 sm:py-2"
+                    className="flex shrink-0 items-baseline gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1"
                   >
-                    <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-[11px]">{label}</span>
-                    <span className="text-sm font-bold text-slate-900 sm:mt-1 sm:text-xl">{value}</span>
+                    <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+                    <span className="whitespace-nowrap text-sm font-bold text-slate-900">{value}</span>
                   </div>
                 ))}
               </div>
@@ -217,9 +218,9 @@ export function BoardPage() {
               {isLoading ? (
                 <BoardSkeleton />
               ) : (activeSprintId || isKanbanMode) ? (
-                <div className="flex h-full min-h-0 flex-col gap-2 sm:gap-3">
+                <div className="flex h-full min-h-0 flex-col gap-2">
                   {isKanbanMode && (
-                    <div className="shrink-0 truncate rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-700 sm:rounded-2xl sm:px-4 sm:py-2.5 sm:text-sm">
+                    <div className="shrink-0 truncate rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-700 sm:rounded-2xl sm:px-4 sm:py-2">
                       {t('board.kanbanBanner')}
                     </div>
                   )}
