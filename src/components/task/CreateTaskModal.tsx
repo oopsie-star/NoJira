@@ -5,6 +5,7 @@ import { MultiAssigneePicker } from '@/components/common/MultiAssigneePicker'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { parseLabels } from '@/lib/format'
+import { resolveAssigneeFields } from '@/lib/people'
 import { useStore } from '@/store'
 import type { IssuePriority, IssueType, Task, TaskStatus } from '@/types'
 
@@ -29,6 +30,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
   const sprints = useStore((state) => state.sprints)
   const epics = useStore((state) => state.epics)
   const members = useStore((state) => state.members)
+  const placeholders = useStore((state) => state.placeholders)
 
   const [title, setTitle] = useState(initialValues?.title ?? '')
   const [description, setDescription] = useState(initialValues?.description ?? '')
@@ -77,8 +79,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
         priority,
         sprint_id: sprintId || null,
         epic_id: selectedSprint ? (selectedSprint.epic_id ?? null) : (epicId || null),
-        assignee_id: assigneeIds[0] ?? null,
-        assignee_ids: assigneeIds.length >= 2 ? assigneeIds : [],
+        ...resolveAssigneeFields(assigneeIds, members, placeholders),
         reporter_id: profile?.id ?? null,
         due_date: dueDate || null,
         labels: parseLabels(labelsInput),
@@ -195,7 +196,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
 
             <div>
               <FieldLabel>{t('task.assignee')}</FieldLabel>
-              <MultiAssigneePicker value={assigneeIds} onChange={setAssigneeIds} members={members} />
+              <MultiAssigneePicker value={assigneeIds} onChange={setAssigneeIds} members={members} placeholders={placeholders} />
             </div>
 
             <div>

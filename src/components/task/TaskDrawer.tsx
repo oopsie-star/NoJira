@@ -19,7 +19,7 @@ import { MarkdownRenderer } from '@/lib/markdown'
 import { MarkdownEditor } from '@/components/common/MarkdownEditor'
 import { MultiAssigneePicker } from '@/components/common/MultiAssigneePicker'
 import { ShareTaskMenu } from './ShareTaskMenu'
-import { placeholderAsPerson, taskAssigneeDisplay, taskReporterDisplay } from '@/lib/people'
+import { placeholderAsPerson, resolveAssigneeFields, taskAssigneeDisplay, taskReporterDisplay } from '@/lib/people'
 import { useCurrentProjectKey } from '@/lib/projectRoutes'
 import { useStore } from '@/store'
 import { isUniversalTask, type IssuePriority, type IssueType, type Profile, type Task, type TaskLinkType, type TaskStatus } from '@/types'
@@ -323,14 +323,12 @@ export function TaskDrawer() {
   const statusLocked = isUniversalTask(currentTask) && !canManage
   const currentAssigneeIds = currentTask.assignee_ids?.length
     ? currentTask.assignee_ids
-    : (currentTask.assignee_id ? [currentTask.assignee_id] : [])
+    : (currentTask.assignee_id
+        ? [currentTask.assignee_id]
+        : currentTask.assignee_placeholder_id ? [currentTask.assignee_placeholder_id] : [])
 
   function handleAssigneesChange(ids: string[]) {
-    void quickUpdate({
-      assignee_id: ids[0] ?? null,
-      assignee_ids: ids.length >= 2 ? ids : [],
-      assignee_placeholder_id: null,
-    })
+    void quickUpdate(resolveAssigneeFields(ids, members, placeholders))
   }
 
   const mentionCandidates = mention
@@ -742,14 +740,7 @@ export function TaskDrawer() {
               </MetaSection>
 
               <MetaSection title={t('task.assignee')}>
-                {assigneeDisplay?.imported && currentAssigneeIds.length === 0 && (
-                  <div className="mb-2 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                    <UserAvatar profile={assigneeDisplay.person} size={22} />
-                    <span className="min-w-0 flex-1 truncate text-sm text-slate-900">{assigneeDisplay.person?.full_name || assigneeDisplay.person?.email}</span>
-                    <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-600">{t('people.fromJira')}</span>
-                  </div>
-                )}
-                <MultiAssigneePicker value={currentAssigneeIds} onChange={handleAssigneesChange} members={members} />
+                <MultiAssigneePicker value={currentAssigneeIds} onChange={handleAssigneesChange} members={members} placeholders={placeholders} />
               </MetaSection>
 
               <MetaSection title={t('task.reporter')}>

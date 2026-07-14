@@ -1,5 +1,5 @@
 import { UserAvatar } from './UserAvatar'
-import { taskAssigneeDisplay } from '@/lib/people'
+import { personById, taskAssigneeDisplay } from '@/lib/people'
 import { isUniversalTask, type JiraUserPlaceholder, type Profile, type Task } from '@/types'
 
 interface AssigneeAvatarsProps {
@@ -13,8 +13,8 @@ interface AssigneeAvatarsProps {
 export function AssigneeAvatars({ task, members, placeholders, size = 24 }: AssigneeAvatarsProps) {
   if (isUniversalTask(task)) {
     const people = task.assignee_ids
-      .map((id) => members.find((m) => m.id === id))
-      .filter((m): m is Profile => Boolean(m))
+      .map((id) => personById(id, members, placeholders))
+      .filter((p): p is NonNullable<typeof p> => Boolean(p))
       .slice(0, 3)
 
     return (
@@ -22,9 +22,9 @@ export function AssigneeAvatars({ task, members, placeholders, size = 24 }: Assi
         {people.length === 0 ? (
           <UserAvatar profile={null} size={size} muted />
         ) : (
-          people.map((person) => (
-            <span key={person.id} className="rounded-full ring-2 ring-white">
-              <UserAvatar profile={person} size={size} />
+          people.map((entry, idx) => (
+            <span key={`${entry.label}-${idx}`} className="rounded-full ring-2 ring-white">
+              <UserAvatar profile={entry.person} size={size} />
             </span>
           ))
         )}
