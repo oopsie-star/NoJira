@@ -1072,8 +1072,10 @@ export const useStore = create<AppState>((set, get) => {
       priority: 'medium',
       labels: [],
       attachments: [],
-      reporter_id: profile.id,
       ...normalizedFields,
+      // Always attribute the creator — default the reporter to the current user
+      // when one wasn't explicitly chosen at creation.
+      reporter_id: (fields.reporter_id ?? null) || profile.id,
     }
 
     const { data, error } = await supabase

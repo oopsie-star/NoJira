@@ -13,15 +13,16 @@ import { useAuthContext } from '@/auth/AuthContext'
 import { useI18n } from '@/lib/i18n'
 import { formatDate, formatPerson, parseLabels } from '@/lib/format'
 import { calculateAverageCycleTimeHours, formatCycleTime, formatStatusAge } from '@/lib/ops'
-import { canDeleteAuthoredContent } from '@/lib/permissions'
+import { canDeleteAuthoredContent, canManageProject } from '@/lib/permissions'
 import { activeMentionQuery, extractMentionedIds, mentionLabel } from '@/lib/mentions'
 import { MarkdownRenderer } from '@/lib/markdown'
 import { MarkdownEditor } from '@/components/common/MarkdownEditor'
+import { MultiAssigneePicker } from '@/components/common/MultiAssigneePicker'
 import { ShareTaskMenu } from './ShareTaskMenu'
 import { placeholderAsPerson, taskAssigneeDisplay, taskReporterDisplay } from '@/lib/people'
 import { useCurrentProjectKey } from '@/lib/projectRoutes'
 import { useStore } from '@/store'
-import type { IssuePriority, IssueType, Profile, Task, TaskLinkType, TaskStatus } from '@/types'
+import { isUniversalTask, type IssuePriority, type IssueType, type Profile, type Task, type TaskLinkType, type TaskStatus } from '@/types'
 
 function MetaSection({
   title,
@@ -317,6 +318,20 @@ export function TaskDrawer() {
   }
 
   const canDelete = profile?.role === 'admin'
+  // Universal tasks (2+ assignees): only admins/managers may change the status.
+  const canManage = profile?.role === 'admin' || canManageProject(activeProjectRole)
+  const statusLocked = isUniversalTask(currentTask) && !canManage
+  const currentAssigneeIds = currentTask.assignee_ids?.length
+    ? currentTask.assignee_ids
+    : (currentTask.assignee_id ? [currentTask.assignee_id] : [])
+
+  function handleAssigneesChange(ids: string[]) {
+    void quickUpdate({
+      assignee_id: ids[0] ?? null,
+      assignee_ids: ids.length >= 2 ? ids : [],
+      assignee_placeholder_id: null,
+    })
+  }
 
   const mentionCandidates = mention
     ? members
@@ -327,7 +342,6 @@ export function TaskDrawer() {
   // Assignee/reporter may be a real profile or an imported Jira placeholder.
   const assigneeDisplay = taskAssigneeDisplay(currentTask, placeholders)
   const reporterDisplay = taskReporterDisplay(currentTask, placeholders)
-  const assigneeValue = currentTask.assignee_id ?? (currentTask.assignee_placeholder_id ? `placeholder:${currentTask.assignee_placeholder_id}` : '')
   const reporterValue = currentTask.reporter_id ?? (currentTask.reporter_placeholder_id ? `placeholder:${currentTask.reporter_placeholder_id}` : '')
 
   function personFields(value: string, kind: 'assignee' | 'reporter'): Partial<Task> {
@@ -694,7 +708,11 @@ export function TaskDrawer() {
                 <StatusDropdown
                   value={currentTask.status}
                   onChange={(status: TaskStatus) => void quickUpdate({ status })}
+                  disabled={statusLocked}
                 />
+                {statusLocked && (
+                  <p className="mt-1.5 text-xs text-slate-500">{t('task.statusLocked')}</p>
+                )}
               </MetaSection>
 
               <MetaSection title={t('task.issueType')}>
@@ -724,27 +742,14 @@ export function TaskDrawer() {
               </MetaSection>
 
               <MetaSection title={t('task.assignee')}>
-                <select
-                  value={assigneeValue}
-                  onChange={(event) => void quickUpdate(personFields(event.target.value, 'assignee'))}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
-                >
-                  <option value="">{t('common.unassigned')}</option>
-                  {members.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.full_name || member.email}
-                    </option>
-                  ))}
-                  {placeholders.length > 0 && (
-                    <optgroup label={t('people.fromJira')}>
-                      {placeholders.map((placeholder) => (
-                        <option key={placeholder.id} value={`placeholder:${placeholder.id}`}>
-                          {placeholder.display_name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
+                {assigneeDisplay?.imported && currentAssigneeIds.length === 0 && (
+                  <div className="mb-2 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                    <UserAvatar profile={assigneeDisplay.person} size={22} />
+                    <span className="min-w-0 flex-1 truncate text-sm text-slate-900">{assigneeDisplay.person?.full_name || assigneeDisplay.person?.email}</span>
+                    <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-600">{t('people.fromJira')}</span>
+                  </div>
+                )}
+                <MultiAssigneePicker value={currentAssigneeIds} onChange={handleAssigneesChange} members={members} />
               </MetaSection>
 
               <MetaSection title={t('task.reporter')}>

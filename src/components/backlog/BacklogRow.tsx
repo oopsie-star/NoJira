@@ -2,13 +2,12 @@ import { useMemo } from 'react'
 import { Draggable } from '@hello-pangea/dnd'
 import { AlertTriangle, BookOpenText, Calendar, CheckSquare, CircleAlert, GripVertical, ListTree, MoreHorizontal, Paperclip } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/common/IssueBadges'
-import { UserAvatar } from '@/components/common/UserAvatar'
+import { AssigneeAvatars } from '@/components/common/AssigneeAvatars'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
 import { isTaskBlocked } from '@/lib/ops'
-import { taskAssigneeDisplay } from '@/lib/people'
 import { useStore } from '@/store'
-import type { IssueType, Task } from '@/types'
+import { isUniversalTask, type IssueType, type Task } from '@/types'
 
 interface BacklogRowProps {
   task: Task
@@ -38,7 +37,8 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
   const placeholders = useStore((state) => state.placeholders)
   const selectedTaskIds = useStore((state) => state.selectedTaskIds)
   const toggleTaskSelection = useStore((state) => state.toggleTaskSelection)
-  const assignee = taskAssigneeDisplay(task, placeholders)
+  const members = useStore((state) => state.members)
+  const universal = isUniversalTask(task)
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
   const isOpen = task.id === openTaskId
   const isSelected = selectedTaskIds.includes(task.id)
@@ -66,7 +66,9 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
                   ? 'border-qira-pistachio bg-qira-pistachio-lt/50 ring-1 ring-qira-pistachio/40'
                   : snapshot.isDragging
                     ? 'border-slate-200 bg-white shadow-xl ring-2 ring-qira-pistachio/20'
-                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80',
+                    : universal
+                      ? 'border-slate-300 bg-slate-100 hover:bg-slate-200/70'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80',
             ].join(' ')}
           >
             <input
@@ -148,7 +150,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
 
                 {mobile && (
                   <div className="flex shrink-0 items-center gap-2">
-                    <UserAvatar profile={assignee?.person} size={28} muted={!assignee} />
+                    <AssigneeAvatars task={task} members={members} placeholders={placeholders} size={28} />
                     <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400">
                       <MoreHorizontal size={15} />
                     </span>
@@ -159,7 +161,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
 
             {!mobile && (
               <div className="flex shrink-0 items-center gap-2 pl-2">
-                <UserAvatar profile={assignee?.person} size={28} muted={!assignee} />
+                <AssigneeAvatars task={task} members={members} placeholders={placeholders} size={28} />
                 {!dragDisabled && (
                   <button
                     type="button"

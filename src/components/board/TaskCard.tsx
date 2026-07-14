@@ -1,13 +1,13 @@
 import { Draggable } from '@hello-pangea/dnd'
-import { Calendar, CircleAlert, Flame, Paperclip } from 'lucide-react'
+import { Calendar, CircleAlert, Flame, Paperclip, Users } from 'lucide-react'
 import { StatusBadge } from '@/components/common/IssueBadges'
-import { UserAvatar } from '@/components/common/UserAvatar'
+import { AssigneeAvatars } from '@/components/common/AssigneeAvatars'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
 import { isTaskBlocked } from '@/lib/ops'
-import { taskAssigneeDisplay } from '@/lib/people'
+import { canManageProject } from '@/lib/permissions'
 import { useStore } from '@/store'
-import { isTerminalStatus, type Task } from '@/types'
+import { isTerminalStatus, isUniversalTask, type Task } from '@/types'
 
 interface TaskCardProps {
   task: Task
@@ -20,12 +20,18 @@ export function TaskCard({ task, index }: TaskCardProps) {
   const tasks = useStore((state) => state.tasks)
   const taskLinks = useStore((state) => state.taskLinks)
   const placeholders = useStore((state) => state.placeholders)
-  const assignee = taskAssigneeDisplay(task, placeholders)
+  const members = useStore((state) => state.members)
+  const profileRole = useStore((state) => state.profile?.role)
+  const activeProjectRole = useStore((state) => state.activeProjectRole)
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
   const highPriority = task.priority === 'high' || task.priority === 'highest'
+  const universal = isUniversalTask(task)
+  const canManage = profileRole === 'admin' || canManageProject(activeProjectRole)
+  // Universal tasks: only admins may drag (dragging changes status).
+  const dragLocked = universal && !canManage
 
   return (
-    <Draggable draggableId={task.id} index={index}>
+    <Draggable draggableId={task.id} index={index} isDragDisabled={dragLocked}>
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}
@@ -53,6 +59,9 @@ export function TaskCard({ task, index }: TaskCardProps) {
           <div className="mt-2.5 flex items-center gap-2">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
               <span className="font-semibold uppercase tracking-wide text-slate-400">{task.key}</span>
+              {universal && (
+                <Users size={13} className="shrink-0 text-slate-500" />
+              )}
               {highPriority && (
                 <Flame size={13} className="shrink-0 text-orange-500" />
               )}
@@ -73,7 +82,7 @@ export function TaskCard({ task, index }: TaskCardProps) {
               )}
             </div>
 
-            <UserAvatar profile={assignee?.person} size={24} muted={!assignee} />
+            <AssigneeAvatars task={task} members={members} placeholders={placeholders} size={24} />
           </div>
         </div>
       )}

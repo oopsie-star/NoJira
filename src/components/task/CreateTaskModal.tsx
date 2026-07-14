@@ -1,6 +1,7 @@
 ﻿import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { useAuthContext } from '@/auth/AuthContext'
+import { MultiAssigneePicker } from '@/components/common/MultiAssigneePicker'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { parseLabels } from '@/lib/format'
@@ -36,7 +37,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
   const [priority, setPriority] = useState<IssuePriority>(initialValues?.priority ?? 'medium')
   const [sprintId, setSprintId] = useState(initialValues?.sprint_id ?? '')
   const [epicId, setEpicId] = useState(initialValues?.epic_id ?? '')
-  const [assigneeId, setAssigneeId] = useState(initialValues?.assignee_id ?? '')
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(initialValues?.assignee_id ? [initialValues.assignee_id] : [])
   const [dueDate, setDueDate] = useState(initialValues?.due_date ?? '')
   const [labelsInput, setLabelsInput] = useState((initialValues?.labels ?? []).join(', '))
   const [loading, setLoading] = useState(false)
@@ -76,7 +77,8 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
         priority,
         sprint_id: sprintId || null,
         epic_id: selectedSprint ? (selectedSprint.epic_id ?? null) : (epicId || null),
-        assignee_id: assigneeId || null,
+        assignee_id: assigneeIds[0] ?? null,
+        assignee_ids: assigneeIds.length >= 2 ? assigneeIds : [],
         reporter_id: profile?.id ?? null,
         due_date: dueDate || null,
         labels: parseLabels(labelsInput),
@@ -193,18 +195,7 @@ export function CreateTaskModal({ onClose, initialValues }: CreateTaskModalProps
 
             <div>
               <FieldLabel>{t('task.assignee')}</FieldLabel>
-              <select
-                value={assigneeId}
-                onChange={(event) => setAssigneeId(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
-              >
-                <option value="">{t('common.unassigned')}</option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.full_name || member.email}
-                  </option>
-                ))}
-              </select>
+              <MultiAssigneePicker value={assigneeIds} onChange={setAssigneeIds} members={members} />
             </div>
 
             <div>

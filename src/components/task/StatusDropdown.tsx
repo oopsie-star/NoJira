@@ -7,12 +7,21 @@ import { STATUS_COLUMNS, TERMINAL_STATUSES, type TaskStatus } from '@/types'
 interface StatusDropdownProps {
   value: TaskStatus
   onChange: (status: TaskStatus) => void
+  disabled?: boolean
 }
 
-export function StatusDropdown({ value, onChange }: StatusDropdownProps) {
+export function StatusDropdown({ value, onChange, disabled = false }: StatusDropdownProps) {
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
+
+  if (disabled) {
+    return (
+      <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+        <StatusBadge status={value} />
+      </div>
+    )
+  }
 
   useEffect(() => {
     function handleMouseDown(event: MouseEvent) {

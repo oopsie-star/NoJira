@@ -161,6 +161,9 @@ export interface Task {
   sprint_id:      string | null
   assignee_id:    string | null
   reporter_id:    string | null
+  // Universal (Notion-style) task: up to 3 team assignees. When 2+ are present
+  // the task is "universal" — highlighted in the backlog and status is admin-only.
+  assignee_ids:   string[]
   // Set when the assignee/reporter is an imported Jira person with no NoJira
   // account (a project_member_placeholders row) instead of a real profile.
   assignee_placeholder_id?: string | null
@@ -290,6 +293,11 @@ export const TERMINAL_STATUSES: TaskStatus[] = ['cancelled', 'archived', 'delete
 export const ALL_TASK_STATUSES: TaskStatus[] = [...STATUS_COLUMNS, ...TERMINAL_STATUSES]
 export function isTerminalStatus(status: TaskStatus): boolean {
   return TERMINAL_STATUSES.includes(status)
+}
+export const MAX_ASSIGNEES = 3
+/** A "universal" task has 2+ assignees (status is admin-only, highlighted in backlog). */
+export function isUniversalTask(task: { assignee_ids?: string[] | null }): boolean {
+  return (task.assignee_ids?.length ?? 0) >= 2
 }
 export const ISSUE_TYPE_OPTIONS: IssueType[] = ['task', 'story', 'bug']
 export const PRIORITY_OPTIONS: IssuePriority[] = ['lowest', 'low', 'medium', 'high', 'highest']
