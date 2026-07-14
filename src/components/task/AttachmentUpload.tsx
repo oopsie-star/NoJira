@@ -5,6 +5,7 @@ import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { canDeleteAuthoredContent } from '@/lib/permissions'
 import { getFilename, isImage, storageBucket } from '@/lib/attachments'
+import { AttachmentPreview } from './AttachmentPreview'
 import { useStore } from '@/store'
 import type { ProjectRole, TaskStatus } from '@/types'
 
@@ -46,6 +47,7 @@ export function AttachmentUpload({
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [signedAttachments, setSignedAttachments] = useState<SignedAttachment[]>([])
+  const [previewPath, setPreviewPath] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -155,23 +157,22 @@ export function AttachmentUpload({
               </div>
 
               {isImage(path) && signedUrl ? (
-                <a href={signedUrl} target="_blank" rel="noreferrer">
+                <button type="button" onClick={() => setPreviewPath(path)} className="block w-full">
                   <img
                     src={signedUrl}
                     alt={getFilename(path)}
                     className="h-36 w-full rounded-xl border border-slate-200 object-cover"
                   />
-                </a>
+                </button>
               ) : (
-                <a
-                  href={signedUrl ?? '#'}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-4 text-sm text-qira-pistachio"
+                <button
+                  type="button"
+                  onClick={() => setPreviewPath(path)}
+                  className="flex w-full items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-4 text-left text-sm text-qira-pistachio transition hover:border-qira-pistachio hover:bg-qira-pistachio-lt/40"
                 >
-                  <FileText size={16} />
-                  {getFilename(path)}
-                </a>
+                  <FileText size={16} className="shrink-0" />
+                  <span className="truncate">{getFilename(path)}</span>
+                </button>
               )}
             </div>
           ))}
@@ -215,6 +216,14 @@ export function AttachmentUpload({
         className="hidden"
         onChange={handleFileInput}
       />
+
+      {previewPath && (
+        <AttachmentPreview
+          path={previewPath}
+          signedUrl={signedAttachments.find((item) => item.path === previewPath)?.signedUrl ?? null}
+          onClose={() => setPreviewPath(null)}
+        />
+      )}
     </div>
   )
 }
