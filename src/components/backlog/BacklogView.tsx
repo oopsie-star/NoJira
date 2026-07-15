@@ -378,6 +378,7 @@ function TaskListSection({
 }: TaskListSectionProps) {
   const { t } = useI18n()
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  const [descriptionOpen, setDescriptionOpen] = useState(false)
 
   return (
     <section key={sectionKey} className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm">
@@ -402,9 +403,21 @@ function TaskListSection({
               <p className="mt-1.5 text-xs text-slate-500">{subtitle}</p>
             )}
             {description?.trim() && (
-              <p className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-600">
-                {description}
-              </p>
+              <div className="mt-1.5">
+                <button
+                  type="button"
+                  onClick={() => setDescriptionOpen((value) => !value)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-700"
+                >
+                  {descriptionOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  {t('task.description')}
+                </button>
+                {descriptionOpen && (
+                  <p className="mt-1 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-slate-500">
+                    {description}
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
@@ -973,7 +986,16 @@ export function BacklogView() {
                         defaultCollapsed={isMobile && firstExpandedSectionKey !== `epic-${epic.id}`}
                         titleBadges={(
                           <>
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                            {/* The epic's chosen colour, surfaced on its key badge + dot */}
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: epic.color }}
+                              aria-hidden
+                            />
+                            <span
+                              className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                              style={{ backgroundColor: `${epic.color}20`, color: epic.color }}
+                            >
                               {epic.key}
                             </span>
                             {linkedSprintCount > 0 && (

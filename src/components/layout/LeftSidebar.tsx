@@ -20,6 +20,7 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
   const { t } = useI18n()
   const projects = useStore((state) => state.projects)
   const projectMembers = useStore((state) => state.projectMembers)
+  const projectTaskCount = useStore((state) => state.projectTaskCount)
   const activeProjectId = useStore((state) => state.activeProjectId)
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
   const currentKey = activeProject?.key
@@ -83,10 +84,11 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
             {t('project.current')}
           </p>
+          {/* Stats for the ACTIVE project — its issues and its team. */}
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="rounded-xl bg-white p-3 shadow-sm">
-              <p className="text-xs text-slate-500">{t('project.all')}</p>
-              <p className="mt-1 truncate text-lg font-semibold text-slate-900">{projects.length}</p>
+              <p className="text-xs text-slate-500">{t('project.tasks')}</p>
+              <p className="mt-1 truncate text-lg font-semibold text-slate-900">{projectTaskCount}</p>
             </div>
             <div className="rounded-xl bg-white p-3 shadow-sm">
               <p className="text-xs text-slate-500">{t('nav.people')}</p>

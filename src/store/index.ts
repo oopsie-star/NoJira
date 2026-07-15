@@ -385,6 +385,8 @@ interface AppState {
   placeholders: JiraUserPlaceholder[]
   pendingMembers: Profile[]
   loadingProjects: boolean
+  /** Non-terminal task count for the active project (independent of what's loaded). */
+  projectTaskCount: number
   loadingBoard: boolean
   loadingBacklog: boolean
   activeProjectId: string | null
@@ -407,6 +409,7 @@ interface AppState {
   fetchSprints: () => Promise<void>
   fetchEpics: () => Promise<void>
   fetchMembers: () => Promise<void>
+  fetchProjectTaskCount: () => Promise<void>
   fetchPlaceholders: () => Promise<void>
   deletePlaceholder: (id: string) => Promise<void>
   fetchProjectInvites: () => Promise<void>
@@ -530,6 +533,7 @@ export const useStore = create<AppState>((set, get) => {
     selectedTaskIds: [],
     pendingMembers: [],
     loadingProjects: false,
+    projectTaskCount: 0,
     loadingBoard: false,
     loadingBacklog: false,
     activeProjectId: readStoredActiveProjectId(),
@@ -785,6 +789,23 @@ export const useStore = create<AppState>((set, get) => {
       .order('created_at')
 
     if (data) set({ epics: data as Epic[] })
+  },
+
+  fetchProjectTaskCount: async () => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) {
+      set({ projectTaskCount: 0 })
+      return
+    }
+    // Count on the server — the loaded `tasks` list depends on the current page
+    // (the board only holds one sprint), so it can't be used for a project total.
+    const { count } = await supabase
+      .from('tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', activeProjectId)
+      .not('status', 'in', '(cancelled,archived,deleted)')
+
+    set({ projectTaskCount: count ?? 0 })
   },
 
   fetchMembers: async () => {
