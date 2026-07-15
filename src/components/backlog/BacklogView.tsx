@@ -341,6 +341,8 @@ interface TaskListSectionProps {
   title: string
   subtitle?: string
   description?: string
+  /** When provided the description becomes editable inline (saved on blur). */
+  onDescriptionSave?: (value: string) => void
   itemCount: number
   statusCounts: Record<TaskStatus, number>
   tasks: Task[]
@@ -362,6 +364,7 @@ function TaskListSection({
   title,
   subtitle,
   description,
+  onDescriptionSave,
   itemCount,
   statusCounts,
   tasks,
@@ -402,7 +405,7 @@ function TaskListSection({
             {subtitle && (
               <p className="mt-1.5 text-xs text-slate-500">{subtitle}</p>
             )}
-            {description?.trim() && (
+            {(description?.trim() || onDescriptionSave) && (
               <div className="mt-1.5">
                 <button
                   type="button"
@@ -411,11 +414,25 @@ function TaskListSection({
                 >
                   {descriptionOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                   {t('task.description')}
+                  {!description?.trim() && <span className="font-normal text-slate-400">— {t('common.none')}</span>}
                 </button>
                 {descriptionOpen && (
-                  <p className="mt-1 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-slate-500">
-                    {description}
-                  </p>
+                  onDescriptionSave ? (
+                    <textarea
+                      key={description}
+                      defaultValue={description ?? ''}
+                      rows={3}
+                      placeholder={t('task.descriptionPlaceholder')}
+                      onBlur={(event) => {
+                        if (event.target.value !== (description ?? '')) onDescriptionSave(event.target.value)
+                      }}
+                      className="mt-1 w-full resize-y rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold leading-relaxed text-slate-500 outline-none transition focus:border-qira-pistachio"
+                    />
+                  ) : (
+                    <p className="mt-1 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-slate-500">
+                      {description}
+                    </p>
+                  )
                 )}
               </div>
             )}
@@ -974,6 +991,9 @@ export function BacklogView() {
                         sectionKey={`epic-${epic.id}`}
                         title={epic.title}
                         description={epic.description}
+                        onDescriptionSave={canCollaborate
+                          ? (value) => void updateEpic(epic.id, { description: value })
+                          : undefined}
                         itemCount={directTasks.length}
                         statusCounts={statusCounts}
                         tasks={directTasks}
