@@ -5,7 +5,7 @@ import { PriorityBadge, StatusBadge } from '@/components/common/IssueBadges'
 import { AssigneeAvatars } from '@/components/common/AssigneeAvatars'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
-import { isTaskBlocked } from '@/lib/ops'
+import { isFreshTodo, isTaskBlocked } from '@/lib/ops'
 import { useStore } from '@/store'
 import { isUniversalTask, type IssueType, type Task } from '@/types'
 
@@ -39,6 +39,8 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
   const toggleTaskSelection = useStore((state) => state.toggleTaskSelection)
   const members = useStore((state) => state.members)
   const universal = isUniversalTask(task)
+  // Newly added "To do" work stays highlighted (and pinned to the top) for a week.
+  const fresh = isFreshTodo(task)
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
   const isOpen = task.id === openTaskId
   const isSelected = selectedTaskIds.includes(task.id)
@@ -66,9 +68,11 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
                   ? 'border-qira-pistachio bg-qira-pistachio-lt/50 ring-1 ring-qira-pistachio/40'
                   : snapshot.isDragging
                     ? 'border-slate-200 bg-white shadow-xl ring-2 ring-qira-pistachio/20'
-                    : universal
-                      ? 'border-slate-300 bg-slate-100 hover:bg-slate-200/70'
-                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80',
+                    : fresh
+                      ? 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100/70'
+                      : universal
+                        ? 'border-slate-300 bg-slate-100 hover:bg-slate-200/70'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80',
             ].join(' ')}
           >
             <input

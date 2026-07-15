@@ -11,7 +11,7 @@ import { CreateTaskModal } from '@/components/task/CreateTaskModal'
 import { useAuthContext } from '@/auth/AuthContext'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
-import { isTaskBlocked } from '@/lib/ops'
+import { isFreshTodo, isTaskBlocked } from '@/lib/ops'
 import { EPIC_COLORS, EPIC_STATUS_OPTIONS, isTerminalStatus, type Epic, type Profile, type Sprint, type Task, type TaskStatus } from '@/types'
 import { useStore } from '@/store'
 
@@ -340,6 +340,7 @@ interface TaskListSectionProps {
   sectionKey: string
   title: string
   subtitle?: string
+  description?: string
   itemCount: number
   statusCounts: Record<TaskStatus, number>
   tasks: Task[]
@@ -352,12 +353,15 @@ interface TaskListSectionProps {
   defaultCollapsed?: boolean
   titleBadges?: ReactNode
   headerControl?: ReactNode
+  /** Nested content rendered under the task list (e.g. an epic's sprints). */
+  children?: ReactNode
 }
 
 function TaskListSection({
   sectionKey,
   title,
   subtitle,
+  description,
   itemCount,
   statusCounts,
   tasks,
@@ -370,6 +374,7 @@ function TaskListSection({
   defaultCollapsed = false,
   titleBadges,
   headerControl,
+  children,
 }: TaskListSectionProps) {
   const { t } = useI18n()
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
@@ -395,6 +400,11 @@ function TaskListSection({
             </div>
             {subtitle && (
               <p className="mt-1.5 text-xs text-slate-500">{subtitle}</p>
+            )}
+            {description?.trim() && (
+              <p className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-600">
+                {description}
+              </p>
             )}
           </div>
 
@@ -436,6 +446,12 @@ function TaskListSection({
               </div>
             )}
           </Droppable>
+
+          {children && (
+            <div className="space-y-2 border-t border-slate-100 bg-slate-50/60 p-2 sm:p-3">
+              {children}
+            </div>
+          )}
 
           <div className="border-t border-slate-200 px-2 py-2 sm:px-3">
             <button
@@ -543,7 +559,15 @@ export function BacklogView() {
 
         return matchesQuery && matchesEpic && matchesAssignee && matchesQuickFilters
       })
-      .sort((left, right) => left.position - right.position)
+      // Freshly added "To do" work floats to the top of every list for a week,
+      // newest first; everything else keeps its manual order.
+      .sort((left, right) => {
+        const leftFresh = isFreshTodo(left)
+        const rightFresh = isFreshTodo(right)
+        if (leftFresh !== rightFresh) return leftFresh ? -1 : 1
+        if (leftFresh) return right.status_changed_at.localeCompare(left.status_changed_at)
+        return left.position - right.position
+      })
   }, [assigneeFilter, epicFilter, quickFilterMap, quickFilters, search, tasks])
 
   const rootTasks = useMemo(() => filteredTasks.filter((task) => !task.parent_task_id), [filteredTasks])
@@ -579,7 +603,7 @@ export function BacklogView() {
   // Jira's backlog only lists active + future sprints — completed sprints live in
   // reports, not the backlog. Mirror that so old closed sprints from the board's
   // history (imported when "include completed sprints" was on) don't clutter it.
-  const sprintSections = useMemo(
+  const allSprintSections = useMemo(
     () => sortedSprints
       .filter((sprint) => sprint.status !== 'completed')
       .map((sprint) => ({
@@ -590,6 +614,20 @@ export function BacklogView() {
       }))
       .filter(({ tasks }) => !hasActiveFilters || tasks.length > 0),
     [filteredTasks, orphanInSection, hasActiveFilters, sortedSprints]
+  )
+
+  // Sprints that belong to an epic are nested inside it (epics are the top-level
+  // container); only epic-less sprints stay as their own top-level section.
+  const sprintSections = useMemo(
+    () => allSprintSections
+      .filter(({ sprint }) => !sprint.epic_id)
+      // A sprint holding freshly added work rises to the top (stable otherwise).
+      .sort((left, right) => {
+        const leftFresh = left.tasks.some(isFreshTodo)
+        const rightFresh = right.tasks.some(isFreshTodo)
+        return leftFresh === rightFresh ? 0 : leftFresh ? -1 : 1
+      }),
+    [allSprintSections]
   )
 
   // Completed sprints are hidden (above); their tasks fall back into the Backlog
@@ -629,23 +667,33 @@ export function BacklogView() {
     () => sortedEpics
       .map((epic) => {
         const directTasks = rootTasks.filter((task) => task.epic_id === epic.id && !task.sprint_id)
-        const linkedSprintCount = sortedSprints.filter((sprint) => sprint.epic_id === epic.id).length
+        const epicSprints = allSprintSections.filter(({ sprint }) => sprint.epic_id === epic.id)
         return {
           epic,
           directTasks,
-          linkedSprintCount,
+          epicSprints,
+          linkedSprintCount: epicSprints.length,
           statusCounts: getStatusCounts(directTasks),
         }
       })
-      .filter(({ directTasks }) => !hasActiveFilters || directTasks.length > 0),
-    [hasActiveFilters, rootTasks, sortedEpics, sortedSprints]
+      .filter(({ directTasks, epicSprints }) => !hasActiveFilters || directTasks.length > 0 || epicSprints.length > 0)
+      // An epic holding freshly added work (directly or in one of its sprints)
+      // rises to the top, carrying the new task into view.
+      .sort((left, right) => {
+        const fresh = (section: typeof left) =>
+          section.directTasks.some(isFreshTodo) || section.epicSprints.some(({ tasks }) => tasks.some(isFreshTodo))
+        const leftFresh = fresh(left)
+        const rightFresh = fresh(right)
+        return leftFresh === rightFresh ? 0 : leftFresh ? -1 : 1
+      }),
+    [hasActiveFilters, rootTasks, sortedEpics, allSprintSections]
   )
 
   const firstExpandedSectionKey = useMemo(() => {
     const orderedKeys = [
+      ...epicSections.map(({ epic }) => `epic-${epic.id}`),
       ...sprintSections.map(({ sprint }) => `sprint-${sprint.id}`),
       'backlog',
-      ...epicSections.map(({ epic }) => `epic-${epic.id}`),
     ]
 
     return orderedKeys.find((key) => {
@@ -882,6 +930,86 @@ export function BacklogView() {
                 </section>
               ) : (
                 <>
+                  {/* Epics are the top-level container: their own issues plus the
+                      sprints that belong to them are nested inside. */}
+                  {epicSections.map(({ epic, directTasks, epicSprints, linkedSprintCount, statusCounts }) => {
+                    const actions: SectionMenuItem[] = []
+
+                    if (canCollaborate) {
+                      actions.push(
+                        { label: t('backlog.createIssue'), onSelect: () => openTaskModal({ epic_id: epic.id }) },
+                        { label: t('backlog.createSprintInEpic'), onSelect: () => openSprintModal(epic.id) },
+                      )
+                    }
+
+                    if (isSuperAdmin) {
+                      actions.push({
+                        label: t('backlog.deleteEpic'),
+                        onSelect: () => handleDeleteEpic(epic),
+                        danger: true,
+                      })
+                    } else {
+                      actions.push({
+                        label: t('backlog.requestDelete'),
+                        onSelect: () => handleRequestDeleteEpic(epic),
+                      })
+                    }
+
+                    return (
+                      <TaskListSection
+                        key={epic.id}
+                        sectionKey={`epic-${epic.id}`}
+                        title={epic.title}
+                        description={epic.description}
+                        itemCount={directTasks.length}
+                        statusCounts={statusCounts}
+                        tasks={directTasks}
+                        droppableId={`epic-${epic.id}`}
+                        emptyLabel={t('backlog.noDirectEpicTasks')}
+                        createLabel={t('backlog.createIssue')}
+                        onCreate={() => openTaskModal({ epic_id: epic.id })}
+                        actions={actions}
+                        mobile={isMobile}
+                        defaultCollapsed={isMobile && firstExpandedSectionKey !== `epic-${epic.id}`}
+                        titleBadges={(
+                          <>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                              {epic.key}
+                            </span>
+                            {linkedSprintCount > 0 && (
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                                {t('backlog.sprintCount', { count: linkedSprintCount })}
+                              </span>
+                            )}
+                          </>
+                        )}
+                        headerControl={canCollaborate ? (
+                          <select
+                            value={epic.status}
+                            onChange={(event) => void updateEpic(epic.id, { status: event.target.value as Epic['status'] })}
+                            className="hidden rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 outline-none transition focus:border-qira-pistachio md:block"
+                          >
+                            {EPIC_STATUS_OPTIONS.map((status) => (
+                              <option key={status} value={status}>
+                                {t(`common.status.${status === 'done' ? 'completed' : status}`)}
+                              </option>
+                            ))}
+                          </select>
+                        ) : undefined}
+                      >
+                        {epicSprints.map(({ sprint, tasks: sprintTasks }) => (
+                          <SprintContainer
+                            key={sprint.id}
+                            sprint={sprint}
+                            tasks={sprintTasks}
+                            mobile={isMobile}
+                            defaultCollapsed={isMobile}
+                          />
+                        ))}
+                      </TaskListSection>
+                    )
+                  })}
+
                   {sprintSections.map(({ sprint, tasks: sprintTasks }) => (
                     <SprintContainer
                       key={sprint.id}
@@ -923,73 +1051,6 @@ export function BacklogView() {
                     defaultCollapsed={isMobile && firstExpandedSectionKey !== 'backlog'}
                   />
 
-                  {epicSections.map(({ epic, directTasks, linkedSprintCount, statusCounts }) => {
-                    const actions: SectionMenuItem[] = []
-
-                    if (canCollaborate) {
-                      actions.push(
-                        { label: t('backlog.createIssue'), onSelect: () => openTaskModal({ epic_id: epic.id }) },
-                        { label: t('backlog.createSprintInEpic'), onSelect: () => openSprintModal(epic.id) },
-                      )
-                    }
-
-                    if (isSuperAdmin) {
-                      actions.push({
-                        label: t('backlog.deleteEpic'),
-                        onSelect: () => handleDeleteEpic(epic),
-                        danger: true,
-                      })
-                    } else {
-                      actions.push({
-                        label: t('backlog.requestDelete'),
-                        onSelect: () => handleRequestDeleteEpic(epic),
-                      })
-                    }
-
-                    return (
-                      <TaskListSection
-                        key={epic.id}
-                        sectionKey={`epic-${epic.id}`}
-                        title={epic.title}
-                        subtitle={linkedSprintCount > 0 ? t('backlog.linkedSprints', { count: linkedSprintCount }) : undefined}
-                        itemCount={directTasks.length}
-                        statusCounts={statusCounts}
-                        tasks={directTasks}
-                        droppableId={`epic-${epic.id}`}
-                        emptyLabel={t('backlog.noDirectEpicTasks')}
-                        createLabel={t('backlog.createIssue')}
-                        onCreate={() => openTaskModal({ epic_id: epic.id })}
-                        actions={actions}
-                        mobile={isMobile}
-                        defaultCollapsed={isMobile && firstExpandedSectionKey !== `epic-${epic.id}`}
-                        titleBadges={(
-                          <>
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                              {epic.key}
-                            </span>
-                            {linkedSprintCount > 0 && (
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                                {t('backlog.sprintCount', { count: linkedSprintCount })}
-                              </span>
-                            )}
-                          </>
-                        )}
-                        headerControl={canCollaborate ? (
-                          <select
-                            value={epic.status}
-                            onChange={(event) => void updateEpic(epic.id, { status: event.target.value as Epic['status'] })}
-                            className="hidden rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 outline-none transition focus:border-qira-pistachio md:block"
-                          >
-                            {EPIC_STATUS_OPTIONS.map((status) => (
-                              <option key={status} value={status}>
-                                {t(`common.status.${status === 'done' ? 'completed' : status}`)}
-                              </option>
-                            ))}
-                          </select>
-                        ) : undefined}
-                      />
-                    )
-                  })}
                 </>
               )}
             </div>

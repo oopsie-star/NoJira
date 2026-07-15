@@ -12,6 +12,21 @@ export function getStatusAgeDays(task: Pick<Task, 'status_changed_at' | 'updated
   return Math.max(0, Math.floor((Date.now() - baseline) / DAY_MS))
 }
 
+export const FRESH_TODO_DAYS = 7
+
+/**
+ * A task that entered "To do" within the last week. These are pinned to the top
+ * of their list and highlighted, so newly added work surfaces immediately.
+ * status_changed_at is maintained by the DB whenever the status changes, so this
+ * also covers a task moved back to "To do".
+ */
+export function isFreshTodo(
+  task: Pick<Task, 'status' | 'status_changed_at' | 'updated_at' | 'created_at'>,
+): boolean {
+  if (task.status !== 'todo') return false
+  return getStatusAgeDays(task) < FRESH_TODO_DAYS
+}
+
 export function formatStatusAge(locale: Locale, task: Pick<Task, 'status_changed_at' | 'updated_at' | 'created_at'>) {
   const days = getStatusAgeDays(task)
   if (days === 0) return locale === 'ru' ? 'сегодня' : 'today'
