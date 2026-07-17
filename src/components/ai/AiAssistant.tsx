@@ -30,7 +30,10 @@ interface PendingFile {
 
 type FillOutcome = { data: FillTaskResult; block: string } | { error: string; block: string }
 
-const MAX_TOOL_ITERATIONS = 8
+// A single chat message can still trigger a bulk edit across every task in an
+// epic (list_tasks + one update_task per task) — same reasoning as imports,
+// so this needs real headroom too, not just enough for a 1-2 call reply.
+const MAX_TOOL_ITERATIONS = 60
 const IMPORT_MAX_ITERATIONS = 150
 const FILL_TASK_CONCURRENCY = 4
 
@@ -48,6 +51,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
   const epics = useStore((state) => state.epics)
   const sprints = useStore((state) => state.sprints)
   const members = useStore((state) => state.members)
+  const tasks = useStore((state) => state.tasks)
   const createEpic = useStore((state) => state.createEpic)
   const createSprint = useStore((state) => state.createSprint)
   const createTask = useStore((state) => state.createTask)
@@ -94,7 +98,9 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
 
     const systemPrompt = [
       'You are Qira AI, an agent that manages epics, sprints, and tasks for this project management app.',
-      'You have tools to create epics, sprints, and tasks, and to edit tasks — actually call the tools, do not just describe what you would do.',
+      'You have tools to list tasks, create epics/sprints/tasks, and edit tasks — actually call the tools, do not just describe what you would do.',
+      'If the user asks you to change/clean up/reformat tasks in an epic or sprint (e.g. "remove this text from every task\'s description", "prepend the title to each task") and you don\'t already have their ids, call list_tasks first — never ask the user to paste ids, titles, or descriptions themselves, you can look them up.',
+      'When editing many tasks the same way, call update_task once per task, one at a time, until you\'ve covered all of them from list_tasks — do not stop partway to ask for confirmation.',
       'Never invent a due date — only set one if the source text explicitly gives it. Never invent an assignee — only set a role if the source text or team roster supports it.',
       `Project: ${projectName ?? 'Unknown'}.`,
       `Existing epics: ${epicsList}.`,
@@ -111,7 +117,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     ]
 
     const tools = getToolDefinitions()
-    const toolCtx = { members, aiAgentProfileId, createEpic, createSprint, createTask, updateTask }
+    const toolCtx = { members, tasks, aiAgentProfileId, createEpic, createSprint, createTask, updateTask }
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
       const result = await callLLM(wireMessages, { maxTokens: 800, tools })
@@ -127,7 +133,21 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
 
         for (const call of result.toolCalls) {
           const toolContent = await executeTool(call.name, call.arguments, toolCtx)
-          say(toolContent)
+          // list_tasks can return a large raw JSON payload meant for the
+          // model — show a short human summary in the chat instead of
+          // dumping it verbatim.
+          if (call.name === 'list_tasks') {
+            let displayed = toolContent
+            try {
+              const parsed = JSON.parse(toolContent) as unknown
+              if (Array.isArray(parsed)) displayed = `Просмотрел задач: ${parsed.length}`
+            } catch {
+              // not JSON (e.g. "No tasks found...") — show as-is
+            }
+            say(displayed)
+          } else {
+            say(toolContent)
+          }
           wireMessages = [...wireMessages, { role: 'tool', content: toolContent, toolCallId: call.id }]
         }
         continue

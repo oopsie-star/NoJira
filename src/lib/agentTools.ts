@@ -3,6 +3,8 @@ import type { Epic, IssuePriority, Profile, Sprint, Task } from '@/types'
 
 export interface AgentToolsContext {
   members: Profile[]
+  /** Current project's tasks — backs the read-only list_tasks tool so the agent can bulk-edit without being told every id up front. */
+  tasks: Task[]
   /** Profile id the agent stamps as reporter/created_by. Null if not provisioned yet. */
   aiAgentProfileId: string | null
   createEpic: (fields: Partial<Epic>) => Promise<Epic | null>
@@ -48,6 +50,17 @@ export function resolveAssigneeByRole(role: string | undefined, members: Profile
 
 export function getToolDefinitions(): LLMToolDefinition[] {
   return [
+    {
+      name: 'list_tasks',
+      description: 'List existing tasks (id, key, title, description, priority) in the current project, optionally filtered by epic or sprint. Call this before bulk-editing tasks you don\'t already have ids for — do not ask the user to paste ids/titles/descriptions themselves.',
+      parameters: {
+        type: 'object',
+        properties: {
+          epic_id: { type: 'string', description: 'Only list tasks belonging to this epic (includes tasks in its sprints)' },
+          sprint_id: { type: 'string', description: 'Only list tasks in this sprint' },
+        },
+      },
+    },
     {
       name: 'create_epic',
       description: 'Create a new epic in the current project.',
@@ -175,6 +188,27 @@ export async function executeTool(name: string, argsJson: string, ctx: AgentTool
   }
 
   const reporterFields = ctx.aiAgentProfileId ? { reporter_id: ctx.aiAgentProfileId } : {}
+
+  if (name === 'list_tasks') {
+    const epicId = typeof args.epic_id === 'string' ? args.epic_id : undefined
+    const sprintId = typeof args.sprint_id === 'string' ? args.sprint_id : undefined
+
+    const matches = ctx.tasks.filter((task) => {
+      if (sprintId) return task.sprint_id === sprintId
+      if (epicId) return task.epic_id === epicId
+      return true
+    })
+
+    if (!matches.length) return 'No tasks found for that filter.'
+
+    return JSON.stringify(matches.map((task) => ({
+      id: task.id,
+      key: task.key,
+      title: task.title,
+      description: task.description,
+      priority: task.priority,
+    })))
+  }
 
   if (name === 'create_epic') {
     const epic = await ctx.createEpic({
