@@ -138,7 +138,14 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     const toolCtx = { members, tasks, aiAgentProfileId, createEpic, createSprint, createTask, updateTask }
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
-      const result = await callLLM(wireMessages, { maxTokens: 800, tools, signal: controller.signal })
+      let result = await callLLM(wireMessages, { maxTokens: 3000, tools, signal: controller.signal })
+
+      // An empty turn (no tool call, no text) with finish_reason 'length' is
+      // a truncated response, not a real "nothing to say" — retry once with
+      // a bigger budget instead of surfacing a useless "No response".
+      if (!result.aborted && !result.error && !result.toolCalls?.length && !result.content && result.finishReason === 'length') {
+        result = await callLLM(wireMessages, { maxTokens: 8000, tools, signal: controller.signal })
+      }
 
       if (result.aborted) {
         say('Остановлено.')
@@ -189,7 +196,12 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
         continue
       }
 
-      say(result.content ?? 'No response')
+      if (!result.content) {
+        say(`Модель вернула пустой ответ без вызова инструментов${result.finishReason ? ` (finish_reason: ${result.finishReason})` : ''}. Попробуйте переформулировать запрос или другую модель.`)
+        return
+      }
+
+      say(result.content)
       return
     }
 
