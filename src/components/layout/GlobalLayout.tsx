@@ -7,6 +7,7 @@ import { TopNavbar } from './TopNavbar'
 import { AiAssistant } from '@/components/ai/AiAssistant'
 import { CommandPalette } from '@/components/common/CommandPalette'
 import { RealtimeSync } from '@/components/common/RealtimeSync'
+import { Toaster } from '@/components/common/Toaster'
 import { useAuthContext } from '@/auth/AuthContext'
 import { useStore } from '@/store'
 
@@ -82,6 +83,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
       <AiAssistant projectName={activeProjectName} />
       <CommandPalette />
       <RealtimeSync />
+      <Toaster />
     </div>
   )
 }

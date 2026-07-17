@@ -1,5 +1,6 @@
 ﻿import { create } from 'zustand'
 import { FunctionsHttpError } from '@supabase/supabase-js'
+import { getErrorMessage } from '@/lib/errors'
 import { isTaskBlocked } from '@/lib/ops'
 import { supabase } from '@/lib/supabase'
 import type {
@@ -420,6 +421,10 @@ interface AppState {
   bulkUpdateTasks: (fields: Partial<Task>) => Promise<void>
   setProfile: (profile: Profile | null) => void
   setOpenTaskId: (id: string | null) => void
+  /** Transient toast surfaced to the user (e.g. a save failure and its reason). */
+  toast: { id: number; message: string; kind: 'error' | 'success' } | null
+  notify: (message: string, kind?: 'error' | 'success') => void
+  dismissToast: () => void
   setActiveSprintId: (id: string | null) => void
   setActiveProjectId: (id: string | null) => void
   fetchProjects: () => Promise<void>
@@ -568,6 +573,9 @@ export const useStore = create<AppState>((set, get) => {
     deletionRequests: profile?.role === 'admin' ? state.deletionRequests : [],
   })),
   setOpenTaskId: (openTaskId) => set({ openTaskId }),
+  toast: null,
+  notify: (message, kind = 'error') => set({ toast: { id: Date.now(), message, kind } }),
+  dismissToast: () => set({ toast: null }),
   setActiveSprintId: (activeSprintId) => set({ activeSprintId }),
 
   toggleTaskSelection: (id) =>
@@ -1130,7 +1138,11 @@ export const useStore = create<AppState>((set, get) => {
       .select(TASK_SELECT)
       .single()
 
-    if (error) throw error
+    if (error) {
+      // Also surface via the global toast so it's visible even outside the modal.
+      get().notify(getErrorMessage(error))
+      throw error
+    }
     if (!data) return null
 
     set((state) => ({ tasks: [...state.tasks, data as Task] }))
@@ -1379,14 +1391,22 @@ export const useStore = create<AppState>((set, get) => {
       tasks: state.tasks.map((task) => (task.id === id ? { ...task, ...normalizedFields } : task)),
     }))
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('tasks')
       .update(normalizedFields)
       .eq('id', id)
       .select(TASK_SELECT)
       .single()
 
-    if (data) {
+    if (error || !data) {
+      // The save was rejected (RLS / trigger / constraint). Roll back the
+      // optimistic change and TELL the user why — never fail silently.
+      set((state) => ({ tasks: replaceTask(state.tasks, previousTask) }))
+      get().notify(getErrorMessage(error))
+      return
+    }
+
+    {
       const nextTask = data as Task
       set((state) => ({ tasks: replaceTask(state.tasks, nextTask) }))
 
