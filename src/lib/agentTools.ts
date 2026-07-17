@@ -109,15 +109,17 @@ export function getToolDefinitions(): LLMToolDefinition[] {
   ]
 }
 
-// ─── File import: split-once + one independent LLM run per task ──────────────
-// See plan doc — each task_block is filled by its own stateless callLLM
-// invocation (no shared/growing conversation), so cost and context size per
-// call stay constant regardless of how many tasks are in the file.
+// ─── File import ───────────────────────────────────────────────────────────
+// .md/.txt files go through the same sequential tool-calling loop as normal
+// chat (create_task called once per task, in order) — asking a model to
+// echo an entire document's worth of task text into one JSON blob in a
+// single generation proved unreliable (truncation, multi-minute stalls).
+// .json files are parsed locally (no LLM needed to find the tasks), then
+// each item still gets one independent fill_task call to normalize fields.
 
 export interface SplitTasksResult {
   epic?: { existing_epic_id?: string; new_title?: string; new_description?: string }
   sprints?: Array<{ name: string; goal?: string }>
-  task_blocks: string[]
 }
 
 export interface FillTaskResult {
@@ -127,42 +129,6 @@ export interface FillTaskResult {
   due_date?: string
   role?: string
   sprint_name?: string
-}
-
-export function getSplitTasksToolDefinition(): LLMToolDefinition {
-  return {
-    name: 'split_tasks',
-    description: 'Mechanically split the source document into one verbatim block of text per task. Do not interpret, summarize, or invent — just locate the boundaries.',
-    parameters: {
-      type: 'object',
-      properties: {
-        epic: {
-          type: 'object',
-          description: 'Which epic these tasks belong to — reuse an existing one if the document refers to it, otherwise describe a new one.',
-          properties: {
-            existing_epic_id: { type: 'string', description: 'id of an existing epic to reuse, if the document is clearly about one already listed' },
-            new_title: { type: 'string', description: 'title for a new epic, if none of the existing ones match' },
-            new_description: { type: 'string' },
-          },
-        },
-        sprints: {
-          type: 'array',
-          description: 'Sprints mentioned in the document, if any',
-          items: {
-            type: 'object',
-            properties: { name: { type: 'string' }, goal: { type: 'string' } },
-            required: ['name'],
-          },
-        },
-        task_blocks: {
-          type: 'array',
-          description: 'One entry per task, each the verbatim source text for that task (id/title/content/role/etc as written) — do not alter or paraphrase',
-          items: { type: 'string' },
-        },
-      },
-      required: ['task_blocks'],
-    },
-  }
 }
 
 export function getFillTaskToolDefinition(): LLMToolDefinition {

@@ -5,7 +5,6 @@ import {
   executeTool,
   findAiAgentProfile,
   getFillTaskToolDefinition,
-  getSplitTasksToolDefinition,
   getToolDefinitions,
   mapWithConcurrency,
   resolveAssigneeByRole,
@@ -32,6 +31,7 @@ interface PendingFile {
 type FillOutcome = { data: FillTaskResult; block: string } | { error: string; block: string }
 
 const MAX_TOOL_ITERATIONS = 8
+const IMPORT_MAX_ITERATIONS = 150
 const FILL_TASK_CONCURRENCY = 4
 
 export function AiAssistant({ projectName }: AiAssistantProps) {
@@ -76,100 +76,115 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     setPendingFile({ name: file.name, content })
   }
 
-  async function handleImportFile(file: PendingFile) {
-    setMessages((prev) => [...prev, { role: 'user', content: `📎 ${file.name}` }])
+  function say(content: string) {
+    setMessages((prev) => [...prev, { role: 'assistant', content }])
+  }
+
+  /** Shared tool-calling loop — same mechanism for a normal chat message and
+   * for a whole attached document, just with a different iteration budget:
+   * the model calls create_epic/create_sprint/create_task/update_task one at
+   * a time until it stops, no forced upfront "summarize everything" step. */
+  async function runAgentLoop(userContent: string, history: ChatMessage[], extraInstruction: string, maxIterations: number) {
     setLoading(true)
 
     const aiAgentProfileId = findAiAgentProfile(members)?.id ?? null
     const epicsList = epics.map((epic) => `${epic.id}: ${epic.title}`).join('; ') || 'none yet'
+    const sprintsList = sprints.map((sprint) => `${sprint.id}: ${sprint.name} (epic ${sprint.epic_id ?? 'none'})`).join('; ') || 'none yet'
     const membersList = members.map((member) => `${member.full_name || member.email} — ${member.department || 'no department set'}`).join('; ') || 'none'
 
-    function say(content: string) {
-      setMessages((prev) => [...prev, { role: 'assistant', content }])
-    }
+    const systemPrompt = [
+      'You are Qira AI, an agent that manages epics, sprints, and tasks for this project management app.',
+      'You have tools to create epics, sprints, and tasks, and to edit tasks — actually call the tools, do not just describe what you would do.',
+      'Never invent a due date — only set one if the source text explicitly gives it. Never invent an assignee — only set a role if the source text or team roster supports it.',
+      `Project: ${projectName ?? 'Unknown'}.`,
+      `Existing epics: ${epicsList}.`,
+      `Existing sprints: ${sprintsList}.`,
+      `Team members and their roles: ${membersList}.`,
+      extraInstruction,
+      'Respond concisely.',
+    ].filter(Boolean).join(' ')
 
-    let split: SplitTasksResult | null = null
+    let wireMessages: LLMMessage[] = [
+      { role: 'system', content: systemPrompt },
+      ...history.map((m) => ({ role: m.role, content: m.content })),
+      { role: 'user', content: userContent },
+    ]
 
-    if (file.name.toLowerCase().endsWith('.json')) {
-      try {
-        const parsed = JSON.parse(file.content) as unknown
-        const items = Array.isArray(parsed)
-          ? parsed
-          : Array.isArray((parsed as { tasks?: unknown })?.tasks)
-            ? (parsed as { tasks: unknown[] }).tasks
-            : null
-        if (!items) throw new Error('expected a JSON array of tasks (or a { tasks: [...] } object)')
+    const tools = getToolDefinitions()
+    const toolCtx = { members, aiAgentProfileId, createEpic, createSprint, createTask, updateTask }
 
-        const maybeEpic = (parsed as { epic?: SplitTasksResult['epic'] })?.epic
-        const maybeSprints = (parsed as { sprints?: SplitTasksResult['sprints'] })?.sprints
-        split = { epic: maybeEpic, sprints: maybeSprints, task_blocks: items.map((item) => JSON.stringify(item)) }
-      } catch (err) {
-        say(`Не смог разобрать JSON: ${err instanceof Error ? err.message : String(err)}`)
+    for (let iteration = 0; iteration < maxIterations; iteration++) {
+      const result = await callLLM(wireMessages, { maxTokens: 800, tools })
+
+      if (result.error) {
+        say(result.error)
         setLoading(false)
         return
       }
-    } else {
-      const splitPrompt = [
-        'You split a source document listing project tasks into individual task blocks — one verbatim block of text per task.',
-        'Do not interpret or summarize the content, just find the boundaries between tasks.',
-        `Existing epics: ${epicsList}.`,
-        'Reuse an existing epic by id if the document is clearly about one of them; otherwise propose a title for a new epic.',
-      ].join(' ')
 
-      // The model has to echo every task's full text back inside one JSON
-      // argument — on a large file that can exceed a small max-tokens budget
-      // and cut the JSON off mid-string. Retry once with a much bigger budget
-      // before giving up, and surface the actual failure instead of a bare
-      // "malformed JSON" (which reads as if the *uploaded* file were the
-      // problem, when it's the model's own response).
-      let splitError: string | null = null
-      for (const maxTokens of [8000, 16000]) {
-        const result = await callLLM(
-          [{ role: 'system', content: splitPrompt }, { role: 'user', content: file.content }],
-          { maxTokens, tools: [getSplitTasksToolDefinition()], toolChoice: { name: 'split_tasks' } },
-        )
+      if (result.toolCalls?.length) {
+        wireMessages = [...wireMessages, { role: 'assistant', content: result.content ?? '', toolCalls: result.toolCalls }]
 
-        const call = result.toolCalls?.[0]
-        if (result.error) { splitError = result.error; break }
-        if (!call) { splitError = 'модель не вернула структуру (не вызвала split_tasks)'; break }
-
-        try {
-          split = JSON.parse(call.arguments) as SplitTasksResult
-          splitError = null
-          break
-        } catch {
-          const truncated = result.finishReason === 'length'
-          splitError = `модель вернула повреждённый JSON${truncated ? ' — ответ обрезан лимитом токенов' : ''}. Конец ответа: ...${call.arguments.slice(-300)}`
-          if (!truncated) break // not a token-limit issue — retrying won't help
+        for (const call of result.toolCalls) {
+          const toolContent = await executeTool(call.name, call.arguments, toolCtx)
+          say(toolContent)
+          wireMessages = [...wireMessages, { role: 'tool', content: toolContent, toolCallId: call.id }]
         }
+        continue
       }
 
-      if (splitError) {
-        say(`Не удалось разобрать структуру задач (это про ответ модели, не про формат файла): ${splitError}`)
-        setLoading(false)
-        return
-      }
-    }
-
-    if (!split) {
-      say('Не удалось разобрать структуру задач')
+      say(result.content ?? 'No response')
       setLoading(false)
       return
     }
 
-    if (!split.task_blocks?.length) {
+    say('Остановился — похоже, достиг лимита шагов и не всё успел обработать. Проверьте бэклог; при необходимости повторите для оставшихся задач.')
+    setLoading(false)
+  }
+
+  /** .json files are already discrete records — parsed locally, then each
+   * item gets one independent fill_task call (small payload, no truncation
+   * risk) before being created directly, without going through the chat loop. */
+  async function importFromJson(file: PendingFile) {
+    setMessages((prev) => [...prev, { role: 'user', content: `📎 ${file.name}` }])
+    setLoading(true)
+
+    const aiAgentProfileId = findAiAgentProfile(members)?.id ?? null
+    const membersList = members.map((member) => `${member.full_name || member.email} — ${member.department || 'no department set'}`).join('; ') || 'none'
+
+    let items: unknown[]
+    let epicMeta: SplitTasksResult['epic']
+    let sprintsMeta: SplitTasksResult['sprints']
+    try {
+      const parsed = JSON.parse(file.content) as unknown
+      const parsedItems = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray((parsed as { tasks?: unknown })?.tasks)
+          ? (parsed as { tasks: unknown[] }).tasks
+          : null
+      if (!parsedItems) throw new Error('expected a JSON array of tasks (or a { tasks: [...] } object)')
+      items = parsedItems
+      epicMeta = (parsed as { epic?: SplitTasksResult['epic'] })?.epic
+      sprintsMeta = (parsed as { sprints?: SplitTasksResult['sprints'] })?.sprints
+    } catch (err) {
+      say(`Не смог разобрать JSON: ${err instanceof Error ? err.message : String(err)}`)
+      setLoading(false)
+      return
+    }
+
+    if (!items.length) {
       say('В файле не нашлось ни одной задачи')
       setLoading(false)
       return
     }
 
-    say(`Нашёл задач: ${split.task_blocks.length}. Начинаю создавать...`)
+    say(`Нашёл задач: ${items.length}. Начинаю создавать...`)
 
-    let epicId = split.epic?.existing_epic_id ?? null
+    let epicId = epicMeta?.existing_epic_id ?? null
     if (!epicId) {
       const createdEpic = await createEpic({
-        title: split.epic?.new_title || file.name,
-        description: split.epic?.new_description ?? '',
+        title: epicMeta?.new_title || file.name,
+        description: epicMeta?.new_description ?? '',
         created_by: aiAgentProfileId ?? undefined,
       })
       if (!createdEpic) {
@@ -182,7 +197,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     }
 
     const sprintIdByName = new Map<string, string>()
-    for (const sprint of split.sprints ?? []) {
+    for (const sprint of sprintsMeta ?? []) {
       const createdSprint = await createSprint({ epic_id: epicId, name: sprint.name, goal: sprint.goal ?? '' })
       if (createdSprint) {
         sprintIdByName.set(sprint.name, createdSprint.id)
@@ -195,7 +210,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
       `Team members and their roles: ${membersList}.`,
     ].join(' ')
 
-    const filled = await mapWithConcurrency<string, FillOutcome>(split.task_blocks, FILL_TASK_CONCURRENCY, async (block) => {
+    const filled = await mapWithConcurrency<string, FillOutcome>(items.map((item) => JSON.stringify(item)), FILL_TASK_CONCURRENCY, async (block) => {
       const result = await callLLM(
         [{ role: 'system', content: fillPrompt }, { role: 'user', content: block }],
         { maxTokens: 800, tools: [getFillTaskToolDefinition()], toolChoice: { name: 'fill_task' } },
@@ -243,8 +258,25 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
       }
     }
 
-    say(`Готово: создано ${createdCount} из ${split.task_blocks.length} задач, ${unassignedCount} без исполнителя.`)
+    say(`Готово: создано ${createdCount} из ${items.length} задач, ${unassignedCount} без исполнителя.`)
     setLoading(false)
+  }
+
+  async function handleImportFile(file: PendingFile) {
+    if (file.name.toLowerCase().endsWith('.json')) {
+      await importFromJson(file)
+      return
+    }
+
+    setMessages((prev) => [...prev, { role: 'user', content: `📎 ${file.name}` }])
+
+    const extraInstruction = [
+      'The user attached a document listing many tasks for one epic — this is a bulk import, not a normal chat message.',
+      'Go through the ENTIRE document from top to bottom, task by task, and call create_task once per task — preserve each task\'s id/title/content as written, do not summarize.',
+      'Do not stop partway to ask for confirmation — keep calling the tools until you have processed the whole document, then give a brief final summary of how many tasks you created.',
+    ].join(' ')
+
+    await runAgentLoop(file.content, [], extraInstruction, IMPORT_MAX_ITERATIONS)
   }
 
   async function handleSend() {
@@ -262,58 +294,9 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     if (!text) return
     setInput('')
 
+    const history = messages
     setMessages((prev) => [...prev, { role: 'user', content: text }])
-    setLoading(true)
-
-    const aiAgentProfileId = findAiAgentProfile(members)?.id ?? null
-    const epicsList = epics.map((epic) => `${epic.id}: ${epic.title}`).join('; ') || 'none yet'
-    const sprintsList = sprints.map((sprint) => `${sprint.id}: ${sprint.name} (epic ${sprint.epic_id ?? 'none'})`).join('; ') || 'none yet'
-    const membersList = members.map((member) => `${member.full_name || member.email} — ${member.department || 'no department set'}`).join('; ') || 'none'
-
-    const systemPrompt = [
-      'You are Qira AI, an agent that manages epics, sprints, and tasks for this project management app.',
-      'You have tools to create epics, sprints, and tasks, and to edit tasks — when the user asks you to create or fill in project items (e.g. from pasted text), actually call the tools, do not just describe what you would do.',
-      'Never invent a due date — only set one if the source text explicitly gives it. Never invent an assignee — only set a role if the source text or team roster supports it.',
-      `Project: ${projectName ?? 'Unknown'}.`,
-      `Existing epics: ${epicsList}.`,
-      `Existing sprints: ${sprintsList}.`,
-      `Team members and their roles: ${membersList}.`,
-      'Respond concisely.',
-    ].join(' ')
-
-    let wireMessages: LLMMessage[] = [
-      { role: 'system', content: systemPrompt },
-      ...messages.map((m) => ({ role: m.role, content: m.content })),
-      { role: 'user', content: text },
-    ]
-
-    const tools = getToolDefinitions()
-    const toolCtx = { members, aiAgentProfileId, createEpic, createSprint, createTask, updateTask }
-
-    for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
-      const result = await callLLM(wireMessages, { maxTokens: 800, tools })
-
-      if (result.error) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: result.error as string }])
-        break
-      }
-
-      if (result.toolCalls?.length) {
-        wireMessages = [...wireMessages, { role: 'assistant', content: result.content ?? '', toolCalls: result.toolCalls }]
-
-        for (const call of result.toolCalls) {
-          const toolContent = await executeTool(call.name, call.arguments, toolCtx)
-          setMessages((prev) => [...prev, { role: 'assistant', content: toolContent }])
-          wireMessages = [...wireMessages, { role: 'tool', content: toolContent, toolCallId: call.id }]
-        }
-        continue
-      }
-
-      setMessages((prev) => [...prev, { role: 'assistant', content: result.content ?? 'No response' }])
-      break
-    }
-
-    setLoading(false)
+    await runAgentLoop(text, history, '', MAX_TOOL_ITERATIONS)
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
