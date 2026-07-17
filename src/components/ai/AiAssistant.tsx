@@ -98,6 +98,16 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     const controller = new AbortController()
     abortControllerRef.current = controller
 
+    try {
+      await runAgentLoopBody(userContent, history, extraInstruction, maxIterations, controller)
+    } catch (err) {
+      say(`Ошибка: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function runAgentLoopBody(userContent: string, history: ChatMessage[], extraInstruction: string, maxIterations: number, controller: AbortController) {
     const aiAgentProfileId = findAiAgentProfile(members)?.id ?? null
     const epicsList = epics.map((epic) => `${epic.id}: ${epic.title}`).join('; ') || 'none yet'
     const sprintsList = sprints.map((sprint) => `${sprint.id}: ${sprint.name} (epic ${sprint.epic_id ?? 'none'})`).join('; ') || 'none yet'
@@ -132,13 +142,11 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
 
       if (result.aborted) {
         say('Остановлено.')
-        setLoading(false)
         return
       }
 
       if (result.error) {
         say(result.error)
-        setLoading(false)
         return
       }
 
@@ -148,10 +156,19 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
         for (const call of result.toolCalls) {
           if (controller.signal.aborted) {
             say('Остановлено.')
-            setLoading(false)
             return
           }
-          const toolContent = await executeTool(call.name, call.arguments, toolCtx)
+
+          // A single tool call throwing (e.g. a DB write rejected by RLS)
+          // must never kill the whole run — catch it, feed the error back
+          // to the model as this call's result, and keep going.
+          let toolContent: string
+          try {
+            toolContent = await executeTool(call.name, call.arguments, toolCtx)
+          } catch (err) {
+            toolContent = `Error: ${err instanceof Error ? err.message : String(err)}`
+          }
+
           // list_tasks can return a large raw JSON payload meant for the
           // model — show a short human summary in the chat instead of
           // dumping it verbatim.
@@ -173,12 +190,10 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
       }
 
       say(result.content ?? 'No response')
-      setLoading(false)
       return
     }
 
     say('Остановился — похоже, достиг лимита шагов и не всё успел обработать. Проверьте бэклог; при необходимости повторите для оставшихся задач.')
-    setLoading(false)
   }
 
   /** .json files are already discrete records — parsed locally, then each
@@ -190,6 +205,16 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     const controller = new AbortController()
     abortControllerRef.current = controller
 
+    try {
+      await importFromJsonBody(file, userText, controller)
+    } catch (err) {
+      say(`Ошибка: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function importFromJsonBody(file: PendingFile, userText: string, controller: AbortController) {
     const aiAgentProfileId = findAiAgentProfile(members)?.id ?? null
     const membersList = members.map((member) => `${member.full_name || member.email} — ${member.department || 'no department set'}`).join('; ') || 'none'
 
@@ -209,13 +234,11 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
       sprintsMeta = (parsed as { sprints?: SplitTasksResult['sprints'] })?.sprints
     } catch (err) {
       say(`Не смог разобрать JSON: ${err instanceof Error ? err.message : String(err)}`)
-      setLoading(false)
       return
     }
 
     if (!items.length) {
       say('В файле не нашлось ни одной задачи')
-      setLoading(false)
       return
     }
 
@@ -223,14 +246,19 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
 
     let epicId = epicMeta?.existing_epic_id ?? null
     if (!epicId) {
-      const createdEpic = await createEpic({
-        title: epicMeta?.new_title || userText.trim() || file.name,
-        description: epicMeta?.new_description ?? '',
-        created_by: aiAgentProfileId ?? undefined,
-      })
+      let createdEpic
+      try {
+        createdEpic = await createEpic({
+          title: epicMeta?.new_title || userText.trim() || file.name,
+          description: epicMeta?.new_description ?? '',
+          created_by: aiAgentProfileId ?? undefined,
+        })
+      } catch (err) {
+        say(`Не удалось создать эпик: ${err instanceof Error ? err.message : String(err)}`)
+        return
+      }
       if (!createdEpic) {
         say('Не удалось создать эпик')
-        setLoading(false)
         return
       }
       epicId = createdEpic.id
@@ -239,10 +267,14 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
 
     const sprintIdByName = new Map<string, string>()
     for (const sprint of sprintsMeta ?? []) {
-      const createdSprint = await createSprint({ epic_id: epicId, name: sprint.name, goal: sprint.goal ?? '', created_by: aiAgentProfileId ?? undefined })
-      if (createdSprint) {
-        sprintIdByName.set(sprint.name, createdSprint.id)
-        say(`Создан спринт "${createdSprint.name}"`)
+      try {
+        const createdSprint = await createSprint({ epic_id: epicId, name: sprint.name, goal: sprint.goal ?? '', created_by: aiAgentProfileId ?? undefined })
+        if (createdSprint) {
+          sprintIdByName.set(sprint.name, createdSprint.id)
+          say(`Создан спринт "${createdSprint.name}"`)
+        }
+      } catch (err) {
+        say(`Не удалось создать спринт "${sprint.name}": ${err instanceof Error ? err.message : String(err)}`)
       }
     }
 
@@ -287,27 +319,30 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
       if (!assigneeId) unassignedCount += 1
       const sprintId = data.sprint_name ? sprintIdByName.get(data.sprint_name) ?? null : null
 
-      const task = await createTask({
-        epic_id: epicId,
-        sprint_id: sprintId,
-        title: data.title,
-        description: data.description ?? '',
-        priority: data.priority,
-        due_date: data.due_date ?? null,
-        assignee_id: assigneeId,
-        reporter_id: aiAgentProfileId ?? undefined,
-      })
+      try {
+        const task = await createTask({
+          epic_id: epicId,
+          sprint_id: sprintId,
+          title: data.title,
+          description: data.description ?? '',
+          priority: data.priority,
+          due_date: data.due_date ?? null,
+          assignee_id: assigneeId,
+          reporter_id: aiAgentProfileId ?? undefined,
+        })
 
-      if (task) {
-        createdCount += 1
-        say(`Создана задача "${task.title}" (${task.key})${note}`)
-      } else {
-        say(`Не удалось создать задачу "${data.title}"`)
+        if (task) {
+          createdCount += 1
+          say(`Создана задача "${task.title}" (${task.key})${note}`)
+        } else {
+          say(`Не удалось создать задачу "${data.title}"`)
+        }
+      } catch (err) {
+        say(`Не удалось создать задачу "${data.title}": ${err instanceof Error ? err.message : String(err)}`)
       }
     }
 
     say(`Готово: создано ${createdCount} из ${items.length} задач, ${unassignedCount} без исполнителя.`)
-    setLoading(false)
   }
 
   async function handleImportFile(file: PendingFile, userText: string) {
