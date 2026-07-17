@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Paperclip, Sparkles, X, Send } from 'lucide-react'
+import { Paperclip, Sparkles, Square, X, Send } from 'lucide-react'
 import { callLLM, getLLMConfig } from '@/lib/ai'
 import {
   executeTool,
@@ -47,6 +47,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
   const [pendingFile, setPendingFile] = useState<PendingFile | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const epics = useStore((state) => state.epics)
   const sprints = useStore((state) => state.sprints)
@@ -84,12 +85,18 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     setMessages((prev) => [...prev, { role: 'assistant', content }])
   }
 
+  function handleStop() {
+    abortControllerRef.current?.abort()
+  }
+
   /** Shared tool-calling loop — same mechanism for a normal chat message and
    * for a whole attached document, just with a different iteration budget:
    * the model calls create_epic/create_sprint/create_task/update_task one at
    * a time until it stops, no forced upfront "summarize everything" step. */
   async function runAgentLoop(userContent: string, history: ChatMessage[], extraInstruction: string, maxIterations: number) {
     setLoading(true)
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     const aiAgentProfileId = findAiAgentProfile(members)?.id ?? null
     const epicsList = epics.map((epic) => `${epic.id}: ${epic.title}`).join('; ') || 'none yet'
@@ -101,6 +108,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
       'You have tools to list tasks, create epics/sprints/tasks, and edit tasks — actually call the tools, do not just describe what you would do.',
       'If the user asks you to change/clean up/reformat tasks in an epic or sprint (e.g. "remove this text from every task\'s description", "prepend the title to each task") and you don\'t already have their ids, call list_tasks first — never ask the user to paste ids, titles, or descriptions themselves, you can look them up.',
       'When editing many tasks the same way, call update_task once per task, one at a time, until you\'ve covered all of them from list_tasks — do not stop partway to ask for confirmation.',
+      'The "Existing epics" list below is for REFERENCE only — reuse one of those ids only if the user\'s message explicitly says to add to / continue an existing epic. Otherwise, for a new request or a newly attached document, always call create_epic for a fresh epic — never default to the most recently mentioned or most recently created epic just because it exists.',
       'Never invent a due date — only set one if the source text explicitly gives it. Never invent an assignee — only set a role if the source text or team roster supports it.',
       `Project: ${projectName ?? 'Unknown'}.`,
       `Existing epics: ${epicsList}.`,
@@ -120,7 +128,13 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     const toolCtx = { members, tasks, aiAgentProfileId, createEpic, createSprint, createTask, updateTask }
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
-      const result = await callLLM(wireMessages, { maxTokens: 800, tools })
+      const result = await callLLM(wireMessages, { maxTokens: 800, tools, signal: controller.signal })
+
+      if (result.aborted) {
+        say('Остановлено.')
+        setLoading(false)
+        return
+      }
 
       if (result.error) {
         say(result.error)
@@ -132,6 +146,11 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
         wireMessages = [...wireMessages, { role: 'assistant', content: result.content ?? '', toolCalls: result.toolCalls }]
 
         for (const call of result.toolCalls) {
+          if (controller.signal.aborted) {
+            say('Остановлено.')
+            setLoading(false)
+            return
+          }
           const toolContent = await executeTool(call.name, call.arguments, toolCtx)
           // list_tasks can return a large raw JSON payload meant for the
           // model — show a short human summary in the chat instead of
@@ -165,9 +184,11 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
   /** .json files are already discrete records — parsed locally, then each
    * item gets one independent fill_task call (small payload, no truncation
    * risk) before being created directly, without going through the chat loop. */
-  async function importFromJson(file: PendingFile) {
+  async function importFromJson(file: PendingFile, userText: string) {
     setMessages((prev) => [...prev, { role: 'user', content: `📎 ${file.name}` }])
     setLoading(true)
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     const aiAgentProfileId = findAiAgentProfile(members)?.id ?? null
     const membersList = members.map((member) => `${member.full_name || member.email} — ${member.department || 'no department set'}`).join('; ') || 'none'
@@ -203,7 +224,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     let epicId = epicMeta?.existing_epic_id ?? null
     if (!epicId) {
       const createdEpic = await createEpic({
-        title: epicMeta?.new_title || file.name,
+        title: epicMeta?.new_title || userText.trim() || file.name,
         description: epicMeta?.new_description ?? '',
         created_by: aiAgentProfileId ?? undefined,
       })
@@ -231,10 +252,12 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     ].join(' ')
 
     const filled = await mapWithConcurrency<string, FillOutcome>(items.map((item) => JSON.stringify(item)), FILL_TASK_CONCURRENCY, async (block) => {
+      if (controller.signal.aborted) return { error: 'остановлено', block }
       const result = await callLLM(
         [{ role: 'system', content: fillPrompt }, { role: 'user', content: block }],
-        { maxTokens: 800, tools: [getFillTaskToolDefinition()], toolChoice: { name: 'fill_task' } },
+        { maxTokens: 800, tools: [getFillTaskToolDefinition()], toolChoice: { name: 'fill_task' }, signal: controller.signal },
       )
+      if (result.aborted) return { error: 'остановлено', block }
       const call = result.toolCalls?.[0]
       if (result.error || !call) return { error: result.error ?? 'модель не вернула структуру', block }
       try {
@@ -249,6 +272,11 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     let unassignedCount = 0
 
     for (const outcome of filled) {
+      if (controller.signal.aborted) {
+        say('Остановлено.')
+        break
+      }
+
       if ('error' in outcome) {
         say(`Пропустил задачу — ${outcome.error}`)
         continue
@@ -282,16 +310,19 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     setLoading(false)
   }
 
-  async function handleImportFile(file: PendingFile) {
+  async function handleImportFile(file: PendingFile, userText: string) {
     if (file.name.toLowerCase().endsWith('.json')) {
-      await importFromJson(file)
+      await importFromJson(file, userText)
       return
     }
 
-    setMessages((prev) => [...prev, { role: 'user', content: `📎 ${file.name}` }])
+    setMessages((prev) => [...prev, { role: 'user', content: userText ? `${userText}\n📎 ${file.name}` : `📎 ${file.name}` }])
 
     const extraInstruction = [
       'The user attached a document listing many tasks for one epic — this is a bulk import, not a normal chat message.',
+      userText
+        ? `The user's instruction for this attachment: "${userText}". Follow it (e.g. whether to create a new epic or use an existing one).`
+        : 'No extra instruction was given — create a new epic for this document (see the epic-creation rule above), do not add it to an existing one.',
       'Go through the ENTIRE document from top to bottom, task by task, and call create_task once per task — preserve each task\'s id/title/content as written, do not summarize.',
       'Do not stop partway to ask for confirmation — keep calling the tools until you have processed the whole document, then give a brief final summary of how many tasks you created.',
     ].join(' ')
@@ -304,9 +335,10 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
 
     if (pendingFile) {
       const file = pendingFile
+      const userText = input.trim()
       setPendingFile(null)
       setInput('')
-      await handleImportFile(file)
+      await handleImportFile(file, userText)
       return
     }
 
@@ -432,14 +464,25 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
                   className="flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#6B9E6B] transition"
                   style={{ maxHeight: '100px' }}
                 />
-                <button
-                  type="button"
-                  onClick={() => void handleSend()}
-                  disabled={(!input.trim() && !pendingFile) || loading}
-                  className="rounded-xl bg-[#6B9E6B] p-2.5 text-white transition hover:bg-[#5a8a5a] disabled:opacity-50"
-                >
-                  <Send size={15} />
-                </button>
+                {loading ? (
+                  <button
+                    type="button"
+                    onClick={handleStop}
+                    title={t('ai.stop')}
+                    className="rounded-xl bg-rose-500 p-2.5 text-white transition hover:bg-rose-600"
+                  >
+                    <Square size={15} fill="currentColor" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void handleSend()}
+                    disabled={!input.trim() && !pendingFile}
+                    className="rounded-xl bg-[#6B9E6B] p-2.5 text-white transition hover:bg-[#5a8a5a] disabled:opacity-50"
+                  >
+                    <Send size={15} />
+                  </button>
+                )}
               </div>
             </div>
           )}

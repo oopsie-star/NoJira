@@ -35,6 +35,8 @@ export interface LLMResult {
   toolCalls?: LLMToolCall[]
   /** 'length' means the response was cut off by the max-tokens limit — a likely cause of truncated/invalid tool-call JSON. */
   finishReason?: string
+  /** True when the caller's AbortSignal fired — this is a user-requested stop, not a real failure. */
+  aborted?: boolean
 }
 
 export interface LLMModelOption {
@@ -363,7 +365,7 @@ function toWireMessage(message: LLMMessage) {
 
 export async function callLLM(
   messages: LLMMessage[],
-  opts?: { maxTokens?: number; tools?: LLMToolDefinition[]; toolChoice?: 'auto' | { name: string } },
+  opts?: { maxTokens?: number; tools?: LLMToolDefinition[]; toolChoice?: 'auto' | { name: string }; signal?: AbortSignal },
 ): Promise<LLMResult> {
   const config = getLLMConfig()
 
@@ -390,6 +392,7 @@ export async function callLLM(
     const response = await fetch(endpoint, {
       method: 'POST',
       headers,
+      signal: opts?.signal,
       body: JSON.stringify({
         model: normalizeModelId(config.provider, config.model),
         messages: messages.map(toWireMessage),
@@ -439,6 +442,9 @@ export async function callLLM(
 
     return { content, error: null, toolCalls: toolCalls?.length ? toolCalls : undefined, finishReason: choice?.finish_reason }
   } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return { content: null, error: null, aborted: true }
+    }
     return { content: null, error: err instanceof Error ? err.message : String(err) }
   }
 }
