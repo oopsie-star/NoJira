@@ -512,6 +512,7 @@ export function BacklogView() {
   const taskLinks = useStore((state) => state.taskLinks)
   const updateTask = useStore((state) => state.updateTask)
   const updateEpic = useStore((state) => state.updateEpic)
+  const reassignAuthor = useStore((state) => state.reassignAuthor)
   const deleteEpic = useStore((state) => state.deleteEpic)
   const requestEntityDeletion = useStore((state) => state.requestEntityDeletion)
   const activeProjectId = useStore((state) => state.activeProjectId)
@@ -1026,17 +1027,32 @@ export function BacklogView() {
                           </>
                         )}
                         headerControl={canCollaborate ? (
-                          <select
-                            value={epic.status}
-                            onChange={(event) => void updateEpic(epic.id, { status: event.target.value as Epic['status'] })}
-                            className="hidden rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 outline-none transition focus:border-qira-pistachio md:block"
-                          >
-                            {EPIC_STATUS_OPTIONS.map((status) => (
-                              <option key={status} value={status}>
-                                {t(`common.status.${status === 'done' ? 'completed' : status}`)}
-                              </option>
-                            ))}
-                          </select>
+                          <>
+                            <select
+                              value={epic.status}
+                              onChange={(event) => void updateEpic(epic.id, { status: event.target.value as Epic['status'] })}
+                              className="hidden rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 outline-none transition focus:border-qira-pistachio md:block"
+                            >
+                              {EPIC_STATUS_OPTIONS.map((status) => (
+                                <option key={status} value={status}>
+                                  {t(`common.status.${status === 'done' ? 'completed' : status}`)}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              title={t('backlog.epicAuthor')}
+                              value={epic.created_by ?? ''}
+                              onChange={(event) => { if (event.target.value) void reassignAuthor(epic.id, event.target.value) }}
+                              className="hidden rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 outline-none transition focus:border-qira-pistachio md:block"
+                            >
+                              <option value="" disabled>{t('backlog.epicAuthor')}</option>
+                              {members.map((member) => (
+                                <option key={member.id} value={member.id}>
+                                  {member.full_name || member.email}
+                                </option>
+                              ))}
+                            </select>
+                          </>
                         ) : undefined}
                       >
                         {epicSprints.map(({ sprint, tasks: sprintTasks }) => (

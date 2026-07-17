@@ -467,6 +467,7 @@ interface AppState {
   deleteSprint: (id: string) => Promise<void>
   createEpic: (fields: Partial<Epic>) => Promise<Epic | null>
   updateEpic: (id: string, fields: Partial<Epic>) => Promise<void>
+  reassignAuthor: (epicId: string, toProfileId: string) => Promise<void>
   deleteEpic: (id: string) => Promise<void>
   updatePortfolioItem: (id: string, fields: Partial<PortfolioItem>) => Promise<void>
   updateAutomationSettings: (fields: Partial<ProjectAutomationSettings>) => Promise<void>
@@ -1589,11 +1590,19 @@ export const useStore = create<AppState>((set, get) => {
 
   createEpic: async (fields) => {
     const activeProjectId = get().activeProjectId
+    const profile = get().profile
     if (!activeProjectId) return null
 
     const { data, error } = await supabase
       .from('epics')
-      .insert({ project_id: activeProjectId, description: '', status: 'planned', parent_portfolio_item_id: null, ...fields })
+      .insert({
+        project_id: activeProjectId,
+        description: '',
+        status: 'planned',
+        parent_portfolio_item_id: null,
+        ...fields,
+        created_by: fields.created_by ?? profile?.id ?? null,
+      })
       .select()
       .single()
 
@@ -1602,6 +1611,25 @@ export const useStore = create<AppState>((set, get) => {
 
     set((state) => ({ epics: [...state.epics, data as Epic] }))
     return data as Epic
+  },
+
+  reassignAuthor: async (epicId, toProfileId) => {
+    const { error: epicError } = await supabase
+      .from('epics')
+      .update({ created_by: toProfileId })
+      .eq('id', epicId)
+    if (epicError) throw epicError
+
+    const { error: tasksError } = await supabase
+      .from('tasks')
+      .update({ reporter_id: toProfileId })
+      .eq('epic_id', epicId)
+    if (tasksError) throw tasksError
+
+    set((state) => ({
+      epics: state.epics.map((epic) => (epic.id === epicId ? { ...epic, created_by: toProfileId } : epic)),
+      tasks: state.tasks.map((task) => (task.epic_id === epicId ? { ...task, reporter_id: toProfileId } : task)),
+    }))
   },
 
   updateEpic: async (id, fields) => {

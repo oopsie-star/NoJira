@@ -7,14 +7,32 @@ export interface LLMConfig {
   customEndpoint?: string
 }
 
+export interface LLMToolCall {
+  id: string
+  name: string
+  /** Raw JSON string of arguments, as returned by the model — caller parses it. */
+  arguments: string
+}
+
 export interface LLMMessage {
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'tool'
   content: string
+  /** Present on an assistant message that requested tool calls. */
+  toolCalls?: LLMToolCall[]
+  /** Present on a 'tool' message — which call this is the result of. */
+  toolCallId?: string
+}
+
+export interface LLMToolDefinition {
+  name: string
+  description: string
+  parameters: Record<string, unknown>
 }
 
 export interface LLMResult {
   content: string | null
   error: string | null
+  toolCalls?: LLMToolCall[]
 }
 
 export interface LLMModelOption {
@@ -321,9 +339,29 @@ export function setLLMConfig(config: LLMConfig): void {
   }))
 }
 
+function toWireMessage(message: LLMMessage) {
+  if (message.role === 'tool') {
+    return { role: 'tool', tool_call_id: message.toolCallId, content: message.content }
+  }
+
+  if (message.role === 'assistant' && message.toolCalls?.length) {
+    return {
+      role: 'assistant',
+      content: message.content || null,
+      tool_calls: message.toolCalls.map((call) => ({
+        id: call.id,
+        type: 'function',
+        function: { name: call.name, arguments: call.arguments },
+      })),
+    }
+  }
+
+  return { role: message.role, content: message.content }
+}
+
 export async function callLLM(
   messages: LLMMessage[],
-  opts?: { maxTokens?: number },
+  opts?: { maxTokens?: number; tools?: LLMToolDefinition[]; toolChoice?: 'auto' | { name: string } },
 ): Promise<LLMResult> {
   const config = getLLMConfig()
 
@@ -352,8 +390,17 @@ export async function callLLM(
       headers,
       body: JSON.stringify({
         model: normalizeModelId(config.provider, config.model),
-        messages,
+        messages: messages.map(toWireMessage),
         max_tokens: opts?.maxTokens ?? 1024,
+        ...(opts?.tools?.length ? {
+          tools: opts.tools.map((tool) => ({
+            type: 'function',
+            function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+          })),
+          tool_choice: typeof opts.toolChoice === 'object'
+            ? { type: 'function', function: { name: opts.toolChoice.name } }
+            : (opts.toolChoice ?? 'auto'),
+        } : {}),
       }),
     })
 
@@ -363,7 +410,12 @@ export async function callLLM(
     }
 
     const json = await response.json() as {
-      choices?: Array<{ message?: { content?: string } }>
+      choices?: Array<{
+        message?: {
+          content?: string
+          tool_calls?: Array<{ id: string; function?: { name?: string; arguments?: string } }>
+        }
+      }>
       error?: { message?: string }
     }
 
@@ -371,8 +423,17 @@ export async function callLLM(
       return { content: null, error: json.error.message }
     }
 
-    const content = json.choices?.[0]?.message?.content ?? null
-    return { content, error: null }
+    const message = json.choices?.[0]?.message
+    const content = message?.content ?? null
+    const toolCalls = message?.tool_calls
+      ?.filter((call) => call.function?.name)
+      .map((call) => ({
+        id: call.id,
+        name: call.function!.name!,
+        arguments: call.function!.arguments ?? '{}',
+      }))
+
+    return { content, error: null, toolCalls: toolCalls?.length ? toolCalls : undefined }
   } catch (err) {
     return { content: null, error: err instanceof Error ? err.message : String(err) }
   }

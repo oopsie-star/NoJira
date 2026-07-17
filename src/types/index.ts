@@ -102,6 +102,7 @@ export interface Epic {
   color:                    string
   status:                   EpicStatus
   parent_portfolio_item_id: string | null
+  created_by:               string | null
   created_at:               string
 }
 

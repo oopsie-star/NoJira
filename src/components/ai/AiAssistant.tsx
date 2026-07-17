@@ -1,13 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
-import { Sparkles, X, Send } from 'lucide-react'
+import { Paperclip, Sparkles, X, Send } from 'lucide-react'
 import { callLLM, getLLMConfig } from '@/lib/ai'
+import {
+  executeTool,
+  findAiAgentProfile,
+  getFillTaskToolDefinition,
+  getSplitTasksToolDefinition,
+  getToolDefinitions,
+  mapWithConcurrency,
+  resolveAssigneeByRole,
+} from '@/lib/agentTools'
+import type { FillTaskResult, SplitTasksResult } from '@/lib/agentTools'
 import { useI18n } from '@/lib/i18n'
+import { useStore } from '@/store'
 import type { LLMMessage } from '@/lib/ai'
 
 interface AiAssistantProps {
   projectName?: string
-  currentPage?: string
-  taskTitle?: string
 }
 
 interface ChatMessage {
@@ -15,14 +24,34 @@ interface ChatMessage {
   content: string
 }
 
-export function AiAssistant({ projectName, currentPage, taskTitle }: AiAssistantProps) {
+interface PendingFile {
+  name: string
+  content: string
+}
+
+type FillOutcome = { data: FillTaskResult; block: string } | { error: string; block: string }
+
+const MAX_TOOL_ITERATIONS = 8
+const FILL_TASK_CONCURRENCY = 4
+
+export function AiAssistant({ projectName }: AiAssistantProps) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(false)
   const [hasKey, setHasKey] = useState(false)
+  const [pendingFile, setPendingFile] = useState<PendingFile | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const epics = useStore((state) => state.epics)
+  const sprints = useStore((state) => state.sprints)
+  const members = useStore((state) => state.members)
+  const createEpic = useStore((state) => state.createEpic)
+  const createSprint = useStore((state) => state.createSprint)
+  const createTask = useStore((state) => state.createTask)
+  const updateTask = useStore((state) => state.updateTask)
 
   useEffect(() => {
     const config = getLLMConfig()
@@ -35,31 +64,235 @@ export function AiAssistant({ projectName, currentPage, taskTitle }: AiAssistant
     }
   }, [messages, open])
 
-  async function handleSend() {
-    const text = input.trim()
-    if (!text || loading) return
-    setInput('')
+  function handleAttachClick() {
+    fileInputRef.current?.click()
+  }
 
-    const userMsg: ChatMessage = { role: 'user', content: text }
-    setMessages((prev) => [...prev, userMsg])
+  async function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    const content = await file.text()
+    setPendingFile({ name: file.name, content })
+  }
+
+  async function handleImportFile(file: PendingFile) {
+    setMessages((prev) => [...prev, { role: 'user', content: `📎 ${file.name}` }])
     setLoading(true)
 
-    const contextParts = [`Project: ${projectName ?? 'Unknown'}`, `Page: ${currentPage ?? 'Unknown'}`]
-    if (taskTitle) contextParts.push(`Task: ${taskTitle}`)
+    const aiAgentProfileId = findAiAgentProfile(members)?.id ?? null
+    const epicsList = epics.map((epic) => `${epic.id}: ${epic.title}`).join('; ') || 'none yet'
+    const membersList = members.map((member) => `${member.full_name || member.email} — ${member.department || 'no department set'}`).join('; ') || 'none'
 
-    const systemPrompt = `You are Qira AI, an intelligent assistant for project management. You help teams manage tasks, sprints, and projects efficiently. Current context: ${contextParts.join(', ')}. Respond concisely and helpfully.`
+    function say(content: string) {
+      setMessages((prev) => [...prev, { role: 'assistant', content }])
+    }
 
-    const llmMessages: LLMMessage[] = [
+    let split: SplitTasksResult | null = null
+
+    if (file.name.toLowerCase().endsWith('.json')) {
+      try {
+        const parsed = JSON.parse(file.content) as unknown
+        const items = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray((parsed as { tasks?: unknown })?.tasks)
+            ? (parsed as { tasks: unknown[] }).tasks
+            : null
+        if (!items) throw new Error('expected a JSON array of tasks (or a { tasks: [...] } object)')
+
+        const maybeEpic = (parsed as { epic?: SplitTasksResult['epic'] })?.epic
+        const maybeSprints = (parsed as { sprints?: SplitTasksResult['sprints'] })?.sprints
+        split = { epic: maybeEpic, sprints: maybeSprints, task_blocks: items.map((item) => JSON.stringify(item)) }
+      } catch (err) {
+        say(`Не смог разобрать JSON: ${err instanceof Error ? err.message : String(err)}`)
+        setLoading(false)
+        return
+      }
+    } else {
+      const splitPrompt = [
+        'You split a source document listing project tasks into individual task blocks — one verbatim block of text per task.',
+        'Do not interpret or summarize the content, just find the boundaries between tasks.',
+        `Existing epics: ${epicsList}.`,
+        'Reuse an existing epic by id if the document is clearly about one of them; otherwise propose a title for a new epic.',
+      ].join(' ')
+
+      const result = await callLLM(
+        [{ role: 'system', content: splitPrompt }, { role: 'user', content: file.content }],
+        { maxTokens: 4096, tools: [getSplitTasksToolDefinition()], toolChoice: { name: 'split_tasks' } },
+      )
+
+      const call = result.toolCalls?.[0]
+      if (result.error || !call) {
+        say(`Не удалось разобрать файл: ${result.error ?? 'модель не вернула структуру'}`)
+        setLoading(false)
+        return
+      }
+
+      try {
+        split = JSON.parse(call.arguments) as SplitTasksResult
+      } catch {
+        say('Не удалось разобрать ответ модели (битый JSON)')
+        setLoading(false)
+        return
+      }
+    }
+
+    if (!split.task_blocks?.length) {
+      say('В файле не нашлось ни одной задачи')
+      setLoading(false)
+      return
+    }
+
+    say(`Нашёл задач: ${split.task_blocks.length}. Начинаю создавать...`)
+
+    let epicId = split.epic?.existing_epic_id ?? null
+    if (!epicId) {
+      const createdEpic = await createEpic({
+        title: split.epic?.new_title || file.name,
+        description: split.epic?.new_description ?? '',
+        created_by: aiAgentProfileId ?? undefined,
+      })
+      if (!createdEpic) {
+        say('Не удалось создать эпик')
+        setLoading(false)
+        return
+      }
+      epicId = createdEpic.id
+      say(`Создан эпик "${createdEpic.title}" (${createdEpic.key})`)
+    }
+
+    const sprintIdByName = new Map<string, string>()
+    for (const sprint of split.sprints ?? []) {
+      const createdSprint = await createSprint({ epic_id: epicId, name: sprint.name, goal: sprint.goal ?? '' })
+      if (createdSprint) {
+        sprintIdByName.set(sprint.name, createdSprint.id)
+        say(`Создан спринт "${createdSprint.name}"`)
+      }
+    }
+
+    const fillPrompt = [
+      'Extract this single task\'s fields from the given block of text. Only use what is literally stated — never invent a priority, due date, or role.',
+      `Team members and their roles: ${membersList}.`,
+    ].join(' ')
+
+    const filled = await mapWithConcurrency<string, FillOutcome>(split.task_blocks, FILL_TASK_CONCURRENCY, async (block) => {
+      const result = await callLLM(
+        [{ role: 'system', content: fillPrompt }, { role: 'user', content: block }],
+        { maxTokens: 500, tools: [getFillTaskToolDefinition()], toolChoice: { name: 'fill_task' } },
+      )
+      const call = result.toolCalls?.[0]
+      if (result.error || !call) return { error: result.error ?? 'модель не вернула структуру', block }
+      try {
+        return { data: JSON.parse(call.arguments) as FillTaskResult, block }
+      } catch {
+        return { error: 'битый JSON от модели', block }
+      }
+    })
+
+    let createdCount = 0
+    let unassignedCount = 0
+
+    for (const outcome of filled) {
+      if ('error' in outcome) {
+        say(`Пропустил задачу — ${outcome.error}`)
+        continue
+      }
+
+      const { data } = outcome
+      const { id: assigneeId, note } = resolveAssigneeByRole(data.role, members)
+      if (!assigneeId) unassignedCount += 1
+      const sprintId = data.sprint_name ? sprintIdByName.get(data.sprint_name) ?? null : null
+
+      const task = await createTask({
+        epic_id: epicId,
+        sprint_id: sprintId,
+        title: data.title,
+        description: data.description ?? '',
+        priority: data.priority,
+        due_date: data.due_date ?? null,
+        assignee_id: assigneeId,
+        reporter_id: aiAgentProfileId ?? undefined,
+      })
+
+      if (task) {
+        createdCount += 1
+        say(`Создана задача "${task.title}" (${task.key})${note}`)
+      } else {
+        say(`Не удалось создать задачу "${data.title}"`)
+      }
+    }
+
+    say(`Готово: создано ${createdCount} из ${split.task_blocks.length} задач, ${unassignedCount} без исполнителя.`)
+    setLoading(false)
+  }
+
+  async function handleSend() {
+    if (loading) return
+
+    if (pendingFile) {
+      const file = pendingFile
+      setPendingFile(null)
+      setInput('')
+      await handleImportFile(file)
+      return
+    }
+
+    const text = input.trim()
+    if (!text) return
+    setInput('')
+
+    setMessages((prev) => [...prev, { role: 'user', content: text }])
+    setLoading(true)
+
+    const aiAgentProfileId = findAiAgentProfile(members)?.id ?? null
+    const epicsList = epics.map((epic) => `${epic.id}: ${epic.title}`).join('; ') || 'none yet'
+    const sprintsList = sprints.map((sprint) => `${sprint.id}: ${sprint.name} (epic ${sprint.epic_id ?? 'none'})`).join('; ') || 'none yet'
+    const membersList = members.map((member) => `${member.full_name || member.email} — ${member.department || 'no department set'}`).join('; ') || 'none'
+
+    const systemPrompt = [
+      'You are Qira AI, an agent that manages epics, sprints, and tasks for this project management app.',
+      'You have tools to create epics, sprints, and tasks, and to edit tasks — when the user asks you to create or fill in project items (e.g. from pasted text), actually call the tools, do not just describe what you would do.',
+      'Never invent a due date — only set one if the source text explicitly gives it. Never invent an assignee — only set a role if the source text or team roster supports it.',
+      `Project: ${projectName ?? 'Unknown'}.`,
+      `Existing epics: ${epicsList}.`,
+      `Existing sprints: ${sprintsList}.`,
+      `Team members and their roles: ${membersList}.`,
+      'Respond concisely.',
+    ].join(' ')
+
+    let wireMessages: LLMMessage[] = [
       { role: 'system', content: systemPrompt },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
       { role: 'user', content: text },
     ]
 
-    const result = await callLLM(llmMessages, { maxTokens: 512 })
-    setLoading(false)
+    const tools = getToolDefinitions()
+    const toolCtx = { members, aiAgentProfileId, createEpic, createSprint, createTask, updateTask }
 
-    const assistantContent = result.content ?? result.error ?? 'No response'
-    setMessages((prev) => [...prev, { role: 'assistant', content: assistantContent }])
+    for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
+      const result = await callLLM(wireMessages, { maxTokens: 800, tools })
+
+      if (result.error) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: result.error as string }])
+        break
+      }
+
+      if (result.toolCalls?.length) {
+        wireMessages = [...wireMessages, { role: 'assistant', content: result.content ?? '', toolCalls: result.toolCalls }]
+
+        for (const call of result.toolCalls) {
+          const toolContent = await executeTool(call.name, call.arguments, toolCtx)
+          setMessages((prev) => [...prev, { role: 'assistant', content: toolContent }])
+          wireMessages = [...wireMessages, { role: 'tool', content: toolContent, toolCallId: call.id }]
+        }
+        continue
+      }
+
+      setMessages((prev) => [...prev, { role: 'assistant', content: result.content ?? 'No response' }])
+      break
+    }
+
+    setLoading(false)
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -135,24 +368,55 @@ export function AiAssistant({ projectName, currentPage, taskTitle }: AiAssistant
           </div>
 
           {hasKey && (
-            <div className="border-t border-slate-100 px-3 py-2 flex gap-2 items-end">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={t('ai.placeholder')}
-                rows={1}
-                className="flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#6B9E6B] transition"
-                style={{ maxHeight: '100px' }}
-              />
-              <button
-                type="button"
-                onClick={() => void handleSend()}
-                disabled={!input.trim() || loading}
-                className="rounded-xl bg-[#6B9E6B] p-2.5 text-white transition hover:bg-[#5a8a5a] disabled:opacity-50"
-              >
-                <Send size={15} />
-              </button>
+            <div className="border-t border-slate-100 px-3 py-2">
+              {pendingFile && (
+                <div className="mb-2 flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                  <Paperclip size={12} />
+                  <span className="min-w-0 flex-1 truncate">{pendingFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPendingFile(null)}
+                    className="rounded-lg p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+              <div className="flex gap-2 items-end">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".md,.txt,.json"
+                  className="hidden"
+                  onChange={(e) => void handleFileSelected(e)}
+                />
+                <button
+                  type="button"
+                  onClick={handleAttachClick}
+                  disabled={loading}
+                  title={t('ai.attach')}
+                  className="rounded-xl border border-slate-200 p-2.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                >
+                  <Paperclip size={15} />
+                </button>
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={t('ai.placeholder')}
+                  rows={1}
+                  className="flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#6B9E6B] transition"
+                  style={{ maxHeight: '100px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleSend()}
+                  disabled={(!input.trim() && !pendingFile) || loading}
+                  className="rounded-xl bg-[#6B9E6B] p-2.5 text-white transition hover:bg-[#5a8a5a] disabled:opacity-50"
+                >
+                  <Send size={15} />
+                </button>
+              </div>
             </div>
           )}
         </div>
