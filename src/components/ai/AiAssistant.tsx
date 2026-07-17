@@ -198,7 +198,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
 
     const sprintIdByName = new Map<string, string>()
     for (const sprint of sprintsMeta ?? []) {
-      const createdSprint = await createSprint({ epic_id: epicId, name: sprint.name, goal: sprint.goal ?? '' })
+      const createdSprint = await createSprint({ epic_id: epicId, name: sprint.name, goal: sprint.goal ?? '', created_by: aiAgentProfileId ?? undefined })
       if (createdSprint) {
         sprintIdByName.set(sprint.name, createdSprint.id)
         say(`Создан спринт "${createdSprint.name}"`)

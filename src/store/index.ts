@@ -1526,11 +1526,13 @@ export const useStore = create<AppState>((set, get) => {
 
   createSprint: async (fields) => {
     const activeProjectId = get().activeProjectId
+    const profile = get().profile
     if (!activeProjectId) return null
 
     const normalizedFields = {
       ...fields,
       epic_id: fields.epic_id ?? null,
+      created_by: fields.created_by ?? profile?.id ?? null,
     }
 
     const { data, error } = await supabase

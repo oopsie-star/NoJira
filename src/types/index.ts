@@ -117,6 +117,7 @@ export interface Sprint {
   status:     SprintStatus
   start_date: string | null
   end_date:   string | null
+  created_by: string | null
   created_at: string
 }
 

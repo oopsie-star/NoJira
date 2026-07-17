@@ -17,6 +17,16 @@ export function canOverrideDelete(role: ProjectRole | null) {
   return Boolean(role && OVERRIDE_DELETE_ROLES.includes(role))
 }
 
+/** Renaming an epic/sprint/task: project admins, or whoever authored it. */
+export function canEditAuthoredContent(
+  role: ProjectRole | null,
+  currentUserId: string | null | undefined,
+  authorId: string | null | undefined
+) {
+  if (canManageProject(role)) return true
+  return Boolean(currentUserId && authorId && currentUserId === authorId)
+}
+
 export function canDeleteAuthoredContent(
   role: ProjectRole | null,
   currentUserId: string | null | undefined,

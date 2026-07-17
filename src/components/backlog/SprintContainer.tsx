@@ -8,7 +8,7 @@ import { CreateTaskModal } from '@/components/task/CreateTaskModal'
 import { useAuthContext } from '@/auth/AuthContext'
 import { formatDate } from '@/lib/format'
 import { useI18n } from '@/lib/i18n'
-import { canManageProject } from '@/lib/permissions'
+import { canEditAuthoredContent, canManageProject } from '@/lib/permissions'
 import { useStore } from '@/store'
 import type { Sprint, Task, TaskStatus } from '@/types'
 
@@ -40,6 +40,7 @@ export function SprintContainer({
   const epics = useStore((state) => state.epics)
   const startSprint = useStore((state) => state.startSprint)
   const completeSprint = useStore((state) => state.completeSprint)
+  const updateSprint = useStore((state) => state.updateSprint)
   const deleteSprint = useStore((state) => state.deleteSprint)
   const requestEntityDeletion = useStore((state) => state.requestEntityDeletion)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
@@ -55,6 +56,7 @@ export function SprintContainer({
   const statusCounts = useMemo(() => getStatusCounts(tasks), [tasks])
   const canManageSprint = canManageProject(activeProjectRole)
   const isSuperAdmin = profile?.role === 'admin'
+  const canEditName = canEditAuthoredContent(activeProjectRole, profile?.id, sprint.created_by)
 
   const dateLabel = useMemo(() => {
     if (!sprint.start_date && !sprint.end_date) return null
@@ -121,7 +123,20 @@ export function SprintContainer({
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-base">{sprint.name}</h2>
+                {canEditName ? (
+                  <input
+                    key={sprint.name}
+                    defaultValue={sprint.name}
+                    onBlur={(event) => {
+                      const value = event.target.value.trim()
+                      if (value && value !== sprint.name) void updateSprint(sprint.id, { name: value })
+                      else event.target.value = sprint.name
+                    }}
+                    className="min-w-0 flex-1 truncate rounded-md border border-transparent bg-transparent px-1 -mx-1 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-200 focus:bg-white sm:text-base"
+                  />
+                ) : (
+                  <h2 className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-base">{sprint.name}</h2>
+                )}
                 <span className={[
                   'rounded-full px-2 py-0.5 text-[11px] font-semibold',
                   sprint.status === 'active'

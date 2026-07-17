@@ -191,6 +191,7 @@ export async function executeTool(name: string, argsJson: string, ctx: AgentTool
       epic_id: String(args.epic_id ?? ''),
       name: String(args.name ?? ''),
       goal: typeof args.goal === 'string' ? args.goal : '',
+      created_by: ctx.aiAgentProfileId ?? undefined,
     })
     if (!sprint) return 'Error: failed to create sprint'
     return `Created sprint "${sprint.name}" — id=${sprint.id}`

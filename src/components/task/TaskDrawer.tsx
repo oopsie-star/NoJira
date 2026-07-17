@@ -13,7 +13,7 @@ import { useAuthContext } from '@/auth/AuthContext'
 import { useI18n } from '@/lib/i18n'
 import { formatDate, formatPerson, parseLabels } from '@/lib/format'
 import { calculateAverageCycleTimeHours, formatCycleTime, formatStatusAge } from '@/lib/ops'
-import { canDeleteAuthoredContent, canManageProject } from '@/lib/permissions'
+import { canDeleteAuthoredContent, canEditAuthoredContent, canManageProject } from '@/lib/permissions'
 import { activeMentionQuery, extractMentionedIds, mentionLabel } from '@/lib/mentions'
 import { MarkdownRenderer } from '@/lib/markdown'
 import { MarkdownEditor } from '@/components/common/MarkdownEditor'
@@ -321,6 +321,7 @@ export function TaskDrawer() {
   // Universal tasks (2+ assignees): only admins/managers may change the status.
   const canManage = profile?.role === 'admin' || canManageProject(activeProjectRole)
   const statusLocked = isUniversalTask(currentTask) && !canManage
+  const canEditTitle = canEditAuthoredContent(activeProjectRole, profile?.id, currentTask.reporter_id)
   const currentAssigneeIds = currentTask.assignee_ids?.length
     ? currentTask.assignee_ids
     : (currentTask.assignee_id
@@ -434,7 +435,8 @@ export function TaskDrawer() {
               value={draftTitle}
               onChange={(event) => setDraftTitle(event.target.value)}
               onBlur={persistDrafts}
-              className="w-full border-none px-0 text-2xl font-semibold leading-tight text-slate-900 outline-none sm:text-[30px]"
+              disabled={!canEditTitle}
+              className="w-full border-none px-0 text-2xl font-semibold leading-tight text-slate-900 outline-none disabled:cursor-default sm:text-[30px]"
             />
 
             <div className="mt-6 grid gap-6 sm:grid-cols-2">

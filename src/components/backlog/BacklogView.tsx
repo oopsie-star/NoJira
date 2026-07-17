@@ -12,6 +12,7 @@ import { useAuthContext } from '@/auth/AuthContext'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { isFreshTodo, isTaskBlocked } from '@/lib/ops'
+import { canEditAuthoredContent } from '@/lib/permissions'
 import { EPIC_COLORS, EPIC_STATUS_OPTIONS, isTerminalStatus, type Epic, type Profile, type Sprint, type Task, type TaskStatus } from '@/types'
 import { useStore } from '@/store'
 
@@ -343,6 +344,8 @@ interface TaskListSectionProps {
   description?: string
   /** When provided the description becomes editable inline (saved on blur). */
   onDescriptionSave?: (value: string) => void
+  /** When provided the title becomes editable inline (saved on blur). */
+  onTitleSave?: (value: string) => void
   itemCount: number
   statusCounts: Record<TaskStatus, number>
   tasks: Task[]
@@ -365,6 +368,7 @@ function TaskListSection({
   subtitle,
   description,
   onDescriptionSave,
+  onTitleSave,
   itemCount,
   statusCounts,
   tasks,
@@ -398,7 +402,20 @@ function TaskListSection({
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-base">{title}</h2>
+              {onTitleSave ? (
+                <input
+                  key={title}
+                  defaultValue={title}
+                  onBlur={(event) => {
+                    const value = event.target.value.trim()
+                    if (value && value !== title) onTitleSave(value)
+                    else event.target.value = title
+                  }}
+                  className="min-w-0 flex-1 truncate rounded-md border border-transparent bg-transparent px-1 -mx-1 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-200 focus:bg-white sm:text-base"
+                />
+              ) : (
+                <h2 className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-base">{title}</h2>
+              )}
               {titleBadges}
               <span className="text-xs text-slate-500">{t('backlog.issueCount', { count: itemCount })}</span>
             </div>
@@ -994,6 +1011,9 @@ export function BacklogView() {
                         description={epic.description}
                         onDescriptionSave={canCollaborate
                           ? (value) => void updateEpic(epic.id, { description: value })
+                          : undefined}
+                        onTitleSave={canEditAuthoredContent(activeProjectRole, profileId, epic.created_by)
+                          ? (value) => void updateEpic(epic.id, { title: value })
                           : undefined}
                         itemCount={directTasks.length}
                         statusCounts={statusCounts}
