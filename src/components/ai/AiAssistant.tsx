@@ -116,25 +116,45 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
         'Reuse an existing epic by id if the document is clearly about one of them; otherwise propose a title for a new epic.',
       ].join(' ')
 
-      const result = await callLLM(
-        [{ role: 'system', content: splitPrompt }, { role: 'user', content: file.content }],
-        { maxTokens: 4096, tools: [getSplitTasksToolDefinition()], toolChoice: { name: 'split_tasks' } },
-      )
+      // The model has to echo every task's full text back inside one JSON
+      // argument — on a large file that can exceed a small max-tokens budget
+      // and cut the JSON off mid-string. Retry once with a much bigger budget
+      // before giving up, and surface the actual failure instead of a bare
+      // "malformed JSON" (which reads as if the *uploaded* file were the
+      // problem, when it's the model's own response).
+      let splitError: string | null = null
+      for (const maxTokens of [8000, 16000]) {
+        const result = await callLLM(
+          [{ role: 'system', content: splitPrompt }, { role: 'user', content: file.content }],
+          { maxTokens, tools: [getSplitTasksToolDefinition()], toolChoice: { name: 'split_tasks' } },
+        )
 
-      const call = result.toolCalls?.[0]
-      if (result.error || !call) {
-        say(`Не удалось разобрать файл: ${result.error ?? 'модель не вернула структуру'}`)
+        const call = result.toolCalls?.[0]
+        if (result.error) { splitError = result.error; break }
+        if (!call) { splitError = 'модель не вернула структуру (не вызвала split_tasks)'; break }
+
+        try {
+          split = JSON.parse(call.arguments) as SplitTasksResult
+          splitError = null
+          break
+        } catch {
+          const truncated = result.finishReason === 'length'
+          splitError = `модель вернула повреждённый JSON${truncated ? ' — ответ обрезан лимитом токенов' : ''}. Конец ответа: ...${call.arguments.slice(-300)}`
+          if (!truncated) break // not a token-limit issue — retrying won't help
+        }
+      }
+
+      if (splitError) {
+        say(`Не удалось разобрать структуру задач (это про ответ модели, не про формат файла): ${splitError}`)
         setLoading(false)
         return
       }
+    }
 
-      try {
-        split = JSON.parse(call.arguments) as SplitTasksResult
-      } catch {
-        say('Не удалось разобрать ответ модели (битый JSON)')
-        setLoading(false)
-        return
-      }
+    if (!split) {
+      say('Не удалось разобрать структуру задач')
+      setLoading(false)
+      return
     }
 
     if (!split.task_blocks?.length) {
@@ -178,14 +198,15 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     const filled = await mapWithConcurrency<string, FillOutcome>(split.task_blocks, FILL_TASK_CONCURRENCY, async (block) => {
       const result = await callLLM(
         [{ role: 'system', content: fillPrompt }, { role: 'user', content: block }],
-        { maxTokens: 500, tools: [getFillTaskToolDefinition()], toolChoice: { name: 'fill_task' } },
+        { maxTokens: 800, tools: [getFillTaskToolDefinition()], toolChoice: { name: 'fill_task' } },
       )
       const call = result.toolCalls?.[0]
       if (result.error || !call) return { error: result.error ?? 'модель не вернула структуру', block }
       try {
         return { data: JSON.parse(call.arguments) as FillTaskResult, block }
       } catch {
-        return { error: 'битый JSON от модели', block }
+        const truncated = result.finishReason === 'length'
+        return { error: `битый JSON от модели${truncated ? ' (ответ обрезан лимитом токенов)' : ''}`, block }
       }
     })
 

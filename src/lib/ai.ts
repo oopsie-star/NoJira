@@ -33,6 +33,8 @@ export interface LLMResult {
   content: string | null
   error: string | null
   toolCalls?: LLMToolCall[]
+  /** 'length' means the response was cut off by the max-tokens limit — a likely cause of truncated/invalid tool-call JSON. */
+  finishReason?: string
 }
 
 export interface LLMModelOption {
@@ -411,6 +413,7 @@ export async function callLLM(
 
     const json = await response.json() as {
       choices?: Array<{
+        finish_reason?: string
         message?: {
           content?: string
           tool_calls?: Array<{ id: string; function?: { name?: string; arguments?: string } }>
@@ -423,7 +426,8 @@ export async function callLLM(
       return { content: null, error: json.error.message }
     }
 
-    const message = json.choices?.[0]?.message
+    const choice = json.choices?.[0]
+    const message = choice?.message
     const content = message?.content ?? null
     const toolCalls = message?.tool_calls
       ?.filter((call) => call.function?.name)
@@ -433,7 +437,7 @@ export async function callLLM(
         arguments: call.function!.arguments ?? '{}',
       }))
 
-    return { content, error: null, toolCalls: toolCalls?.length ? toolCalls : undefined }
+    return { content, error: null, toolCalls: toolCalls?.length ? toolCalls : undefined, finishReason: choice?.finish_reason }
   } catch (err) {
     return { content: null, error: err instanceof Error ? err.message : String(err) }
   }
