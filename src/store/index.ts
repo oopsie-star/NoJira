@@ -33,6 +33,27 @@ const TASK_SELECT = `
   reporter:profiles!tasks_reporter_id_fkey(*)
 `
 
+// PostgREST caps a plain select at its configured max-rows (1000 by default),
+// silently hiding rows past that. We page through with a range so there is no
+// task limit. The first page reveals the server's real cap (the range is clamped
+// to it), which we then use as the page size — robust whatever the cap is set to.
+const TASK_PAGE_SIZE = 1000
+
+async function fetchAllTasks(
+  makeQuery: () => { range: (from: number, to: number) => PromiseLike<{ data: Task[] | null }> },
+): Promise<Task[]> {
+  const all: Task[] = []
+  let page = TASK_PAGE_SIZE
+  for (let from = 0; ; from += page) {
+    const { data } = await makeQuery().range(from, from + page - 1)
+    const rows = (data ?? []) as Task[]
+    all.push(...rows)
+    if (from === 0 && rows.length > 0) page = rows.length
+    if (rows.length < page) break
+  }
+  return all
+}
+
 const PROJECT_ACCESS_SELECT = `
   id,
   project_id,
@@ -729,15 +750,17 @@ export const useStore = create<AppState>((set, get) => {
     }
 
     set({ loadingBoard: true })
-    const { data } = await supabase
-      .from('tasks')
-      .select(TASK_SELECT)
-      .eq('project_id', activeProjectId)
-      .eq('sprint_id', sprintId)
-      .order('status')
-      .order('position')
+    const tasks = await fetchAllTasks(() =>
+      supabase
+        .from('tasks')
+        .select(TASK_SELECT)
+        .eq('project_id', activeProjectId)
+        .eq('sprint_id', sprintId)
+        .order('status')
+        .order('position'),
+    )
 
-    set({ tasks: (data ?? []) as Task[], loadingBoard: false })
+    set({ tasks, loadingBoard: false })
   },
 
   fetchBacklog: async () => {
@@ -748,15 +771,17 @@ export const useStore = create<AppState>((set, get) => {
     }
 
     set({ loadingBacklog: true })
-    const { data } = await supabase
-      .from('tasks')
-      .select(TASK_SELECT)
-      .eq('project_id', activeProjectId)
-      .order('sprint_id', { ascending: true, nullsFirst: true })
-      .order('position')
-      .order('created_at')
+    const tasks = await fetchAllTasks(() =>
+      supabase
+        .from('tasks')
+        .select(TASK_SELECT)
+        .eq('project_id', activeProjectId)
+        .order('sprint_id', { ascending: true, nullsFirst: true })
+        .order('position')
+        .order('created_at'),
+    )
 
-    set({ tasks: (data ?? []) as Task[], loadingBacklog: false })
+    set({ tasks, loadingBacklog: false })
   },
 
   fetchSprints: async () => {
