@@ -16,6 +16,13 @@ export function getFilename(path: string): string {
   return name.replace(UPLOAD_TIMESTAMP_PREFIX_RE, '')
 }
 
+// Only strip characters that are actually unsafe in a storage path (slashes,
+// control chars, etc). \p{L}/\p{N} (with the `u` flag) match letters/digits in
+// any script, so Cyrillic and other non-Latin names survive untouched.
+export function safeFilename(name: string): string {
+  return name.replace(/[^\p{L}\p{N}_.\-() ]+/gu, '_')
+}
+
 export function storageBucket(path: string): 'attachments' | 'task-attachments' {
   const parts = path.split('/')
   if (parts.length >= 4 && UUID_RE.test(parts[2])) return 'attachments'

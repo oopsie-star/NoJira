@@ -3,7 +3,7 @@ import { FileText, Loader2, Upload, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
-import { getFilename, isImage, storageBucket } from '@/lib/attachments'
+import { getFilename, isImage, safeFilename, storageBucket } from '@/lib/attachments'
 import { AttachmentPreview } from './AttachmentPreview'
 
 interface SignedAttachment {
@@ -24,10 +24,6 @@ interface AttachmentUploadProps {
 function getAttachmentAuthorId(path: string) {
   const parts = path.split('/')
   return parts[parts.length - 2] ?? null
-}
-
-function safeFilename(name: string) {
-  return name.replace(/[^\w.\-() ]+/g, '_')
 }
 
 export function AttachmentUpload({

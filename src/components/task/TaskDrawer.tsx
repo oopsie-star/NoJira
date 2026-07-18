@@ -13,6 +13,7 @@ import { useAuthContext } from '@/auth/AuthContext'
 import { useI18n } from '@/lib/i18n'
 import { formatDate, formatPerson, parseLabels } from '@/lib/format'
 import { calculateAverageCycleTimeHours, formatCycleTime, formatStatusAge } from '@/lib/ops'
+import { safeFilename } from '@/lib/attachments'
 import { canDeleteAuthoredContent, canEditAuthoredContent, canManageProject } from '@/lib/permissions'
 import { activeMentionQuery, extractMentionedIds, mentionLabel } from '@/lib/mentions'
 import { MarkdownRenderer } from '@/lib/markdown'
@@ -245,7 +246,7 @@ export function TaskDrawer() {
     try {
       const uploadedPaths: string[] = []
       for (const file of commentFiles) {
-        const safeName = file.name.replace(/[^\w.\-() ]+/g, '_')
+        const safeName = safeFilename(file.name)
         const path = `${currentTask.project_id}/${currentTask.id}/comments/${profile?.id ?? 'unknown'}/${Date.now()}-${safeName}`
         const { error } = await supabase.storage.from('attachments').upload(path, file, { upsert: false })
         if (!error) uploadedPaths.push(path)
