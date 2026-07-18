@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Download, ExternalLink, Loader2, X } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
-import { getFilename, officeViewerUrl, previewKind } from '@/lib/attachments'
+import { displayFilename, officeViewerUrl, previewKind } from '@/lib/attachments'
 import { MarkdownRenderer } from '@/lib/markdown'
+import { useStore } from '@/store'
 
 interface AttachmentPreviewProps {
   path: string
@@ -17,7 +18,8 @@ function Centered({ children }: { children: ReactNode }) {
 export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPreviewProps) {
   const { t } = useI18n()
   const kind = previewKind(path)
-  const filename = getFilename(path)
+  const originalName = useStore((state) => state.attachmentNotes[path]?.original_name)
+  const filename = displayFilename(path, originalName)
   const [text, setText] = useState<string | null>(null)
   const [textLoading, setTextLoading] = useState(false)
 

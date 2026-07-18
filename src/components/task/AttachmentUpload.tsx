@@ -3,7 +3,7 @@ import { FileText, Loader2, Upload, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
-import { getFilename, isImage, safeFilename, storageBucket } from '@/lib/attachments'
+import { displayFilename, isImage, safeFilename, storageBucket } from '@/lib/attachments'
 import { useStore } from '@/store'
 import { AttachmentPreview } from './AttachmentPreview'
 
@@ -38,6 +38,7 @@ export function AttachmentUpload({
   const { t } = useI18n()
   const attachmentNotes = useStore((state) => state.attachmentNotes)
   const updateAttachmentNote = useStore((state) => state.updateAttachmentNote)
+  const recordAttachmentOriginalName = useStore((state) => state.recordAttachmentOriginalName)
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -89,6 +90,7 @@ export function AttachmentUpload({
 
         if (error) throw error
         newPaths.push(nextPath)
+        void recordAttachmentOriginalName(pathPrefix.split('/')[0], nextPath, file.name)
       }
 
       if (newPaths.length) {
@@ -138,7 +140,9 @@ export function AttachmentUpload({
             <div key={path} className="group rounded-xl border border-slate-200 bg-slate-50 p-2">
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-900">{getFilename(path)}</p>
+                  <p className="truncate text-sm font-medium text-slate-900">
+                    {displayFilename(path, attachmentNotes[path]?.original_name)}
+                  </p>
                 </div>
                 {canDelete(getAttachmentAuthorId(path)) && (
                   <button
@@ -156,7 +160,7 @@ export function AttachmentUpload({
                   <button type="button" onClick={() => setPreviewPath(path)} className="block shrink-0">
                     <img
                       src={signedUrl}
-                      alt={getFilename(path)}
+                      alt={displayFilename(path, attachmentNotes[path]?.original_name)}
                       className="h-20 w-20 rounded-xl border border-slate-200 object-cover"
                     />
                   </button>

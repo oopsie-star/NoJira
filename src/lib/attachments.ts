@@ -16,11 +16,21 @@ export function getFilename(path: string): string {
   return name.replace(UPLOAD_TIMESTAMP_PREFIX_RE, '')
 }
 
-// Only strip characters that are actually unsafe in a storage path (slashes,
-// control chars, etc). \p{L}/\p{N} (with the `u` flag) match letters/digits in
-// any script, so Cyrillic and other non-Latin names survive untouched.
+/**
+ * Show the original filename a user uploaded, if we recorded one (see
+ * attachment_notes.original_name) — the storage key itself has to be ASCII-safe
+ * (Supabase Storage rejects Cyrillic and most non-Latin keys with "Invalid key"),
+ * so anything outside plain ASCII never survives in the path alone.
+ */
+export function displayFilename(path: string, originalName?: string | null): string {
+  return originalName || getFilename(path)
+}
+
+// Supabase Storage rejects object keys containing most non-ASCII characters
+// ("Invalid key"), so the upload path must stay plain ASCII — the true name (any
+// script) is recorded separately in attachment_notes.original_name for display.
 export function safeFilename(name: string): string {
-  return name.replace(/[^\p{L}\p{N}_.\-() ]+/gu, '_')
+  return name.replace(/[^\w.\-() ]+/g, '_')
 }
 
 export function storageBucket(path: string): 'attachments' | 'task-attachments' {

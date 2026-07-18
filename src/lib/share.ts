@@ -17,12 +17,15 @@ export function buildTaskShareUrl(projectKey: string, taskId: string): string {
 }
 
 /** Long-lived signed URLs (name + url) for a task's attachment storage paths. */
-export async function signedAttachmentLinks(paths: string[]): Promise<{ name: string; url: string }[]> {
+export async function signedAttachmentLinks(
+  paths: string[],
+  nameFor: (path: string) => string = getFilename,
+): Promise<{ name: string; url: string }[]> {
   if (!paths.length) return []
   const results = await Promise.all(
     paths.map(async (path) => {
       const { data } = await supabase.storage.from(storageBucket(path)).createSignedUrl(path, SHARE_EXPIRY_SECONDS)
-      return data?.signedUrl ? { name: getFilename(path), url: data.signedUrl } : null
+      return data?.signedUrl ? { name: nameFor(path), url: data.signedUrl } : null
     }),
   )
   return results.filter((entry): entry is { name: string; url: string } => Boolean(entry))

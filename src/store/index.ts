@@ -447,6 +447,7 @@ interface AppState {
   fetchTaskLinks: () => Promise<void>
   fetchAttachmentNotes: () => Promise<void>
   updateAttachmentNote: (path: string, body: string) => Promise<void>
+  recordAttachmentOriginalName: (projectId: string, path: string, originalName: string) => Promise<void>
   fetchNotifications: () => Promise<void>
   fetchTaskContext: (taskId: string) => Promise<void>
   clearTaskContext: () => void
@@ -1001,7 +1002,10 @@ export const useStore = create<AppState>((set, get) => {
     if (!profile || !activeProjectId) return
 
     const trimmed = body.trim()
-    if (!trimmed) {
+    // A row also carries original_name (see recordAttachmentOriginalName), so
+    // clearing the caption only deletes the row outright when there's no name
+    // to preserve — otherwise just blank out the body.
+    if (!trimmed && !get().attachmentNotes[path]?.original_name) {
       set((state) => {
         const next = { ...state.attachmentNotes }
         delete next[path]
@@ -1023,6 +1027,17 @@ export const useStore = create<AppState>((set, get) => {
     if (error) throw error
     if (!data) return
 
+    set((state) => ({ attachmentNotes: { ...state.attachmentNotes, [path]: data as AttachmentNote } }))
+  },
+
+  recordAttachmentOriginalName: async (projectId, path, originalName) => {
+    const { data, error } = await supabase
+      .from('attachment_notes')
+      .upsert({ project_id: projectId, path, original_name: originalName }, { onConflict: 'project_id,path' })
+      .select('*')
+      .single()
+
+    if (error || !data) return
     set((state) => ({ attachmentNotes: { ...state.attachmentNotes, [path]: data as AttachmentNote } }))
   },
 

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Copy, Send, Share2 } from 'lucide-react'
-import { getFilename } from '@/lib/attachments'
+import { displayFilename } from '@/lib/attachments'
 import { useI18n } from '@/lib/i18n'
 import { buildTaskShareUrl, shareHref, signedAttachmentLinks, taskShareBase, withAttachmentNames, withAttachments, type ShareTarget } from '@/lib/share'
+import { useStore } from '@/store'
 import type { Task } from '@/types'
 
 const TARGETS: { id: ShareTarget; labelKey: string; dot: string }[] = [
@@ -18,13 +19,16 @@ export function ShareTaskMenu({ task, projectKey }: { task: Task; projectKey: st
   const [clipboardBlock, setClipboardBlock] = useState('')
   const [copied, setCopied] = useState(false)
 
+  const attachmentNotes = useStore((state) => state.attachmentNotes)
+  const nameForAttachment = (path: string) => displayFilename(path, attachmentNotes[path]?.original_name)
+
   const taskUrl = projectKey ? buildTaskShareUrl(projectKey, task.id) : window.location.href
 
   // Messenger deep links must stay short — include attachment NAMES only, no giant
   // signed URLs (those break Telegram/Viber's URL length limit).
   const messengerBody = withAttachmentNames(
     taskShareBase(task.key, task.title, task.description, 400),
-    task.attachments.map(getFilename),
+    task.attachments.map(nameForAttachment),
     t('share.attachments'),
   )
 
@@ -44,10 +48,11 @@ export function ShareTaskMenu({ task, projectKey }: { task: Task; projectKey: st
   useEffect(() => {
     if (!open || task.attachments.length === 0) return
     let active = true
-    void signedAttachmentLinks(task.attachments).then((links) => {
+    void signedAttachmentLinks(task.attachments, nameForAttachment).then((links) => {
       if (active) setClipboardBlock(withAttachments('', links, t('share.attachments')))
     })
     return () => { active = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, task.attachments, t])
 
   function openTarget(target: ShareTarget) {
