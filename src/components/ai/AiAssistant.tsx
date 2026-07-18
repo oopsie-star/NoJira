@@ -370,8 +370,9 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
       userText
         ? `The user's instruction for this attachment: "${userText}". Follow it (e.g. whether to create a new epic or use an existing one).`
         : 'No extra instruction was given — create a new epic for this document (see the epic-creation rule above), do not add it to an existing one.',
-      'Go through the ENTIRE document from top to bottom, task by task, and call create_task once per task — preserve each task\'s id/title/content as written, do not summarize.',
-      'Do not stop partway to ask for confirmation — keep calling the tools until you have processed the whole document, then give a brief final summary of how many tasks you created.',
+      'If you are adding these tasks to an EXISTING epic (not creating a brand new one), call list_tasks for that epic first and compare titles — skip creating any task whose title already matches one that\'s already there, so re-running an import doesn\'t create duplicates. Skip this check when creating a brand new epic, since nothing exists in it yet.',
+      'Go through the ENTIRE document from top to bottom, task by task, and call create_task once per task (skipping ones already present, per the duplicate check above) — preserve each task\'s id/title/content as written, do not summarize.',
+      'Do not stop partway to ask for confirmation — keep calling the tools until you have processed the whole document, then give a brief final summary of how many tasks you created and how many you skipped as duplicates.',
     ].join(' ')
 
     await runAgentLoop(file.content, [], extraInstruction, IMPORT_MAX_ITERATIONS)
