@@ -27,6 +27,29 @@ export function isFreshTodo(
   return getStatusAgeDays(task) < FRESH_TODO_DAYS
 }
 
+/** Whether `task` has a subtask created within the last week, regardless of either's status. */
+export function hasFreshSubtask(
+  taskId: string,
+  tasks: Pick<Task, 'parent_task_id' | 'created_at'>[],
+): boolean {
+  return tasks.some((candidate) => (
+    candidate.parent_task_id === taskId
+    && (Date.now() - toTimestamp(candidate.created_at)) / DAY_MS < FRESH_TODO_DAYS
+  ))
+}
+
+/**
+ * A task counts as "fresh" — pinned to the top and highlighted — either on its
+ * own terms (isFreshTodo) or because it just gained a new subtask, so the
+ * parent surfaces along with the work added under it.
+ */
+export function isFreshTask(
+  task: Pick<Task, 'id' | 'status' | 'status_changed_at' | 'updated_at' | 'created_at'>,
+  tasks: Pick<Task, 'parent_task_id' | 'created_at'>[],
+): boolean {
+  return isFreshTodo(task) || hasFreshSubtask(task.id, tasks)
+}
+
 export function formatStatusAge(locale: Locale, task: Pick<Task, 'status_changed_at' | 'updated_at' | 'created_at'>) {
   const days = getStatusAgeDays(task)
   if (days === 0) return locale === 'ru' ? 'сегодня' : 'today'

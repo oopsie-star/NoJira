@@ -5,7 +5,7 @@ import { PriorityBadge, StatusBadge } from '@/components/common/IssueBadges'
 import { AssigneeAvatars } from '@/components/common/AssigneeAvatars'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
-import { isFreshTodo, isTaskBlocked } from '@/lib/ops'
+import { isFreshTask, isTaskBlocked } from '@/lib/ops'
 import { useStore } from '@/store'
 import { isUniversalTask, type IssueType, type Task } from '@/types'
 
@@ -39,8 +39,9 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
   const toggleTaskSelection = useStore((state) => state.toggleTaskSelection)
   const members = useStore((state) => state.members)
   const universal = isUniversalTask(task)
-  // Newly added "To do" work stays highlighted (and pinned to the top) for a week.
-  const fresh = isFreshTodo(task)
+  // Newly added "To do" work stays highlighted (and pinned to the top) for a week;
+  // a task also counts as fresh while it has a subtask created within that window.
+  const fresh = isFreshTask(task, tasks)
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
   const isOpen = task.id === openTaskId
   const isSelected = selectedTaskIds.includes(task.id)

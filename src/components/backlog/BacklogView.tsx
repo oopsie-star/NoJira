@@ -14,7 +14,7 @@ import { MarkdownRenderer } from '@/lib/markdown'
 import { useAuthContext } from '@/auth/AuthContext'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
-import { isFreshTodo, isTaskBlocked } from '@/lib/ops'
+import { isFreshTask, isTaskBlocked } from '@/lib/ops'
 import { canDeleteAttachment, canEditAuthoredContent } from '@/lib/permissions'
 import { EPIC_COLORS, EPIC_STATUS_OPTIONS, isTerminalStatus, type Epic, type Profile, type Sprint, type Task, type TaskStatus } from '@/types'
 import { useStore } from '@/store'
@@ -641,8 +641,8 @@ export function BacklogView() {
       // Freshly added "To do" work floats to the top of every list for a week,
       // newest first; everything else keeps its manual order.
       .sort((left, right) => {
-        const leftFresh = isFreshTodo(left)
-        const rightFresh = isFreshTodo(right)
+        const leftFresh = isFreshTask(left, tasks)
+        const rightFresh = isFreshTask(right, tasks)
         if (leftFresh !== rightFresh) return leftFresh ? -1 : 1
         if (leftFresh) return right.status_changed_at.localeCompare(left.status_changed_at)
         return left.position - right.position
@@ -702,11 +702,11 @@ export function BacklogView() {
       .filter(({ sprint }) => !sprint.epic_id)
       // A sprint holding freshly added work rises to the top (stable otherwise).
       .sort((left, right) => {
-        const leftFresh = left.tasks.some(isFreshTodo)
-        const rightFresh = right.tasks.some(isFreshTodo)
+        const leftFresh = left.tasks.some((t) => isFreshTask(t, tasks))
+        const rightFresh = right.tasks.some((t) => isFreshTask(t, tasks))
         return leftFresh === rightFresh ? 0 : leftFresh ? -1 : 1
       }),
-    [allSprintSections]
+    [allSprintSections, tasks]
   )
 
   // Completed sprints are hidden (above); their tasks fall back into the Backlog
@@ -762,12 +762,13 @@ export function BacklogView() {
       // rises to the top, carrying the new task into view.
       .sort((left, right) => {
         const fresh = (section: typeof left) =>
-          section.directTasks.some(isFreshTodo) || section.epicSprints.some(({ tasks }) => tasks.some(isFreshTodo))
+          section.directTasks.some((t) => isFreshTask(t, tasks))
+          || section.epicSprints.some(({ tasks: sprintTasks }) => sprintTasks.some((t) => isFreshTask(t, tasks)))
         const leftFresh = fresh(left)
         const rightFresh = fresh(right)
         return leftFresh === rightFresh ? 0 : leftFresh ? -1 : 1
       }),
-    [hasActiveFilters, rootTasks, sortedEpics, allSprintSections, completedSprintIds]
+    [hasActiveFilters, rootTasks, sortedEpics, allSprintSections, completedSprintIds, tasks]
   )
 
   const firstExpandedSectionKey = useMemo(() => {
