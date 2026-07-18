@@ -37,6 +37,13 @@ curl -s "$SUPA_URL/rest/v1/<table>?select=<new_column>&limit=1" \
 ```
 An empty `[]` means the column exists but RLS hid the rows (expected for anon) — that's success. A `column ... does not exist` error means the migration didn't land.
 
+**If `git status` shows untracked `supabase/migrations/*.sql` files:** don't assume they're pending/unapplied. Check first:
+
+```bash
+npx supabase migration list --linked
+```
+Every entry with `local` == `remote` is already applied to the live DB — the file just never got `git add`ed after someone ran `db push` locally. That's a harmless git-history gap (safe and worth fixing with a plain commit — it doesn't re-run anything), not a migration you need to push. Only a version present in `local` but missing from `remote` is actually unapplied.
+
 **Reading real data for debugging** (bypasses RLS entirely, no service_role key needed — the CLI's own authenticated connection does it):
 
 ```bash
