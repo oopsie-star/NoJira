@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { Bold, Code, Eye, Italic, Link2, List, ListChecks, ListOrdered, Loader2, Pencil, Quote, Sparkles, Strikethrough } from 'lucide-react'
+import { Bold, Code, Italic, Link2, List, ListChecks, ListOrdered, Loader2, Pencil, Quote, Sparkles, Strikethrough } from 'lucide-react'
 import { MarkdownRenderer } from '@/lib/markdown'
 import { useI18n } from '@/lib/i18n'
 import type { Profile } from '@/types'
@@ -19,9 +19,21 @@ interface MarkdownEditorProps {
 export function MarkdownEditor({ value, onChange, onBlur, placeholder, rows = 8, members, onAiSuggest }: MarkdownEditorProps) {
   const { t } = useI18n()
   const ref = useRef<HTMLTextAreaElement>(null)
-  const [preview, setPreview] = useState(false)
+  // Rendered by default (so markdown from imports shows as formatted text,
+  // not raw syntax) — editing is an explicit action, not the default state.
+  const [editing, setEditing] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
+
+  function startEditing() {
+    setEditing(true)
+    requestAnimationFrame(() => ref.current?.focus())
+  }
+
+  function handleBlur() {
+    setEditing(false)
+    onBlur?.()
+  }
 
   async function handleAiSuggest() {
     if (!onAiSuggest || aiLoading) return
@@ -95,10 +107,37 @@ export function MarkdownEditor({ value, onChange, onBlur, placeholder, rows = 8,
     { icon: <Link2 size={15} />, label: t('markdown.link'), run: insertLink },
   ]
 
+  if (!editing) {
+    return value.trim() ? (
+      <div className="group rounded-2xl border border-slate-200">
+        <div className="flex items-center justify-end border-b border-slate-100 px-1.5 py-1 opacity-0 transition group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={startEditing}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+          >
+            <Pencil size={13} /> {t('markdown.edit')}
+          </button>
+        </div>
+        <div className="px-4 py-2">
+          <MarkdownRenderer source={value} members={members} />
+        </div>
+      </div>
+    ) : (
+      <button
+        type="button"
+        onClick={startEditing}
+        className="w-full rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-left text-sm text-slate-400 transition hover:border-qira-pistachio hover:text-slate-500"
+      >
+        {placeholder || t('markdown.edit')}
+      </button>
+    )
+  }
+
   return (
     <div className="rounded-2xl border border-slate-200">
       <div className="flex items-center gap-0.5 border-b border-slate-200 px-1.5 py-1">
-        {!preview && tools.map((tool) => (
+        {tools.map((tool) => (
           <button
             key={tool.label}
             type="button"
@@ -109,7 +148,7 @@ export function MarkdownEditor({ value, onChange, onBlur, placeholder, rows = 8,
             {tool.icon}
           </button>
         ))}
-        {onAiSuggest && !preview && (
+        {onAiSuggest && (
           <button
             type="button"
             title={aiLoading ? t('ai.suggestGenerating') : t('ai.suggestDescription')}
@@ -120,33 +159,19 @@ export function MarkdownEditor({ value, onChange, onBlur, placeholder, rows = 8,
             {aiLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => setPreview((v) => !v)}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
-        >
-          {preview ? <><Pencil size={13} /> {t('markdown.edit')}</> : <><Eye size={13} /> {t('markdown.preview')}</>}
-        </button>
       </div>
 
-      {preview ? (
-        <div className="min-h-[6rem] px-4 py-2">
-          {value.trim()
-            ? <MarkdownRenderer source={value} members={members} />
-            : <p className="py-3 text-sm text-slate-400">{t('markdown.nothingToPreview')}</p>}
-        </div>
-      ) : (
-        <textarea
-          ref={ref}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onBlur}
-          onKeyDown={onKeyDown}
-          rows={rows}
-          placeholder={placeholder}
-          className={['w-full resize-y bg-transparent px-4 py-3 text-sm text-slate-900 outline-none', aiSuggestion ? '' : 'rounded-b-2xl'].join(' ')}
-        />
-      )}
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={onKeyDown}
+        rows={rows}
+        placeholder={placeholder}
+        autoFocus
+        className={['w-full resize-y bg-transparent px-4 py-3 text-sm text-slate-900 outline-none', aiSuggestion ? '' : 'rounded-b-2xl'].join(' ')}
+      />
 
       {aiSuggestion && (
         <div className="rounded-b-2xl border-t border-slate-200 bg-slate-50 px-4 py-3">
@@ -158,6 +183,7 @@ export function MarkdownEditor({ value, onChange, onBlur, placeholder, rows = 8,
           <div className="mt-3 flex gap-2">
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={acceptSuggestion}
               className="rounded-xl bg-[#6B9E6B] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#5a8a5a]"
             >
@@ -165,6 +191,7 @@ export function MarkdownEditor({ value, onChange, onBlur, placeholder, rows = 8,
             </button>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => setAiSuggestion(null)}
               className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white"
             >

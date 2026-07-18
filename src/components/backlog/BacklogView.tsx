@@ -9,6 +9,8 @@ import { SprintContainer } from './SprintContainer'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { AttachmentUpload } from '@/components/task/AttachmentUpload'
 import { CreateTaskModal } from '@/components/task/CreateTaskModal'
+import { MarkdownEditor } from '@/components/common/MarkdownEditor'
+import { MarkdownRenderer } from '@/lib/markdown'
 import { useAuthContext } from '@/auth/AuthContext'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
@@ -338,6 +340,23 @@ function FiltersSheet({
   )
 }
 
+// Mounted with key={description} by the caller so a fresh draft resets
+// whenever the underlying description changes externally (save / realtime).
+function EpicDescriptionField({ description, onSave }: { description: string; onSave: (value: string) => void }) {
+  const { t } = useI18n()
+  const [draft, setDraft] = useState(description)
+
+  return (
+    <MarkdownEditor
+      value={draft}
+      onChange={setDraft}
+      onBlur={() => { if (draft.trim() !== description.trim()) onSave(draft) }}
+      rows={3}
+      placeholder={t('task.descriptionPlaceholder')}
+    />
+  )
+}
+
 interface TaskListSectionProps {
   sectionKey: string
   title: string
@@ -441,22 +460,13 @@ function TaskListSection({
                   {!description?.trim() && <span className="font-normal text-slate-400">— {t('common.none')}</span>}
                 </button>
                 {descriptionOpen && (
-                  onDescriptionSave ? (
-                    <textarea
-                      key={description}
-                      defaultValue={description ?? ''}
-                      rows={3}
-                      placeholder={t('task.descriptionPlaceholder')}
-                      onBlur={(event) => {
-                        if (event.target.value !== (description ?? '')) onDescriptionSave(event.target.value)
-                      }}
-                      className="mt-1 w-full resize-y rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold leading-relaxed text-slate-500 outline-none transition focus:border-qira-pistachio"
-                    />
-                  ) : (
-                    <p className="mt-1 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-slate-500">
-                      {description}
-                    </p>
-                  )
+                  <div className="mt-1">
+                    {onDescriptionSave ? (
+                      <EpicDescriptionField key={description} description={description ?? ''} onSave={onDescriptionSave} />
+                    ) : (
+                      <MarkdownRenderer source={description ?? ''} className="text-xs text-slate-500" />
+                    )}
+                  </div>
                 )}
               </div>
             )}
