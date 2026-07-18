@@ -27,6 +27,16 @@ export function canEditAuthoredContent(
   return Boolean(currentUserId && authorId && currentUserId === authorId)
 }
 
+/** Deleting an epic/sprint attachment: project admin, or whoever uploaded it (matches the storage RLS policy). */
+export function canDeleteAttachment(
+  role: ProjectRole | null,
+  currentUserId: string | null | undefined,
+  authorId: string | null | undefined
+) {
+  if (canManageProject(role)) return true
+  return Boolean(currentUserId && authorId && currentUserId === authorId)
+}
+
 export function canDeleteAuthoredContent(
   role: ProjectRole | null,
   currentUserId: string | null | undefined,

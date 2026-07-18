@@ -3,11 +3,8 @@ import { FileText, Loader2, Upload, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
-import { canDeleteAuthoredContent } from '@/lib/permissions'
 import { getFilename, isImage, storageBucket } from '@/lib/attachments'
 import { AttachmentPreview } from './AttachmentPreview'
-import { useStore } from '@/store'
-import type { ProjectRole, TaskStatus } from '@/types'
 
 interface SignedAttachment {
   path: string
@@ -15,17 +12,18 @@ interface SignedAttachment {
 }
 
 interface AttachmentUploadProps {
-  projectId: string
-  taskId: string
-  taskStatus: TaskStatus
+  /** Storage path prefix this widget uploads under, e.g. `${projectId}/${taskId}` or `${projectId}/epics/${epicId}` — the author id and filename are appended. */
+  pathPrefix: string
   currentUserId: string | null
-  activeProjectRole: ProjectRole | null
   attachments: string[]
+  /** Whether the given uploader (path's author id) may delete a given attachment. */
+  canDelete: (authorId: string | null) => boolean
+  onAttachmentsChange: (paths: string[]) => Promise<void>
 }
 
 function getAttachmentAuthorId(path: string) {
-  const [, , authorId] = path.split('/')
-  return authorId ?? null
+  const parts = path.split('/')
+  return parts[parts.length - 2] ?? null
 }
 
 function safeFilename(name: string) {
@@ -33,15 +31,13 @@ function safeFilename(name: string) {
 }
 
 export function AttachmentUpload({
-  projectId,
-  taskId,
-  taskStatus,
+  pathPrefix,
   currentUserId,
-  activeProjectRole,
   attachments,
+  canDelete,
+  onAttachmentsChange,
 }: AttachmentUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const updateTask = useStore((state) => state.updateTask)
   const { t } = useI18n()
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
@@ -87,7 +83,7 @@ export function AttachmentUpload({
 
     try {
       for (const file of files) {
-        const nextPath = `${projectId}/${taskId}/${currentUserId ?? 'unknown'}/${Date.now()}-${safeFilename(file.name)}`
+        const nextPath = `${pathPrefix}/${currentUserId ?? 'unknown'}/${Date.now()}-${safeFilename(file.name)}`
         const { error } = await supabase.storage
           .from('attachments')
           .upload(nextPath, file, { upsert: false })
@@ -97,7 +93,7 @@ export function AttachmentUpload({
       }
 
       if (newPaths.length) {
-        await updateTask(taskId, { attachments: [...attachments, ...newPaths] })
+        await onAttachmentsChange([...attachments, ...newPaths])
       }
     } catch (err) {
       setError(getErrorMessage(err))
@@ -118,9 +114,9 @@ export function AttachmentUpload({
   }
 
   async function handleDelete(path: string) {
-    if (!canDeleteAuthoredContent(activeProjectRole, currentUserId, getAttachmentAuthorId(path), taskStatus)) return
+    if (!canDelete(getAttachmentAuthorId(path))) return
     await supabase.storage.from(storageBucket(path)).remove([path])
-    await updateTask(taskId, { attachments: attachments.filter((item) => item !== path) })
+    await onAttachmentsChange(attachments.filter((item) => item !== path))
   }
 
   return (
@@ -145,7 +141,7 @@ export function AttachmentUpload({
                   <p className="truncate text-sm font-medium text-slate-900">{getFilename(path)}</p>
                   <p className="text-xs text-slate-500">/{path.split('/').slice(-2).join('/')}</p>
                 </div>
-                {canDeleteAuthoredContent(activeProjectRole, currentUserId, getAttachmentAuthorId(path), taskStatus) && (
+                {canDelete(getAttachmentAuthorId(path)) && (
                   <button
                     type="button"
                     onClick={() => handleDelete(path)}

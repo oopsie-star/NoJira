@@ -4,11 +4,12 @@ import { Droppable } from '@hello-pangea/dnd'
 import { BacklogRow } from './BacklogRow'
 import { BacklogStatusSummary } from './BacklogStatusSummary'
 import { SectionMenu, type SectionMenuItem } from './SectionMenu'
+import { AttachmentUpload } from '@/components/task/AttachmentUpload'
 import { CreateTaskModal } from '@/components/task/CreateTaskModal'
 import { useAuthContext } from '@/auth/AuthContext'
 import { formatDate } from '@/lib/format'
 import { useI18n } from '@/lib/i18n'
-import { canEditAuthoredContent, canManageProject } from '@/lib/permissions'
+import { canDeleteAttachment, canEditAuthoredContent, canManageProject } from '@/lib/permissions'
 import { useStore } from '@/store'
 import type { Sprint, Task, TaskStatus } from '@/types'
 
@@ -45,6 +46,7 @@ export function SprintContainer({
   const requestEntityDeletion = useStore((state) => state.requestEntityDeletion)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [requestingDelete, setRequestingDelete] = useState(false)
   const [deletingSprint, setDeletingSprint] = useState(false)
@@ -164,6 +166,29 @@ export function SprintContainer({
                   {sprint.goal && <span className="line-clamp-1">{sprint.goal}</span>}
                 </div>
               )}
+
+              <div className="mt-1.5">
+                <button
+                  type="button"
+                  onClick={() => setAttachmentsOpen((value) => !value)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-700"
+                >
+                  {attachmentsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  {t('task.attachments')}
+                  {sprint.attachments.length > 0 && <span className="font-normal text-slate-400">({sprint.attachments.length})</span>}
+                </button>
+                {attachmentsOpen && (
+                  <div className="mt-2">
+                    <AttachmentUpload
+                      pathPrefix={`${sprint.project_id}/sprints/${sprint.id}`}
+                      currentUserId={profile?.id ?? null}
+                      attachments={sprint.attachments}
+                      canDelete={(authorId) => canDeleteAttachment(activeProjectRole, profile?.id ?? null, authorId)}
+                      onAttachmentsChange={(paths) => updateSprint(sprint.id, { attachments: paths })}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">

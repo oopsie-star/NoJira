@@ -550,12 +550,11 @@ export function TaskDrawer() {
 
             <div className="mt-6">
               <AttachmentUpload
-                projectId={currentTask.project_id}
-                taskId={currentTask.id}
-                taskStatus={currentTask.status}
+                pathPrefix={`${currentTask.project_id}/${currentTask.id}`}
                 currentUserId={profile?.id ?? null}
-                activeProjectRole={activeProjectRole}
                 attachments={currentTask.attachments}
+                canDelete={(authorId) => canDeleteAuthoredContent(activeProjectRole, profile?.id ?? null, authorId, currentTask.status)}
+                onAttachmentsChange={(paths) => updateTask(currentTask.id, { attachments: paths })}
               />
             </div>
 

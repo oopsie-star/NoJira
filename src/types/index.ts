@@ -103,6 +103,7 @@ export interface Epic {
   status:                   EpicStatus
   parent_portfolio_item_id: string | null
   created_by:               string | null
+  attachments:              string[]
   created_at:               string
 }
 
@@ -118,6 +119,7 @@ export interface Sprint {
   start_date: string | null
   end_date:   string | null
   created_by: string | null
+  attachments: string[]
   created_at: string
 }
 

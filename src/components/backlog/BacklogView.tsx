@@ -7,12 +7,13 @@ import { BulkActionBar } from './BulkActionBar'
 import { SectionMenu, type SectionMenuItem } from './SectionMenu'
 import { SprintContainer } from './SprintContainer'
 import { UserAvatar } from '@/components/common/UserAvatar'
+import { AttachmentUpload } from '@/components/task/AttachmentUpload'
 import { CreateTaskModal } from '@/components/task/CreateTaskModal'
 import { useAuthContext } from '@/auth/AuthContext'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { isFreshTodo, isTaskBlocked } from '@/lib/ops'
-import { canEditAuthoredContent } from '@/lib/permissions'
+import { canDeleteAttachment, canEditAuthoredContent } from '@/lib/permissions'
 import { EPIC_COLORS, EPIC_STATUS_OPTIONS, isTerminalStatus, type Epic, type Profile, type Sprint, type Task, type TaskStatus } from '@/types'
 import { useStore } from '@/store'
 
@@ -346,6 +347,9 @@ interface TaskListSectionProps {
   onDescriptionSave?: (value: string) => void
   /** When provided the title becomes editable inline (saved on blur). */
   onTitleSave?: (value: string) => void
+  /** Rendered inside a collapsible "Attachments" toggle when provided (e.g. an AttachmentUpload instance). */
+  attachmentsSlot?: ReactNode
+  attachmentsCount?: number
   itemCount: number
   statusCounts: Record<TaskStatus, number>
   tasks: Task[]
@@ -369,6 +373,8 @@ function TaskListSection({
   description,
   onDescriptionSave,
   onTitleSave,
+  attachmentsSlot,
+  attachmentsCount = 0,
   itemCount,
   statusCounts,
   tasks,
@@ -386,6 +392,7 @@ function TaskListSection({
   const { t } = useI18n()
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const [descriptionOpen, setDescriptionOpen] = useState(false)
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false)
 
   return (
     <section key={sectionKey} className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm">
@@ -451,6 +458,20 @@ function TaskListSection({
                     </p>
                   )
                 )}
+              </div>
+            )}
+            {attachmentsSlot && (
+              <div className="mt-1.5">
+                <button
+                  type="button"
+                  onClick={() => setAttachmentsOpen((value) => !value)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-700"
+                >
+                  {attachmentsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  {t('task.attachments')}
+                  {attachmentsCount > 0 && <span className="font-normal text-slate-400">({attachmentsCount})</span>}
+                </button>
+                {attachmentsOpen && <div className="mt-2">{attachmentsSlot}</div>}
               </div>
             )}
           </div>
@@ -1015,6 +1036,16 @@ export function BacklogView() {
                         onTitleSave={canEditAuthoredContent(activeProjectRole, profileId, epic.created_by)
                           ? (value) => void updateEpic(epic.id, { title: value })
                           : undefined}
+                        attachmentsCount={epic.attachments.length}
+                        attachmentsSlot={(
+                          <AttachmentUpload
+                            pathPrefix={`${epic.project_id}/epics/${epic.id}`}
+                            currentUserId={profileId}
+                            attachments={epic.attachments}
+                            canDelete={(authorId) => canDeleteAttachment(activeProjectRole, profileId, authorId)}
+                            onAttachmentsChange={(paths) => updateEpic(epic.id, { attachments: paths })}
+                          />
+                        )}
                         itemCount={directTasks.length}
                         statusCounts={statusCounts}
                         tasks={directTasks}
