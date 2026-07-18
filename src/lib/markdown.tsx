@@ -26,10 +26,13 @@ function renderText(text: string, members: Profile[] | undefined, keyPrefix: str
 function renderInline(text: string, members: Profile[] | undefined, keyPrefix: string): ReactNode[] {
   const nodes: ReactNode[] = []
   let last = 0
-  let match: RegExpExecArray | null
-  INLINE_RE.lastIndex = 0
   let i = 0
-  while ((match = INLINE_RE.exec(text)) !== null) {
+  // matchAll (not a shared exec()/lastIndex loop) — this function recurses
+  // into matched bold/italic/strike spans, and a single mutable INLINE_RE
+  // object shared across those recursive calls corrupts the outer loop's
+  // scan position (a failed exec() resets lastIndex to 0), which re-matched
+  // the same span forever — an infinite loop on any line with 2+ spans.
+  for (const match of text.matchAll(INLINE_RE)) {
     if (match.index > last) nodes.push(...renderText(text.slice(last, match.index), members, `${keyPrefix}-${i}pre`))
     const [, code, bold, strike, italicA, italicB, link, url] = match
     const key = `${keyPrefix}-${i}`
