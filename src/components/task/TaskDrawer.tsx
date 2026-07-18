@@ -439,6 +439,16 @@ export function TaskDrawer() {
               className="w-full border-none px-0 text-2xl font-semibold leading-tight text-slate-900 outline-none disabled:cursor-default sm:text-[30px]"
             />
 
+            <div className="mt-6">
+              <AttachmentUpload
+                pathPrefix={`${currentTask.project_id}/${currentTask.id}`}
+                currentUserId={profile?.id ?? null}
+                attachments={currentTask.attachments}
+                canDelete={(authorId) => canDeleteAuthoredContent(activeProjectRole, profile?.id ?? null, authorId, currentTask.status)}
+                onAttachmentsChange={(paths) => updateTask(currentTask.id, { attachments: paths })}
+              />
+            </div>
+
             <div className="mt-6 grid gap-6 sm:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="mb-2 text-sm font-semibold text-slate-900">{t('task.reporter')}</p>
@@ -546,16 +556,6 @@ export function TaskDrawer() {
                   ))
                 )}
               </div>
-            </div>
-
-            <div className="mt-6">
-              <AttachmentUpload
-                pathPrefix={`${currentTask.project_id}/${currentTask.id}`}
-                currentUserId={profile?.id ?? null}
-                attachments={currentTask.attachments}
-                canDelete={(authorId) => canDeleteAuthoredContent(activeProjectRole, profile?.id ?? null, authorId, currentTask.status)}
-                onAttachmentsChange={(paths) => updateTask(currentTask.id, { attachments: paths })}
-              />
             </div>
 
             <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

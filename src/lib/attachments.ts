@@ -7,8 +7,13 @@
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+// User uploads get a `${Date.now()}-` prefix (13 digits) to avoid name collisions
+// in storage — see AttachmentUpload.tsx / TaskDrawer.tsx. Strip it for display.
+const UPLOAD_TIMESTAMP_PREFIX_RE = /^\d{13}-/
+
 export function getFilename(path: string): string {
-  return path.split('/').pop() ?? path
+  const name = path.split('/').pop() ?? path
+  return name.replace(UPLOAD_TIMESTAMP_PREFIX_RE, '')
 }
 
 export function storageBucket(path: string): 'attachments' | 'task-attachments' {
