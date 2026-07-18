@@ -139,7 +139,6 @@ export function AttachmentUpload({
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-slate-900">{getFilename(path)}</p>
-                  <p className="text-xs text-slate-500">/{path.split('/').slice(-2).join('/')}</p>
                 </div>
                 {canDelete(getAttachmentAuthorId(path)) && (
                   <button
