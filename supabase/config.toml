@@ -1,0 +1,7 @@
+project_id = "ityvlpfupodfgdgecsun"
+
+# internal-heartbeat is authenticated by its own x-internal-heartbeat-secret
+# header, not a Supabase JWT — must stay off, or the platform-level JWT
+# gate 401s every request before the function code ever runs.
+[functions.internal-heartbeat]
+verify_jwt = false
