@@ -1,0 +1,35 @@
+name: Supabase Keepalive
+
+on:
+  schedule:
+    - cron: '0 9 * * 1,4'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate keepalive secrets
+        env:
+          INTERNAL_HEARTBEAT_SECRET: ${{ secrets.INTERNAL_HEARTBEAT_SECRET }}
+          SUPABASE_FUNCTION_URL: ${{ secrets.SUPABASE_FUNCTION_URL }}
+        run: |
+          test -n "$SUPABASE_FUNCTION_URL"
+          test -n "$INTERNAL_HEARTBEAT_SECRET"
+
+      - name: Ping internal heartbeat function
+        env:
+          INTERNAL_HEARTBEAT_SECRET: ${{ secrets.INTERNAL_HEARTBEAT_SECRET }}
+          SUPABASE_FUNCTION_URL: ${{ secrets.SUPABASE_FUNCTION_URL }}
+        run: |
+          curl --fail --silent --show-error \
+            --retry 3 \
+            --retry-all-errors \
+            --connect-timeout 10 \
+            --max-time 30 \
+            -X POST "${SUPABASE_FUNCTION_URL%/}/internal-heartbeat" \
+            -H "x-internal-heartbeat-secret: $INTERNAL_HEARTBEAT_SECRET"
