@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Rocket } from 'lucide-react'
 import { Droppable } from '@hello-pangea/dnd'
 import { BacklogRow } from './BacklogRow'
 import { BacklogStatusSummary } from './BacklogStatusSummary'
@@ -125,6 +125,12 @@ export function SprintContainer({
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-qira-pistachio-lt text-qira-pistachio-dk"
+                  aria-hidden
+                >
+                  <Rocket size={14} />
+                </span>
                 {canEditName ? (
                   <input
                     key={sprint.name}

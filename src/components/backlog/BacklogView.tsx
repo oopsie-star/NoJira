@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { DragDropContext, Droppable, type DropResult } from '@hello-pangea/dnd'
-import { ChevronDown, ChevronRight, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Flag, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
 import { BacklogRow } from './BacklogRow'
 import { BacklogStatusSummary } from './BacklogStatusSummary'
 import { BulkActionBar } from './BulkActionBar'
@@ -379,6 +379,8 @@ interface TaskListSectionProps {
   actions?: SectionMenuItem[]
   mobile?: boolean
   defaultCollapsed?: boolean
+  /** Small branded glyph shown before the title, identifying the entity kind (e.g. epic). */
+  icon?: ReactNode
   titleBadges?: ReactNode
   headerControl?: ReactNode
   /** Nested content rendered under the task list (e.g. an epic's sprints). */
@@ -404,6 +406,7 @@ function TaskListSection({
   actions = [],
   mobile = false,
   defaultCollapsed = false,
+  icon,
   titleBadges,
   headerControl,
   children,
@@ -428,6 +431,7 @@ function TaskListSection({
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
+              {icon}
               {onTitleSave ? (
                 <input
                   key={title}
@@ -1069,14 +1073,17 @@ export function BacklogView() {
                         actions={actions}
                         mobile={isMobile}
                         defaultCollapsed={isMobile && firstExpandedSectionKey !== `epic-${epic.id}`}
+                        icon={(
+                          <span
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                            style={{ backgroundColor: `${epic.color}20`, color: epic.color }}
+                            aria-hidden
+                          >
+                            <Flag size={14} />
+                          </span>
+                        )}
                         titleBadges={(
                           <>
-                            {/* The epic's chosen colour, surfaced on its key badge + dot */}
-                            <span
-                              className="h-2.5 w-2.5 shrink-0 rounded-full"
-                              style={{ backgroundColor: epic.color }}
-                              aria-hidden
-                            />
                             <span
                               className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
                               style={{ backgroundColor: `${epic.color}20`, color: epic.color }}
