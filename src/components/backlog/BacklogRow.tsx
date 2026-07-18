@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Draggable } from '@hello-pangea/dnd'
-import { AlertTriangle, BookOpenText, Calendar, CheckSquare, CircleAlert, GripVertical, ListTree, MoreHorizontal, Paperclip } from 'lucide-react'
+import { AlertTriangle, BookOpenText, Calendar, CheckSquare, ChevronDown, ChevronRight, CircleAlert, GripVertical, ListTree, MoreHorizontal, Paperclip } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/common/IssueBadges'
 import { AssigneeAvatars } from '@/components/common/AssigneeAvatars'
 import { useI18n } from '@/lib/i18n'
@@ -45,10 +45,14 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
   const isOpen = task.id === openTaskId
   const isSelected = selectedTaskIds.includes(task.id)
   const bulkActive = selectedTaskIds.length > 0
-  const subtaskCount = useMemo(
-    () => tasks.reduce((n, t) => n + (t.parent_task_id === task.id ? 1 : 0), 0),
+  const subtasks = useMemo(
+    () => tasks
+      .filter((t) => t.parent_task_id === task.id)
+      .sort((left, right) => left.position - right.position),
     [tasks, task.id],
   )
+  const subtaskCount = subtasks.length
+  const [subtasksExpanded, setSubtasksExpanded] = useState(true)
 
   return (
     <Draggable draggableId={task.id} index={index} isDragDisabled={dragDisabled}>
@@ -60,8 +64,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
             ref={provided.innerRef}
             {...provided.draggableProps}
             className={[
-              'group flex items-start gap-3 rounded-xl border px-3 py-2.5 transition',
-              mobile ? 'min-h-[68px]' : 'min-h-[52px]',
+              'group rounded-xl border transition',
               isSelected
                 ? 'border-qira-pistachio bg-qira-pistachio-lt/40 ring-1 ring-qira-pistachio/30'
                 : isOpen
@@ -75,6 +78,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
                         : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80',
             ].join(' ')}
           >
+          <div className={['flex items-start gap-3 px-3 py-2.5', mobile ? 'min-h-[68px]' : 'min-h-[52px]'].join(' ')}>
             <input
               type="checkbox"
               checked={isSelected}
@@ -138,10 +142,18 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
                       </span>
                     )}
                     {subtaskCount > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-[11px] font-medium text-indigo-600">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setSubtasksExpanded((value) => !value)
+                        }}
+                        className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-[11px] font-medium text-indigo-600 transition hover:bg-indigo-100"
+                      >
+                        {subtasksExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
                         <ListTree size={11} />
                         {subtaskCount}
-                      </span>
+                      </button>
                     )}
                     {blocked && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700">
@@ -179,6 +191,32 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
                 )}
               </div>
             )}
+          </div>
+
+          {subtaskCount > 0 && subtasksExpanded && (
+            <div className="space-y-1.5 border-t border-slate-100 px-3 py-2 pl-11">
+              {subtasks.map((subtask) => (
+                <button
+                  key={subtask.id}
+                  type="button"
+                  onClick={() => setOpenTaskId(subtask.id)}
+                  className={[
+                    'flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-slate-100',
+                    subtask.id === openTaskId ? 'bg-qira-pistachio-lt/50' : '',
+                  ].join(' ')}
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500">
+                    <IssueTypeIcon type={subtask.issue_type} />
+                  </span>
+                  <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    {subtask.key}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{subtask.title}</span>
+                  <StatusBadge status={subtask.status} />
+                </button>
+              ))}
+            </div>
+          )}
           </div>
         )
       }}
