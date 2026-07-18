@@ -745,7 +745,9 @@ export function BacklogView() {
   const epicSections = useMemo(
     () => sortedEpics
       .map((epic) => {
-        const directTasks = rootTasks.filter((task) => task.epic_id === epic.id && !task.sprint_id)
+        const directTasks = rootTasks.filter(
+          (task) => task.epic_id === epic.id && (!task.sprint_id || completedSprintIds.has(task.sprint_id)),
+        )
         const epicSprints = allSprintSections.filter(({ sprint }) => sprint.epic_id === epic.id)
         return {
           epic,
@@ -765,7 +767,7 @@ export function BacklogView() {
         const rightFresh = fresh(right)
         return leftFresh === rightFresh ? 0 : leftFresh ? -1 : 1
       }),
-    [hasActiveFilters, rootTasks, sortedEpics, allSprintSections]
+    [hasActiveFilters, rootTasks, sortedEpics, allSprintSections, completedSprintIds]
   )
 
   const firstExpandedSectionKey = useMemo(() => {
