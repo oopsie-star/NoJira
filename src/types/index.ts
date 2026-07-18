@@ -245,6 +245,16 @@ export interface TaskLink {
   target_task?:   LinkedTaskSummary | null
 }
 
+export interface AttachmentNote {
+  id:         string
+  project_id: string
+  path:       string
+  body:       string
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type NotificationType = 'assigned' | 'unblocked' | 'comment' | 'automation' | 'system'
 
 export interface Notification {

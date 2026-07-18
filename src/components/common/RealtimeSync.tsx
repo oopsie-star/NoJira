@@ -53,6 +53,9 @@ export function RealtimeSync() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'epics', filter }, () =>
           debounce('epics', () => void useStore.getState().fetchEpics()),
         )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'attachment_notes', filter }, () =>
+          debounce('attachmentNotes', () => void useStore.getState().fetchAttachmentNotes()),
+        )
         .on('postgres_changes', { event: '*', schema: 'public', table: 'task_comments', filter }, (payload) => {
           const s = useStore.getState()
           const newRow = payload.new as { task_id?: string } | null

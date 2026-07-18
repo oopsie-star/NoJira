@@ -4,6 +4,7 @@ import { getErrorMessage } from '@/lib/errors'
 import { isTaskBlocked } from '@/lib/ops'
 import { supabase } from '@/lib/supabase'
 import type {
+  AttachmentNote,
   DeletionRequest,
   DeletionRequestEntityType,
   Epic,
@@ -397,6 +398,7 @@ interface AppState {
   automationSettings: ProjectAutomationSettings | null
   projectWebhooks: ProjectWebhook[]
   taskLinks: TaskLink[]
+  attachmentNotes: Record<string, AttachmentNote>
   notifications: Notification[]
   taskComments: TaskComment[]
   taskActivities: TaskActivity[]
@@ -443,6 +445,8 @@ interface AppState {
   fetchAutomationSettings: () => Promise<void>
   fetchProjectWebhooks: () => Promise<void>
   fetchTaskLinks: () => Promise<void>
+  fetchAttachmentNotes: () => Promise<void>
+  updateAttachmentNote: (path: string, body: string) => Promise<void>
   fetchNotifications: () => Promise<void>
   fetchTaskContext: (taskId: string) => Promise<void>
   clearTaskContext: () => void
@@ -549,6 +553,7 @@ export const useStore = create<AppState>((set, get) => {
     automationSettings: null,
     projectWebhooks: [],
     taskLinks: [],
+    attachmentNotes: {},
     notifications: [],
     taskComments: [],
     taskActivities: [],
@@ -624,6 +629,7 @@ export const useStore = create<AppState>((set, get) => {
         automationSettings: null,
         projectWebhooks: [],
         taskLinks: [],
+        attachmentNotes: {},
         notifications: [],
         members: [],
         placeholders: [],
@@ -972,6 +978,54 @@ export const useStore = create<AppState>((set, get) => {
     set({ taskLinks: normalizeTaskLinks((data ?? []) as unknown[]) })
   },
 
+  fetchAttachmentNotes: async () => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) {
+      set({ attachmentNotes: {} })
+      return
+    }
+
+    const { data } = await supabase
+      .from('attachment_notes')
+      .select('*')
+      .eq('project_id', activeProjectId)
+
+    const byPath: Record<string, AttachmentNote> = {}
+    for (const note of (data ?? []) as AttachmentNote[]) byPath[note.path] = note
+    set({ attachmentNotes: byPath })
+  },
+
+  updateAttachmentNote: async (path, body) => {
+    const profile = get().profile
+    const activeProjectId = get().activeProjectId
+    if (!profile || !activeProjectId) return
+
+    const trimmed = body.trim()
+    if (!trimmed) {
+      set((state) => {
+        const next = { ...state.attachmentNotes }
+        delete next[path]
+        return { attachmentNotes: next }
+      })
+      await supabase.from('attachment_notes').delete().eq('project_id', activeProjectId).eq('path', path)
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('attachment_notes')
+      .upsert(
+        { project_id: activeProjectId, path, body: trimmed, updated_by: profile.id },
+        { onConflict: 'project_id,path' },
+      )
+      .select('*')
+      .single()
+
+    if (error) throw error
+    if (!data) return
+
+    set((state) => ({ attachmentNotes: { ...state.attachmentNotes, [path]: data as AttachmentNote } }))
+  },
+
   fetchNotifications: async () => {
     const activeProjectId = get().activeProjectId
     const profile = get().profile
@@ -1070,6 +1124,7 @@ export const useStore = create<AppState>((set, get) => {
       automationSettings: null,
       projectWebhooks: [],
       taskLinks: [],
+      attachmentNotes: {},
       notifications: [],
       members: [profile],
       projectMembers: [optimisticMembership],
@@ -1757,6 +1812,7 @@ export const useStore = create<AppState>((set, get) => {
         automationSettings: null,
         projectWebhooks: [],
         taskLinks: [],
+        attachmentNotes: {},
         notifications: [],
         members: [],
         placeholders: [],

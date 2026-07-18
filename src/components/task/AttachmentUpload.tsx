@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { getFilename, isImage, safeFilename, storageBucket } from '@/lib/attachments'
+import { useStore } from '@/store'
 import { AttachmentPreview } from './AttachmentPreview'
 
 interface SignedAttachment {
@@ -35,6 +36,8 @@ export function AttachmentUpload({
 }: AttachmentUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { t } = useI18n()
+  const attachmentNotes = useStore((state) => state.attachmentNotes)
+  const updateAttachmentNote = useStore((state) => state.updateAttachmentNote)
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -112,6 +115,7 @@ export function AttachmentUpload({
   async function handleDelete(path: string) {
     if (!canDelete(getAttachmentAuthorId(path))) return
     await supabase.storage.from(storageBucket(path)).remove([path])
+    if (attachmentNotes[path]) void updateAttachmentNote(path, '')
     await onAttachmentsChange(attachments.filter((item) => item !== path))
   }
 
@@ -147,24 +151,37 @@ export function AttachmentUpload({
                 )}
               </div>
 
-              {isImage(path) && signedUrl ? (
-                <button type="button" onClick={() => setPreviewPath(path)} className="block w-full">
-                  <img
-                    src={signedUrl}
-                    alt={getFilename(path)}
-                    className="h-36 w-full rounded-xl border border-slate-200 object-cover"
-                  />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setPreviewPath(path)}
-                  className="flex w-full items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-4 text-left text-sm text-qira-pistachio transition hover:border-qira-pistachio hover:bg-qira-pistachio-lt/40"
-                >
-                  <FileText size={16} className="shrink-0" />
-                  <span className="truncate">{getFilename(path)}</span>
-                </button>
-              )}
+              <div className="flex items-start gap-2">
+                {isImage(path) && signedUrl ? (
+                  <button type="button" onClick={() => setPreviewPath(path)} className="block shrink-0">
+                    <img
+                      src={signedUrl}
+                      alt={getFilename(path)}
+                      className="h-20 w-20 rounded-xl border border-slate-200 object-cover"
+                    />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPath(path)}
+                    className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-white px-1 text-qira-pistachio transition hover:border-qira-pistachio hover:bg-qira-pistachio-lt/40"
+                  >
+                    <FileText size={18} />
+                  </button>
+                )}
+
+                <textarea
+                  key={path}
+                  defaultValue={attachmentNotes[path]?.body ?? ''}
+                  onBlur={(event) => {
+                    const value = event.target.value
+                    if (value !== (attachmentNotes[path]?.body ?? '')) void updateAttachmentNote(path, value)
+                  }}
+                  placeholder={t('task.attachmentNotePlaceholder')}
+                  rows={3}
+                  className="min-w-0 flex-1 resize-none rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none transition focus:border-qira-pistachio"
+                />
+              </div>
             </div>
           ))}
         </div>
