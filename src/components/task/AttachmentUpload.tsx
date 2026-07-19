@@ -20,6 +20,8 @@ interface AttachmentUploadProps {
   /** Whether the given uploader (path's author id) may delete a given attachment. */
   canDelete: (authorId: string | null) => boolean
   onAttachmentsChange: (paths: string[]) => Promise<void>
+  /** Use the full page width on desktop (more columns) — for full-width contexts like an epic/sprint section, not the narrow task drawer. */
+  wide?: boolean
 }
 
 function getAttachmentAuthorId(path: string) {
@@ -33,6 +35,7 @@ export function AttachmentUpload({
   attachments,
   canDelete,
   onAttachmentsChange,
+  wide = false,
 }: AttachmentUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { t } = useI18n()
@@ -135,7 +138,7 @@ export function AttachmentUpload({
       </div>
 
       {signedAttachments.length > 0 ? (
-        <div className="mb-4 grid gap-3 sm:grid-cols-2">
+        <div className={['mb-4 grid gap-3 sm:grid-cols-2', wide ? 'lg:grid-cols-3 xl:grid-cols-4' : ''].join(' ')}>
           {signedAttachments.map(({ path, signedUrl }) => (
             <div key={path} className="group rounded-xl border border-slate-200 bg-slate-50 p-2">
               <div className="mb-2 flex items-start justify-between gap-2">

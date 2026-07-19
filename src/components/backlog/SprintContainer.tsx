@@ -191,6 +191,7 @@ export function SprintContainer({
                       attachments={sprint.attachments}
                       canDelete={(authorId) => canDeleteAttachment(activeProjectRole, profile?.id ?? null, authorId)}
                       onAttachmentsChange={(paths) => updateSprint(sprint.id, { attachments: paths })}
+                      wide
                     />
                   </div>
                 )}

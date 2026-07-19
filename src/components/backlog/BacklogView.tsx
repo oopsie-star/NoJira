@@ -1061,6 +1061,7 @@ export function BacklogView() {
                             attachments={epic.attachments}
                             canDelete={(authorId) => canDeleteAttachment(activeProjectRole, profileId, authorId)}
                             onAttachmentsChange={(paths) => updateEpic(epic.id, { attachments: paths })}
+                            wide
                           />
                         )}
                         itemCount={directTasks.length}
