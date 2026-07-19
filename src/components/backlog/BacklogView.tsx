@@ -452,42 +452,6 @@ function TaskListSection({
             {subtitle && (
               <p className="mt-1.5 text-xs text-slate-500">{subtitle}</p>
             )}
-            {(description?.trim() || onDescriptionSave) && (
-              <div className="mt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setDescriptionOpen((value) => !value)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-700"
-                >
-                  {descriptionOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  {t('task.description')}
-                  {!description?.trim() && <span className="font-normal text-slate-400">— {t('common.none')}</span>}
-                </button>
-                {descriptionOpen && (
-                  <div className="mt-1">
-                    {onDescriptionSave ? (
-                      <EpicDescriptionField key={description} description={description ?? ''} onSave={onDescriptionSave} />
-                    ) : (
-                      <MarkdownRenderer source={description ?? ''} className="text-xs text-slate-500" />
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            {attachmentsSlot && (
-              <div className="mt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setAttachmentsOpen((value) => !value)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-700"
-                >
-                  {attachmentsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  {t('task.attachments')}
-                  {attachmentsCount > 0 && <span className="font-normal text-slate-400">({attachmentsCount})</span>}
-                </button>
-                {attachmentsOpen && <div className="mt-2">{attachmentsSlot}</div>}
-              </div>
-            )}
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -496,6 +460,45 @@ function TaskListSection({
             <SectionMenu items={actions} label={t('backlog.moreActions')} />
           </div>
         </div>
+
+        {/* Full-width below the header row (not squeezed into the title column
+            next to the status/controls group) — indented to align under the title. */}
+        {(description?.trim() || onDescriptionSave) && (
+          <div className="mt-2 pl-11">
+            <button
+              type="button"
+              onClick={() => setDescriptionOpen((value) => !value)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-700"
+            >
+              {descriptionOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              {t('task.description')}
+              {!description?.trim() && <span className="font-normal text-slate-400">— {t('common.none')}</span>}
+            </button>
+            {descriptionOpen && (
+              <div className="mt-1">
+                {onDescriptionSave ? (
+                  <EpicDescriptionField key={description} description={description ?? ''} onSave={onDescriptionSave} />
+                ) : (
+                  <MarkdownRenderer source={description ?? ''} className="text-xs text-slate-500" />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        {attachmentsSlot && (
+          <div className="mt-2 pl-11">
+            <button
+              type="button"
+              onClick={() => setAttachmentsOpen((value) => !value)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-700"
+            >
+              {attachmentsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              {t('task.attachments')}
+              {attachmentsCount > 0 && <span className="font-normal text-slate-400">({attachmentsCount})</span>}
+            </button>
+            {attachmentsOpen && <div className="mt-2">{attachmentsSlot}</div>}
+          </div>
+        )}
       </div>
 
       {!collapsed && (

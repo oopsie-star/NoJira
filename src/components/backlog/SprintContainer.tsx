@@ -172,36 +172,38 @@ export function SprintContainer({
                   {sprint.goal && <span className="line-clamp-1">{sprint.goal}</span>}
                 </div>
               )}
-
-              <div className="mt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setAttachmentsOpen((value) => !value)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-700"
-                >
-                  {attachmentsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  {t('task.attachments')}
-                  {sprint.attachments.length > 0 && <span className="font-normal text-slate-400">({sprint.attachments.length})</span>}
-                </button>
-                {attachmentsOpen && (
-                  <div className="mt-2">
-                    <AttachmentUpload
-                      pathPrefix={`${sprint.project_id}/sprints/${sprint.id}`}
-                      currentUserId={profile?.id ?? null}
-                      attachments={sprint.attachments}
-                      canDelete={(authorId) => canDeleteAttachment(activeProjectRole, profile?.id ?? null, authorId)}
-                      onAttachmentsChange={(paths) => updateSprint(sprint.id, { attachments: paths })}
-                      wide
-                    />
-                  </div>
-                )}
-              </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
               <BacklogStatusSummary counts={statusCounts} />
               <SectionMenu items={actionItems} label={t('backlog.moreActions')} />
             </div>
+          </div>
+
+          {/* Full-width below the header row (not squeezed into the title column
+              next to the status/menu group) — indented to align under the title. */}
+          <div className="mt-2 pl-11">
+            <button
+              type="button"
+              onClick={() => setAttachmentsOpen((value) => !value)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-700"
+            >
+              {attachmentsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              {t('task.attachments')}
+              {sprint.attachments.length > 0 && <span className="font-normal text-slate-400">({sprint.attachments.length})</span>}
+            </button>
+            {attachmentsOpen && (
+              <div className="mt-2">
+                <AttachmentUpload
+                  pathPrefix={`${sprint.project_id}/sprints/${sprint.id}`}
+                  currentUserId={profile?.id ?? null}
+                  attachments={sprint.attachments}
+                  canDelete={(authorId) => canDeleteAttachment(activeProjectRole, profile?.id ?? null, authorId)}
+                  onAttachmentsChange={(paths) => updateSprint(sprint.id, { attachments: paths })}
+                  wide
+                />
+              </div>
+            )}
           </div>
         </div>
 
