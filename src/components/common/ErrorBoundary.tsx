@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from 'react'
+import { Component, type ErrorInfo, type ReactNode } from 'react'
 
 // After a deploy, chunk hashes change. A tab that's been open since before the
 // deploy (very common on mobile, where tabs stay backgrounded for a long time)
@@ -23,17 +23,22 @@ function canAttemptReload(): boolean {
 
 interface ErrorBoundaryState {
   error: Error | null
+  componentStack: string | null
 }
 
 export class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { error: null }
+  state: ErrorBoundaryState = { error: null, componentStack: null }
 
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
     return { error }
   }
 
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    this.setState({ componentStack: info.componentStack ?? null })
+  }
+
   render() {
-    const { error } = this.state
+    const { error, componentStack } = this.state
     if (!error) return this.props.children
 
     if (isChunkLoadError(error) && canAttemptReload()) {
@@ -46,19 +51,33 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBound
       )
     }
 
+    const details = `${error.name}: ${error.message}\n${error.stack ?? ''}\n${componentStack ?? ''}`.trim()
+
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-white p-6 text-center">
-        <p className="text-lg font-semibold text-slate-900">Something went wrong / Что-то пошло не так</p>
+      <div className="flex h-screen flex-col items-center gap-4 overflow-y-auto bg-white p-6 text-center">
+        <p className="mt-8 text-lg font-semibold text-slate-900">Something went wrong / Что-то пошло не так</p>
         <p className="max-w-sm text-sm text-slate-500">
           Please reload the page. / Пожалуйста, обновите страницу.
         </p>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="rounded-2xl bg-qira-pistachio px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
-        >
-          Reload / Обновить
-        </button>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-2xl bg-qira-pistachio px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk"
+          >
+            Reload / Обновить
+          </button>
+          <button
+            type="button"
+            onClick={() => { void navigator.clipboard?.writeText(details) }}
+            className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+          >
+            Copy error details
+          </button>
+        </div>
+        <pre className="mt-2 max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-2xl bg-slate-50 p-4 text-left text-xs text-slate-500">
+          {details}
+        </pre>
       </div>
     )
   }
