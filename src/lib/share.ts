@@ -16,6 +16,12 @@ export function buildTaskShareUrl(projectKey: string, taskId: string): string {
   return `${window.location.origin}${base}/projects/${encodeURIComponent(projectKey)}/backlog?task=${taskId}`
 }
 
+/** Absolute, shareable deep link to an epic (filters the backlog via ?epicFilter=). */
+export function buildEpicShareUrl(projectKey: string, epicId: string): string {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+  return `${window.location.origin}${base}/projects/${encodeURIComponent(projectKey)}/backlog?epicFilter=${epicId}`
+}
+
 /** Long-lived signed URLs (name + url) for a task's attachment storage paths. */
 export async function signedAttachmentLinks(
   paths: string[],

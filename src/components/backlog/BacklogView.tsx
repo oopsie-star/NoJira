@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { DragDropContext, Droppable, type DropResult } from '@hello-pangea/dnd'
 import { ChevronDown, ChevronRight, Flag, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
 import { BacklogRow } from './BacklogRow'
@@ -6,6 +7,7 @@ import { BacklogStatusSummary } from './BacklogStatusSummary'
 import { BulkActionBar } from './BulkActionBar'
 import { DeleteEntityModal } from './DeleteEntityModal'
 import { SectionMenu, type SectionMenuItem } from './SectionMenu'
+import { ShareEpicMenu } from './ShareEpicMenu'
 import { SprintContainer } from './SprintContainer'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { AttachmentUpload } from '@/components/task/AttachmentUpload'
@@ -17,6 +19,7 @@ import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { isFreshTask, isTaskBlocked } from '@/lib/ops'
 import { canDeleteAttachment, canEditAuthoredContent } from '@/lib/permissions'
+import { useCurrentProjectKey } from '@/lib/projectRoutes'
 import { EPIC_COLORS, EPIC_STATUS_OPTIONS, isTerminalStatus, type Epic, type Profile, type Sprint, type Task, type TaskStatus } from '@/types'
 import { useStore } from '@/store'
 
@@ -558,6 +561,7 @@ function TaskListSection({
 export function BacklogView() {
   const { profile } = useAuthContext()
   const { t } = useI18n()
+  const currentProjectKey = useCurrentProjectKey()
   const allTasks = useStore((state) => state.tasks)
   // Terminal tasks (cancelled / archived / deleted) leave the backlog entirely —
   // they live only in the board's "Closed" view, where they can be recovered.
@@ -581,7 +585,8 @@ export function BacklogView() {
 
   const [deleteEpicTarget, setDeleteEpicTarget] = useState<Epic | null>(null)
   const [search, setSearch] = useState('')
-  const [epicFilter, setEpicFilter] = useState('')
+  const [searchParams] = useSearchParams()
+  const [epicFilter, setEpicFilter] = useState(() => searchParams.get('epicFilter') ?? '')
   const [assigneeFilter, setAssigneeFilter] = useState('')
   const [quickFilters, setQuickFilters] = useState<QuickFilterId[]>([])
   const [showFilters, setShowFilters] = useState(false)
@@ -1102,34 +1107,44 @@ export function BacklogView() {
                             )}
                           </>
                         )}
-                        headerControl={canCollaborate ? (
+                        headerControl={(
                           <>
-                            <select
-                              value={epic.status}
-                              onChange={(event) => void updateEpic(epic.id, { status: event.target.value as Epic['status'] })}
-                              className="hidden rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 outline-none transition focus:border-qira-pistachio md:block"
-                            >
-                              {EPIC_STATUS_OPTIONS.map((status) => (
-                                <option key={status} value={status}>
-                                  {t(`common.status.${status === 'done' ? 'completed' : status}`)}
-                                </option>
-                              ))}
-                            </select>
-                            <select
-                              title={t('backlog.epicAuthor')}
-                              value={epic.created_by ?? ''}
-                              onChange={(event) => { if (event.target.value) void reassignAuthor(epic.id, event.target.value) }}
-                              className="hidden rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 outline-none transition focus:border-qira-pistachio md:block"
-                            >
-                              <option value="" disabled>{t('backlog.epicAuthor')}</option>
-                              {members.map((member) => (
-                                <option key={member.id} value={member.id}>
-                                  {member.full_name || member.email}
-                                </option>
-                              ))}
-                            </select>
+                            {canCollaborate && (
+                              <>
+                                <select
+                                  value={epic.status}
+                                  onChange={(event) => void updateEpic(epic.id, { status: event.target.value as Epic['status'] })}
+                                  className="hidden rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 outline-none transition focus:border-qira-pistachio md:block"
+                                >
+                                  {EPIC_STATUS_OPTIONS.map((status) => (
+                                    <option key={status} value={status}>
+                                      {t(`common.status.${status === 'done' ? 'completed' : status}`)}
+                                    </option>
+                                  ))}
+                                </select>
+                                <select
+                                  title={t('backlog.epicAuthor')}
+                                  value={epic.created_by ?? ''}
+                                  onChange={(event) => { if (event.target.value) void reassignAuthor(epic.id, event.target.value) }}
+                                  className="hidden rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 outline-none transition focus:border-qira-pistachio md:block"
+                                >
+                                  <option value="" disabled>{t('backlog.epicAuthor')}</option>
+                                  {members.map((member) => (
+                                    <option key={member.id} value={member.id}>
+                                      {member.full_name || member.email}
+                                    </option>
+                                  ))}
+                                </select>
+                              </>
+                            )}
+                            <ShareEpicMenu
+                              epic={epic}
+                              tasks={tasks.filter((task) => task.epic_id === epic.id)}
+                              members={members}
+                              projectKey={currentProjectKey}
+                            />
                           </>
-                        ) : undefined}
+                        )}
                       >
                         {epicSprints.map(({ sprint, tasks: sprintTasks }) => (
                           <SprintContainer
