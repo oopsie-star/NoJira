@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { IssueTypeBadge, PriorityBadge } from '@/components/common/IssueBadges'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { AttachmentUpload } from './AttachmentUpload'
+import { VoiceCommentary } from './VoiceCommentary'
 import { JiraDescriptionRenderer } from './JiraDescriptionRenderer'
 import { StatusDropdown } from './StatusDropdown'
 import { useAuthContext } from '@/auth/AuthContext'
@@ -439,6 +440,8 @@ export function TaskDrawer() {
               disabled={!canEditTitle}
               className="w-full border-none px-0 text-2xl font-semibold leading-tight text-slate-900 outline-none disabled:cursor-default sm:text-[30px]"
             />
+
+            <VoiceCommentary attachments={currentTask.attachments} />
 
             <div className="mt-6">
               <AttachmentUpload
