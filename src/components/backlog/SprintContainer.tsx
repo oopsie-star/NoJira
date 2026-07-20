@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Plus, Rocket } from 'lucide-react'
 import { Droppable } from '@hello-pangea/dnd'
 import { BacklogRow } from './BacklogRow'
 import { BacklogStatusSummary } from './BacklogStatusSummary'
+import { DeleteEntityModal } from './DeleteEntityModal'
 import { SectionMenu, type SectionMenuItem } from './SectionMenu'
 import { AttachmentUpload } from '@/components/task/AttachmentUpload'
 import { CreateTaskModal } from '@/components/task/CreateTaskModal'
@@ -38,6 +39,7 @@ export function SprintContainer({
 }: SprintContainerProps) {
   const { profile } = useAuthContext()
   const { locale, t } = useI18n()
+  const allTasks = useStore((state) => state.tasks)
   const epics = useStore((state) => state.epics)
   const startSprint = useStore((state) => state.startSprint)
   const completeSprint = useStore((state) => state.completeSprint)
@@ -48,8 +50,8 @@ export function SprintContainer({
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [requestingDelete, setRequestingDelete] = useState(false)
-  const [deletingSprint, setDeletingSprint] = useState(false)
 
   const epic = useMemo(
     () => (sprint.epic_id ? epics.find((item) => item.id === sprint.epic_id) ?? null : null),
@@ -68,14 +70,8 @@ export function SprintContainer({
     return sprint.start_date ? formatDate(locale, sprint.start_date) : formatDate(locale, sprint.end_date)
   }, [locale, sprint.end_date, sprint.start_date])
 
-  async function handleDeleteSprint() {
-    if (!window.confirm(t('backlog.deleteSprintConfirm', { name: sprint.name }))) return
-    setDeletingSprint(true)
-    try {
-      await deleteSprint(sprint.id)
-    } finally {
-      setDeletingSprint(false)
-    }
+  function handleDeleteSprint() {
+    setShowDeleteModal(true)
   }
 
   async function handleRequestDeleteSprint() {
@@ -100,7 +96,6 @@ export function SprintContainer({
           label: t('backlog.deleteSprint'),
           onSelect: handleDeleteSprint,
           danger: true,
-          disabled: deletingSprint,
         }
       : {
           label: requestingDelete ? t('backlog.deletionRequestSending') : t('backlog.requestDelete'),
@@ -256,6 +251,18 @@ export function SprintContainer({
         <CreateTaskModal
           onClose={() => setShowCreate(false)}
           initialValues={{ sprint_id: sprint.id }}
+        />
+      )}
+
+      {showDeleteModal && (
+        <DeleteEntityModal
+          message={t('backlog.deleteSprintConfirm', { name: sprint.name })}
+          taskCount={allTasks.filter((task) => task.sprint_id === sprint.id).length}
+          onCancel={() => setShowDeleteModal(false)}
+          onConfirm={async (withTasks) => {
+            await deleteSprint(sprint.id, { withTasks })
+            setShowDeleteModal(false)
+          }}
         />
       )}
     </>

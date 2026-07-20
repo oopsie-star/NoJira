@@ -471,11 +471,11 @@ interface AppState {
   updateSprint: (id: string, fields: Partial<Sprint>) => Promise<void>
   startSprint: (id: string) => Promise<void>
   completeSprint: (id: string) => Promise<void>
-  deleteSprint: (id: string) => Promise<void>
+  deleteSprint: (id: string, options?: { withTasks?: boolean }) => Promise<void>
   createEpic: (fields: Partial<Epic>) => Promise<Epic | null>
   updateEpic: (id: string, fields: Partial<Epic>) => Promise<void>
   reassignAuthor: (epicId: string, toProfileId: string) => Promise<void>
-  deleteEpic: (id: string) => Promise<void>
+  deleteEpic: (id: string, options?: { withTasks?: boolean }) => Promise<void>
   updatePortfolioItem: (id: string, fields: Partial<PortfolioItem>) => Promise<void>
   updateAutomationSettings: (fields: Partial<ProjectAutomationSettings>) => Promise<void>
   deleteProject: (projectId: string) => Promise<void>
@@ -1740,7 +1740,11 @@ export const useStore = create<AppState>((set, get) => {
     if (get().activeSprintId === id) set({ activeSprintId: null })
   },
 
-  deleteSprint: async (id) => {
+  deleteSprint: async (id, options) => {
+    if (options?.withTasks) {
+      await supabase.from('tasks').delete().eq('sprint_id', id)
+      set((state) => ({ tasks: state.tasks.filter((task) => task.sprint_id !== id) }))
+    }
     set((state) => ({ sprints: state.sprints.filter((sprint) => sprint.id !== id) }))
     await supabase.from('sprints').delete().eq('id', id)
   },
@@ -1808,7 +1812,11 @@ export const useStore = create<AppState>((set, get) => {
     }
   },
 
-  deleteEpic: async (id) => {
+  deleteEpic: async (id, options) => {
+    if (options?.withTasks) {
+      await supabase.from('tasks').delete().eq('epic_id', id)
+      set((state) => ({ tasks: state.tasks.filter((task) => task.epic_id !== id) }))
+    }
     set((state) => ({ epics: state.epics.filter((epic) => epic.id !== id) }))
     await supabase.from('epics').delete().eq('id', id)
   },

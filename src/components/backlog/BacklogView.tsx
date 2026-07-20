@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Flag, Plus, Search, SlidersHorizontal, X } f
 import { BacklogRow } from './BacklogRow'
 import { BacklogStatusSummary } from './BacklogStatusSummary'
 import { BulkActionBar } from './BulkActionBar'
+import { DeleteEntityModal } from './DeleteEntityModal'
 import { SectionMenu, type SectionMenuItem } from './SectionMenu'
 import { SprintContainer } from './SprintContainer'
 import { UserAvatar } from '@/components/common/UserAvatar'
@@ -578,6 +579,7 @@ export function BacklogView() {
   // Drop any multi-select when leaving the backlog.
   useEffect(() => () => clearTaskSelection(), [clearTaskSelection])
 
+  const [deleteEpicTarget, setDeleteEpicTarget] = useState<Epic | null>(null)
   const [search, setSearch] = useState('')
   const [epicFilter, setEpicFilter] = useState('')
   const [assigneeFilter, setAssigneeFilter] = useState('')
@@ -861,9 +863,8 @@ export function BacklogView() {
     }
   }
 
-  async function handleDeleteEpic(epic: Epic) {
-    if (!window.confirm(t('backlog.deleteEpicConfirm', { name: epic.title }))) return
-    await deleteEpic(epic.id)
+  function handleDeleteEpic(epic: Epic) {
+    setDeleteEpicTarget(epic)
   }
 
   async function handleRequestDeleteEpic(epic: Epic) {
@@ -1209,6 +1210,18 @@ export function BacklogView() {
       {showSprintModal && <CreateSprintModal initialEpicId={sprintSeedEpicId} onClose={closeSprintModal} />}
       {showEpicModal && <CreateEpicModal onClose={() => setShowEpicModal(false)} />}
       {showCreateTask && <CreateTaskModal onClose={closeTaskModal} initialValues={taskSeed ?? undefined} />}
+
+      {deleteEpicTarget && (
+        <DeleteEntityModal
+          message={t('backlog.deleteEpicConfirm', { name: deleteEpicTarget.title })}
+          taskCount={tasks.filter((task) => task.epic_id === deleteEpicTarget.id).length}
+          onCancel={() => setDeleteEpicTarget(null)}
+          onConfirm={async (withTasks) => {
+            await deleteEpic(deleteEpicTarget.id, { withTasks })
+            setDeleteEpicTarget(null)
+          }}
+        />
+      )}
 
       <BulkActionBar />
     </DragDropContext>
