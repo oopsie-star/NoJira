@@ -1,11 +1,17 @@
 ﻿import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
-import { FileText, Loader2, Upload, X } from 'lucide-react'
+import { FileText, Loader2, Mic, Music, Square, Upload, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
-import { displayFilename, isImage, safeFilename, storageBucket } from '@/lib/attachments'
+import { displayFilename, isImage, previewKind, safeFilename, storageBucket } from '@/lib/attachments'
 import { useStore } from '@/store'
 import { AttachmentPreview } from './AttachmentPreview'
+
+function formatSeconds(total: number): string {
+  const minutes = Math.floor(total / 60)
+  const seconds = total % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
 
 interface SignedAttachment {
   path: string
@@ -47,6 +53,11 @@ export function AttachmentUpload({
   const [error, setError] = useState<string | null>(null)
   const [signedAttachments, setSignedAttachments] = useState<SignedAttachment[]>([])
   const [previewPath, setPreviewPath] = useState<string | null>(null)
+  const [recording, setRecording] = useState(false)
+  const [recordSeconds, setRecordSeconds] = useState(0)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordedChunksRef = useRef<Blob[]>([])
+  const recordTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     let active = true
@@ -106,6 +117,55 @@ export function AttachmentUpload({
     }
   }
 
+  function clearRecordTimer() {
+    if (recordTimerRef.current) {
+      window.clearInterval(recordTimerRef.current)
+      recordTimerRef.current = null
+    }
+  }
+
+  async function startRecording() {
+    setError(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = ['audio/webm', 'audio/ogg', 'audio/mp4'].find((candidate) => MediaRecorder.isTypeSupported(candidate))
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      recordedChunksRef.current = []
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunksRef.current.push(event.data)
+      }
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop())
+        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+        const extension = recorder.mimeType?.includes('ogg') ? 'ogg' : recorder.mimeType?.includes('mp4') ? 'm4a' : 'webm'
+        const file = new File([blob], `voice-comment-${Date.now()}.${extension}`, { type: blob.type })
+        void uploadFiles([file])
+      }
+
+      recorder.start()
+      mediaRecorderRef.current = recorder
+      setRecordSeconds(0)
+      setRecording(true)
+      clearRecordTimer()
+      recordTimerRef.current = window.setInterval(() => setRecordSeconds((value) => value + 1), 1000)
+    } catch (err) {
+      setError(getErrorMessage(err))
+    }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop()
+    mediaRecorderRef.current = null
+    setRecording(false)
+    clearRecordTimer()
+  }
+
+  useEffect(() => () => {
+    clearRecordTimer()
+    mediaRecorderRef.current?.stop()
+  }, [])
+
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault()
     setDragOver(false)
@@ -126,72 +186,133 @@ export function AttachmentUpload({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-sm font-semibold text-slate-900">{t('task.attachments')}</p>
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="text-sm font-medium text-qira-pistachio hover:text-qira-pistachio-dk"
-        >
-          {t('common.create')}
-        </button>
+        <div className="flex items-center gap-3">
+          {typeof MediaRecorder !== 'undefined' && (
+            recording ? (
+              <button
+                type="button"
+                onClick={stopRecording}
+                className="flex items-center gap-1.5 text-sm font-medium text-rose-600"
+              >
+                <span className="h-2 w-2 animate-pulse rounded-full bg-rose-600" aria-hidden />
+                {formatSeconds(recordSeconds)}
+                <Square size={13} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void startRecording()}
+                title={t('task.recordVoiceComment')}
+                aria-label={t('task.recordVoiceComment')}
+                className="text-slate-400 transition hover:text-qira-pistachio"
+              >
+                <Mic size={16} />
+              </button>
+            )
+          )}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="text-sm font-medium text-qira-pistachio hover:text-qira-pistachio-dk"
+          >
+            {t('common.create')}
+          </button>
+        </div>
       </div>
 
       {signedAttachments.length > 0 ? (
-        <div className={['mb-4 grid gap-3 sm:grid-cols-2', wide ? 'lg:grid-cols-3 xl:grid-cols-4' : ''].join(' ')}>
-          {signedAttachments.map(({ path, signedUrl }) => (
-            <div key={path} className="group rounded-xl border border-slate-200 bg-slate-50 p-2">
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-900">
-                    {displayFilename(path, attachmentNotes[path]?.original_name)}
-                  </p>
-                </div>
-                {canDelete(getAttachmentAuthorId(path)) && (
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(path)}
-                    className="rounded-lg p-1 text-slate-400 transition hover:bg-white hover:text-slate-700"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-start gap-2">
-                {isImage(path) && signedUrl ? (
-                  <button type="button" onClick={() => setPreviewPath(path)} className="block shrink-0">
-                    <img
-                      src={signedUrl}
-                      alt={displayFilename(path, attachmentNotes[path]?.original_name)}
-                      className="h-20 w-20 rounded-xl border border-slate-200 object-cover"
-                    />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setPreviewPath(path)}
-                    className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-white px-1 text-qira-pistachio transition hover:border-qira-pistachio hover:bg-qira-pistachio-lt/40"
-                  >
-                    <FileText size={18} />
-                  </button>
-                )}
-
-                <textarea
-                  key={path}
-                  defaultValue={attachmentNotes[path]?.body ?? ''}
-                  onBlur={(event) => {
-                    const value = event.target.value
-                    if (value !== (attachmentNotes[path]?.body ?? '')) void updateAttachmentNote(path, value)
-                  }}
-                  placeholder={t('task.attachmentNotePlaceholder')}
-                  rows={3}
-                  className="min-w-0 flex-1 resize-none rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none transition focus:border-qira-pistachio"
-                />
-              </div>
+        <>
+          {signedAttachments.some(({ path }) => previewKind(path, attachmentNotes[path]?.mime_type) === 'audio') && (
+            <div className="mb-3 space-y-1.5">
+              {signedAttachments
+                .filter(({ path }) => previewKind(path, attachmentNotes[path]?.mime_type) === 'audio')
+                .map(({ path }) => (
+                  <div key={path} className="group flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewPath(path)}
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                    >
+                      <Music size={15} className="shrink-0 text-qira-pistachio" />
+                      <span className="truncate text-sm text-slate-700">
+                        {displayFilename(path, attachmentNotes[path]?.original_name)}
+                      </span>
+                    </button>
+                    {canDelete(getAttachmentAuthorId(path)) && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(path)}
+                        className="shrink-0 rounded-lg p-1 text-slate-400 transition hover:bg-white hover:text-slate-700"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
             </div>
-          ))}
-        </div>
+          )}
+
+          {signedAttachments.some(({ path }) => previewKind(path, attachmentNotes[path]?.mime_type) !== 'audio') && (
+            <div className={['mb-4 grid gap-3 sm:grid-cols-2', wide ? 'lg:grid-cols-3 xl:grid-cols-4' : ''].join(' ')}>
+              {signedAttachments
+                .filter(({ path }) => previewKind(path, attachmentNotes[path]?.mime_type) !== 'audio')
+                .map(({ path, signedUrl }) => (
+                  <div key={path} className="group rounded-xl border border-slate-200 bg-slate-50 p-2">
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-900">
+                          {displayFilename(path, attachmentNotes[path]?.original_name)}
+                        </p>
+                      </div>
+                      {canDelete(getAttachmentAuthorId(path)) && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(path)}
+                          className="rounded-lg p-1 text-slate-400 transition hover:bg-white hover:text-slate-700"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      {isImage(path) && signedUrl ? (
+                        <button type="button" onClick={() => setPreviewPath(path)} className="block shrink-0">
+                          <img
+                            src={signedUrl}
+                            alt={displayFilename(path, attachmentNotes[path]?.original_name)}
+                            className="h-20 w-20 rounded-xl border border-slate-200 object-cover"
+                          />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewPath(path)}
+                          className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-white px-1 text-qira-pistachio transition hover:border-qira-pistachio hover:bg-qira-pistachio-lt/40"
+                        >
+                          <FileText size={18} />
+                        </button>
+                      )}
+
+                      <textarea
+                        key={path}
+                        defaultValue={attachmentNotes[path]?.body ?? ''}
+                        onBlur={(event) => {
+                          const value = event.target.value
+                          if (value !== (attachmentNotes[path]?.body ?? '')) void updateAttachmentNote(path, value)
+                        }}
+                        placeholder={t('task.attachmentNotePlaceholder')}
+                        rows={3}
+                        className="min-w-0 flex-1 resize-none rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none transition focus:border-qira-pistachio"
+                      />
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </>
       ) : (
         <p className="mb-4 text-sm text-slate-500">{t('task.noFiles')}</p>
       )}
