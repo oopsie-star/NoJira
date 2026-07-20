@@ -188,7 +188,7 @@ export function AttachmentUpload({
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-sm font-semibold text-slate-900">{t('task.attachments')}</p>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-5">
           {typeof MediaRecorder !== 'undefined' && (
             recording ? (
               <button
@@ -322,6 +322,12 @@ export function AttachmentUpload({
       )}
 
       <div
+        role="button"
+        tabIndex={0}
+        onClick={() => fileInputRef.current?.click()}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') fileInputRef.current?.click()
+        }}
         onDragOver={(event) => {
           event.preventDefault()
           setDragOver(true)
@@ -329,8 +335,8 @@ export function AttachmentUpload({
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         className={[
-          'rounded-2xl border-2 border-dashed px-4 py-8 text-center transition',
-          dragOver ? 'border-qira-pistachio bg-qira-pistachio-lt' : 'border-slate-200 bg-slate-50',
+          'cursor-pointer rounded-2xl border-2 border-dashed px-4 py-8 text-center transition',
+          dragOver ? 'border-qira-pistachio bg-qira-pistachio-lt' : 'border-slate-200 bg-slate-50 hover:border-slate-300',
         ].join(' ')}
       >
         {uploading ? (
