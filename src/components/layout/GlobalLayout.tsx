@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { useNavigate, useParams, useLocation, useSearchParams } from 'react-router-dom'
 import { projectPath, sectionFromPathname } from '@/lib/projectRoutes'
 import { LeftSidebar } from './LeftSidebar'
 import { MobileBottomBar } from './MobileBottomBar'
@@ -30,10 +30,13 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
   const projects = useStore((state) => state.projects)
   const setActiveProjectId = useStore((state) => state.setActiveProjectId)
   const profileId = useStore((state) => state.profile?.id)
+  const tasks = useStore((state) => state.tasks)
+  const setOpenTaskId = useStore((state) => state.setOpenTaskId)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { projectKey } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const isAdmin = profile?.role === 'admin'
 
@@ -54,6 +57,20 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
       if (fallback) navigate(projectPath(fallback.key, sectionFromPathname(location.pathname)), { replace: true })
     }
   }, [projectKey, projects, activeProjectId, setActiveProjectId, navigate, location.pathname])
+
+  // Deep link from an email/notification: ?task=<id> opens that task's
+  // drawer once it shows up in the loaded tasks, then the param is dropped
+  // so it doesn't refire on subsequent navigation.
+  useEffect(() => {
+    const taskId = searchParams.get('task')
+    if (!taskId) return
+    if (!tasks.some((task) => task.id === taskId)) return
+    setOpenTaskId(taskId)
+    setSearchParams((params) => {
+      params.delete('task')
+      return params
+    }, { replace: true })
+  }, [searchParams, tasks, setOpenTaskId, setSearchParams])
 
   useEffect(() => {
     if (activeProjectId) {

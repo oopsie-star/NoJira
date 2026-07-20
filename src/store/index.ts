@@ -2,6 +2,7 @@
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { getErrorMessage } from '@/lib/errors'
 import { isTaskBlocked } from '@/lib/ops'
+import { dedupeRecipients } from '@/lib/notify'
 import { supabase } from '@/lib/supabase'
 import type {
   AttachmentNote,
@@ -10,6 +11,7 @@ import type {
   Epic,
   JiraUserPlaceholder,
   Notification,
+  NotificationType,
   PortfolioItem,
   Profile,
   Project,
@@ -539,6 +541,37 @@ export const useStore = create<AppState>((set, get) => {
     })
 
     await get().fetchNotifications()
+  }
+
+  // Fans a notification out to recipients: an in-app row (real-time, via the
+  // existing notifications table/bell) plus a best-effort email. Email
+  // failures never block the in-app notification, which has already landed
+  // by the time the edge function is invoked.
+  const notifyRecipients = async (
+    recipientIds: string[],
+    opts: { projectId: string; taskId: string | null; notificationType: NotificationType; title: string; body: string },
+  ) => {
+    if (!recipientIds.length) return
+    const { projectId, taskId, notificationType, title, body } = opts
+
+    await supabase.from('notifications').insert(
+      recipientIds.map((profileId) => ({
+        project_id: projectId,
+        profile_id: profileId,
+        task_id: taskId,
+        notification_type: notificationType,
+        title,
+        body,
+      })),
+    )
+
+    try {
+      await supabase.functions.invoke('send-task-notification', {
+        body: { recipient_ids: recipientIds, project_id: projectId, task_id: taskId, subject: title, body_text: body },
+      })
+    } catch {
+      // Best-effort: the in-app notification already landed above.
+    }
   }
 
   return ({
@@ -1297,20 +1330,39 @@ export const useStore = create<AppState>((set, get) => {
       set((state) => ({ taskComments: [...state.taskComments, data as TaskComment] }))
     }
 
-    // Notify mentioned project members (never the author).
-    const recipients = [...new Set(mentionedProfileIds ?? [])].filter((id) => id && id !== profile.id)
-    if (recipients.length) {
-      const authorName = profile.full_name || profile.email
-      await supabase.from('notifications').insert(
-        recipients.map((profileId) => ({
-          project_id: currentTask.project_id,
-          profile_id: profileId,
-          task_id: taskId,
-          notification_type: 'comment' as const,
-          title: `${authorName} mentioned you`,
-          body: `${currentTask.key}: ${trimmedBody.slice(0, 140)}`,
-        })),
-      )
+    // Notify: whoever was @mentioned, plus the task author, assignee(s), and
+    // everyone who has previously commented on this task ("thread
+    // participants") — never the commenter themselves, and never doubled up
+    // between the two groups.
+    const authorName = profile.full_name || profile.email
+    const commentBodyPreview = `${currentTask.key}: ${trimmedBody.slice(0, 140)}`
+
+    const mentionedRecipients = dedupeRecipients(mentionedProfileIds ?? [], profile.id)
+    if (mentionedRecipients.length) {
+      await notifyRecipients(mentionedRecipients, {
+        projectId: currentTask.project_id,
+        taskId,
+        notificationType: 'comment',
+        title: `${authorName} mentioned you`,
+        body: commentBodyPreview,
+      })
+    }
+
+    const threadParticipantIds = get().taskComments
+      .filter((comment) => comment.task_id === taskId)
+      .map((comment) => comment.author_id)
+    const otherRecipients = dedupeRecipients(
+      [currentTask.reporter_id, currentTask.assignee_id, ...currentTask.assignee_ids, ...threadParticipantIds],
+      profile.id,
+    ).filter((id) => !mentionedRecipients.includes(id))
+    if (otherRecipients.length) {
+      await notifyRecipients(otherRecipients, {
+        projectId: currentTask.project_id,
+        taskId,
+        notificationType: 'comment',
+        title: `${authorName} commented on ${currentTask.key}`,
+        body: commentBodyPreview,
+      })
     }
 
     await supabase.from('task_activities').insert({
@@ -1508,6 +1560,28 @@ export const useStore = create<AppState>((set, get) => {
         }, nextTask.id)
       }
 
+      // Notify "the other side" of a status change: if the assignee moved
+      // it, tell the author; if the author (or anyone else) moved it, tell
+      // the assignee(s). Covers "assignee starts work" and "author/PM
+      // updates progress" symmetrically without a special-cased status.
+      if (profile && previousTask.status !== nextTask.status) {
+        const assigneeIds = nextTask.assignee_ids.length ? nextTask.assignee_ids : [nextTask.assignee_id]
+        const actorName = profile.full_name || profile.email
+        const statusLabel = nextTask.status.replace('_', ' ')
+        const isActorAssignee = assigneeIds.includes(profile.id)
+        const statusRecipients = dedupeRecipients(
+          isActorAssignee ? [nextTask.reporter_id] : [...assigneeIds, nextTask.reporter_id],
+          profile.id,
+        )
+        await notifyRecipients(statusRecipients, {
+          projectId: nextTask.project_id,
+          taskId: nextTask.id,
+          notificationType: 'automation',
+          title: `${actorName} moved ${nextTask.key} to ${statusLabel}`,
+          body: nextTask.title,
+        })
+      }
+
       if (previousTask.status !== 'done' && nextTask.status === 'done') {
         await deliverProjectWebhooks('task.completed', {
           event: 'task.completed',
@@ -1529,6 +1603,17 @@ export const useStore = create<AppState>((set, get) => {
                 task: targetTask,
                 unblocked_by: nextTask,
               }, targetTask.id)
+
+              if (get().automationSettings?.notify_on_unblock) {
+                const unblockedAssigneeIds = targetTask.assignee_ids.length ? targetTask.assignee_ids : [targetTask.assignee_id]
+                await notifyRecipients(dedupeRecipients(unblockedAssigneeIds, null), {
+                  projectId: targetTask.project_id,
+                  taskId: targetTask.id,
+                  notificationType: 'unblocked',
+                  title: `${targetTask.key} is now unblocked`,
+                  body: `${nextTask.key} was completed, unblocking this task.`,
+                })
+              }
             }
           }
         }
