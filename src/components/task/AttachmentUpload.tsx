@@ -188,38 +188,29 @@ export function AttachmentUpload({
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-sm font-semibold text-slate-900">{t('task.attachments')}</p>
-        <div className="flex items-center gap-5">
-          {typeof MediaRecorder !== 'undefined' && (
-            recording ? (
-              <button
-                type="button"
-                onClick={stopRecording}
-                className="flex items-center gap-1.5 text-sm font-medium text-rose-600"
-              >
-                <span className="h-2 w-2 animate-pulse rounded-full bg-rose-600" aria-hidden />
-                {formatSeconds(recordSeconds)}
-                <Square size={13} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void startRecording()}
-                title={t('task.recordVoiceComment')}
-                aria-label={t('task.recordVoiceComment')}
-                className="text-slate-400 transition hover:text-qira-pistachio"
-              >
-                <Mic size={16} />
-              </button>
-            )
-          )}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="text-sm font-medium text-qira-pistachio hover:text-qira-pistachio-dk"
-          >
-            {t('common.create')}
-          </button>
-        </div>
+        {typeof MediaRecorder !== 'undefined' && (
+          recording ? (
+            <button
+              type="button"
+              onClick={stopRecording}
+              className="flex items-center gap-1.5 text-sm font-medium text-rose-600"
+            >
+              <span className="h-2 w-2 animate-pulse rounded-full bg-rose-600" aria-hidden />
+              {formatSeconds(recordSeconds)}
+              <Square size={13} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void startRecording()}
+              title={t('task.recordVoiceComment')}
+              aria-label={t('task.recordVoiceComment')}
+              className="text-slate-400 transition hover:text-qira-pistachio"
+            >
+              <Mic size={16} />
+            </button>
+          )
+        )}
       </div>
 
       {signedAttachments.length > 0 ? (
