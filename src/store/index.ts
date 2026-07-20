@@ -449,7 +449,7 @@ interface AppState {
   fetchTaskLinks: () => Promise<void>
   fetchAttachmentNotes: () => Promise<void>
   updateAttachmentNote: (path: string, body: string) => Promise<void>
-  recordAttachmentOriginalName: (projectId: string, path: string, originalName: string) => Promise<void>
+  recordAttachmentOriginalName: (projectId: string, path: string, originalName: string, mimeType?: string | null) => Promise<void>
   fetchNotifications: () => Promise<void>
   fetchTaskContext: (taskId: string) => Promise<void>
   clearTaskContext: () => void
@@ -1063,10 +1063,13 @@ export const useStore = create<AppState>((set, get) => {
     set((state) => ({ attachmentNotes: { ...state.attachmentNotes, [path]: data as AttachmentNote } }))
   },
 
-  recordAttachmentOriginalName: async (projectId, path, originalName) => {
+  recordAttachmentOriginalName: async (projectId, path, originalName, mimeType) => {
     const { data, error } = await supabase
       .from('attachment_notes')
-      .upsert({ project_id: projectId, path, original_name: originalName }, { onConflict: 'project_id,path' })
+      .upsert(
+        { project_id: projectId, path, original_name: originalName, mime_type: mimeType ?? null },
+        { onConflict: 'project_id,path' },
+      )
       .select('*')
       .single()
 

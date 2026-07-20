@@ -58,10 +58,23 @@ const OFFICE_RE = /\.(docx?|xlsx?|pptx?)$/i
 const MARKDOWN_RE = /\.(md|markdown)$/i
 const TEXT_RE = /\.(txt|json|csv|tsv|log|ya?ml|xml|ini|conf|env|js|ts|tsx|jsx|py|rb|go|rs|java|c|cpp|h|hpp|css|scss|html?|sh|sql|php|toml)$/i
 const VIDEO_RE = /\.(mp4|webm|ogv|mov|m4v)$/i
-const AUDIO_RE = /\.(mp3|wav|ogg|m4a|aac|flac)$/i
+// Extensions vary a lot by recording device/app (iPhone Voice Memos can export
+// .caf, some Android recorders use .amr/.3gp, browser recorders use .weba) —
+// this is a best-effort fallback for when we have no recorded MIME type at all.
+const AUDIO_RE = /\.(mp3|wav|ogg|m4a|aac|flac|caf|amr|opus|weba|3gp|3gpp)$/i
 
-/** How an attachment should be previewed in the browser. */
-export function previewKind(nameOrPath: string): PreviewKind {
+/**
+ * How an attachment should be previewed in the browser. Prefers the recorded
+ * MIME type (see attachment_notes.mime_type) when available — audio file
+ * extensions especially are too varied by recording device to trust alone.
+ */
+export function previewKind(nameOrPath: string, mime?: string | null): PreviewKind {
+  if (mime) {
+    if (mime.startsWith('image/')) return 'image'
+    if (mime === 'application/pdf') return 'pdf'
+    if (mime.startsWith('video/')) return 'video'
+    if (mime.startsWith('audio/')) return 'audio'
+  }
   if (isImage(nameOrPath)) return 'image'
   if (PDF_RE.test(nameOrPath)) return 'pdf'
   if (OFFICE_RE.test(nameOrPath)) return 'office'

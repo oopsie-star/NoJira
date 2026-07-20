@@ -14,7 +14,9 @@ import { useStore } from '@/store'
 export function VoiceCommentary({ attachments }: { attachments: string[] }) {
   const { t } = useI18n()
   const attachmentNotes = useStore((state) => state.attachmentNotes)
-  const audioPath = [...attachments].reverse().find((path) => previewKind(path) === 'audio')
+  const audioPath = [...attachments].reverse().find(
+    (path) => previewKind(path, attachmentNotes[path]?.mime_type) === 'audio',
+  )
   const { urlByPath } = useSignedAttachments(audioPath ? [audioPath] : [])
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)

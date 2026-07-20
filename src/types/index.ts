@@ -251,6 +251,7 @@ export interface AttachmentNote {
   path:          string
   body:          string
   original_name: string | null
+  mime_type:     string | null
   updated_by:    string | null
   created_at:    string
   updated_at:    string

@@ -93,7 +93,7 @@ export function AttachmentUpload({
 
         if (error) throw error
         newPaths.push(nextPath)
-        void recordAttachmentOriginalName(pathPrefix.split('/')[0], nextPath, file.name)
+        void recordAttachmentOriginalName(pathPrefix.split('/')[0], nextPath, file.name, file.type)
       }
 
       if (newPaths.length) {

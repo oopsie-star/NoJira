@@ -17,9 +17,9 @@ function Centered({ children }: { children: ReactNode }) {
 
 export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPreviewProps) {
   const { t } = useI18n()
-  const kind = previewKind(path)
-  const originalName = useStore((state) => state.attachmentNotes[path]?.original_name)
-  const filename = displayFilename(path, originalName)
+  const note = useStore((state) => state.attachmentNotes[path])
+  const kind = previewKind(path, note?.mime_type)
+  const filename = displayFilename(path, note?.original_name)
   const [text, setText] = useState<string | null>(null)
   const [textLoading, setTextLoading] = useState(false)
 
