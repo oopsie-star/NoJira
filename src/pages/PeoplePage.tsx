@@ -12,6 +12,11 @@ import { useStore } from '@/store'
 import type { Locale, Profile, ProjectRole } from '@/types'
 
 const JOB_TITLE_OPTIONS = [
+  'Owner',
+  'Founder',
+  'CEO',
+  'COO',
+  'CTO',
   'Senior Designer',
   'Designer',
   'Senior Frontend Engineer',
@@ -27,6 +32,7 @@ const JOB_TITLE_OPTIONS = [
 ]
 
 const DEPARTMENT_OPTIONS = [
+  'Executive Leadership',
   'Design',
   'Frontend',
   'Backend',
@@ -292,6 +298,15 @@ export function PeoplePage() {
       setMemberActionError(getErrorMessage(err))
     } finally {
       setAcceptingPlaceholderId(null)
+    }
+  }
+
+  async function handleUpdateProfileField(profileId: string, fields: Partial<Profile>) {
+    setMemberActionError(null)
+    try {
+      await updateProfile(profileId, fields)
+    } catch (err) {
+      setMemberActionError(getErrorMessage(err))
     }
   }
 
@@ -781,7 +796,7 @@ export function PeoplePage() {
                                 list="job-title-options"
                                 disabled={!canEditMemberProfile}
                                 defaultValue={person.job_title ?? ''}
-                                onBlur={(event) => updateProfile(person.id, { job_title: event.target.value })}
+                                onBlur={(event) => void handleUpdateProfileField(person.id, { job_title: event.target.value })}
                                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
                               />
                             </label>
@@ -792,7 +807,7 @@ export function PeoplePage() {
                                 list="department-options"
                                 disabled={!canEditMemberProfile}
                                 defaultValue={person.department ?? ''}
-                                onBlur={(event) => updateProfile(person.id, { department: event.target.value })}
+                                onBlur={(event) => void handleUpdateProfileField(person.id, { department: event.target.value })}
                                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
                               />
                             </label>
@@ -802,7 +817,7 @@ export function PeoplePage() {
                               <select
                                 disabled={!canEditMemberProfile}
                                 value={person.locale as Locale}
-                                onChange={(event) => updateProfile(person.id, { locale: event.target.value as Locale })}
+                                onChange={(event) => void handleUpdateProfileField(person.id, { locale: event.target.value as Locale })}
                                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
                               >
                                 <option value="en">{t('common.english')}</option>

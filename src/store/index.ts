@@ -2138,12 +2138,18 @@ export const useStore = create<AppState>((set, get) => {
       profile: state.profile?.id === id ? { ...state.profile, ...fields } : state.profile,
     }))
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .update(fields)
       .eq('id', id)
       .select('*')
       .single()
+
+    // A blocked RLS write returns 0 rows (no thrown error from Postgres itself),
+    // which .single() turns into an error — surface it instead of silently
+    // keeping the optimistic change, which would otherwise quietly revert on
+    // the next fetch with no indication anything went wrong.
+    if (error) throw error
 
     if (data) {
       set((state) => ({
