@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Copy, Eye, EyeOff, Import, LoaderCircle, Trash2 } from 'lucide-react'
+import { Copy, Download, Eye, EyeOff, Import, LoaderCircle, LogIn, Music, RefreshCw, Trash2 } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
+import { useAuthContext } from '@/auth/AuthContext'
 import { useI18n } from '@/lib/i18n'
+import { formatDate, formatPerson } from '@/lib/format'
+import { canViewActivityLog } from '@/lib/permissions'
 import { JiraImportWizard } from '@/components/jira/JiraImportWizard'
 import { JiraQuickSync } from '@/components/jira/JiraQuickSync'
 import {
@@ -15,7 +18,42 @@ import {
   type LLMProvider,
 } from '@/lib/ai'
 import { useStore } from '@/store'
-import { WEBHOOK_EVENT_OPTIONS, type ProjectAutomationSettings, type ProjectWebhook, type WebhookEvent, type WebhookType } from '@/types'
+import { WEBHOOK_EVENT_OPTIONS, type ActivityEvent, type ActivityEventType, type ProjectAutomationSettings, type ProjectWebhook, type WebhookEvent, type WebhookType } from '@/types'
+
+const ACTIVITY_ICONS: Record<ActivityEventType, typeof LogIn> = {
+  login: LogIn,
+  view_task: Eye,
+  download_attachment: Download,
+  play_audio: Music,
+}
+
+function ActivityEventRow({ event }: { event: ActivityEvent }) {
+  const { t, locale } = useI18n()
+  const Icon = ACTIVITY_ICONS[event.event_type]
+  const who = formatPerson(event.profile) || t('common.none')
+
+  const description = (() => {
+    if (event.event_type === 'login') return t('ops.activity.login', { who })
+    if (event.event_type === 'view_task') {
+      const label = event.task ? `${event.task.key} — ${event.task.title}` : event.detail ?? ''
+      return t('ops.activity.viewTask', { who, task: label })
+    }
+    if (event.event_type === 'download_attachment') return t('ops.activity.download', { who, file: event.detail ?? '' })
+    return t('ops.activity.playAudio', { who, file: event.detail ?? '' })
+  })()
+
+  return (
+    <div className="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+        <Icon size={15} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-slate-700">{description}</p>
+        <p className="mt-0.5 text-xs text-slate-400">{formatDate(locale, event.created_at, { time: true })}</p>
+      </div>
+    </div>
+  )
+}
 
 function CopyButton({ text }: { text: string }) {
   const { t } = useI18n()
@@ -82,16 +120,23 @@ function ModelLibraryCard({
 
 export function OpsPage() {
   const { t } = useI18n()
+  const { profile } = useAuthContext()
   const fetchProjects = useStore((state) => state.fetchProjects)
   const fetchAutomationSettings = useStore((state) => state.fetchAutomationSettings)
   const fetchProjectWebhooks = useStore((state) => state.fetchProjectWebhooks)
   const activeProjectId = useStore((state) => state.activeProjectId)
+  const activeProjectRole = useStore((state) => state.activeProjectRole)
   const automationSettings = useStore((state) => state.automationSettings)
   const projectWebhooks = useStore((state) => state.projectWebhooks)
+  const activityEvents = useStore((state) => state.activityEvents)
+  const fetchActivityEvents = useStore((state) => state.fetchActivityEvents)
   const updateAutomationSettings = useStore((state) => state.updateAutomationSettings)
   const createProjectWebhook = useStore((state) => state.createProjectWebhook)
   const deleteProjectWebhook = useStore((state) => state.deleteProjectWebhook)
   const testProjectWebhook = useStore((state) => state.testProjectWebhook)
+
+  const canSeeActivityLog = canViewActivityLog(activeProjectRole, profile?.role === 'admin')
+  const [activityLoading, setActivityLoading] = useState(false)
 
   const initialAiConfig = useMemo(() => getLLMConfig(), [])
 
@@ -141,6 +186,19 @@ export function OpsPage() {
       void Promise.all([fetchAutomationSettings(), fetchProjectWebhooks()])
     }
   }, [activeProjectId, fetchAutomationSettings, fetchProjectWebhooks])
+
+  useEffect(() => {
+    if (activeProjectId && canSeeActivityLog) void fetchActivityEvents()
+  }, [activeProjectId, canSeeActivityLog, fetchActivityEvents])
+
+  async function handleRefreshActivity() {
+    setActivityLoading(true)
+    try {
+      await fetchActivityEvents()
+    } finally {
+      setActivityLoading(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -671,6 +729,34 @@ export function OpsPage() {
             </div>
           </div>
         </section>
+
+        {canSeeActivityLog && (
+          <section className="rounded-[28px] bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">{t('ops.activity.title')}</h2>
+                <p className="mt-1 text-sm text-slate-500">{t('ops.activity.subtitle')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleRefreshActivity()}
+                disabled={activityLoading}
+                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+              >
+                <RefreshCw size={14} className={activityLoading ? 'animate-spin' : ''} />
+                {t('ops.activity.refresh')}
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {activityEvents.length === 0 ? (
+                <p className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">{t('ops.activity.empty')}</p>
+              ) : (
+                activityEvents.map((event) => <ActivityEventRow key={event.id} event={event} />)
+              )}
+            </div>
+          </section>
+        )}
       </div>
     </GlobalLayout>
   )

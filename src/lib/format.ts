@@ -1,9 +1,10 @@
 import type { Locale, Profile } from '@/types'
 
-export function formatDate(locale: Locale, value?: string | null) {
+export function formatDate(locale: Locale, value?: string | null, options?: { time?: boolean }) {
   if (!value) return '—'
   return new Intl.DateTimeFormat(locale === 'ru' ? 'ru-RU' : 'en-US', {
     dateStyle: 'medium',
+    ...(options?.time ? { timeStyle: 'short' } : {}),
   }).format(new Date(value))
 }
 

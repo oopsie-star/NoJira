@@ -23,6 +23,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
   const fetchProjectWebhooks = useStore((state) => state.fetchProjectWebhooks)
   const fetchTaskLinks = useStore((state) => state.fetchTaskLinks)
   const fetchAttachmentNotes = useStore((state) => state.fetchAttachmentNotes)
+  const logActivityEvent = useStore((state) => state.logActivityEvent)
   const fetchProjectTaskCount = useStore((state) => state.fetchProjectTaskCount)
   const fetchPendingMembers = useStore((state) => state.fetchPendingMembers)
   const activeProjectId = useStore((state) => state.activeProjectId)
@@ -79,6 +80,15 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
   useEffect(() => {
     if (isAdmin) void fetchPendingMembers()
   }, [isAdmin, fetchPendingMembers])
+
+  // Once per browser tab (not per page/route — GlobalLayout remounts on every
+  // page navigation), log that this person opened the app.
+  useEffect(() => {
+    if (activeProjectId && !sessionStorage.getItem('nojira:logged-login')) {
+      sessionStorage.setItem('nojira:logged-login', '1')
+      void logActivityEvent('login')
+    }
+  }, [activeProjectId, logActivityEvent])
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-[#F7F8F9]">

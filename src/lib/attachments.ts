@@ -40,6 +40,17 @@ export function storageBucket(path: string): 'attachments' | 'task-attachments' 
   return 'attachments'
 }
 
+/**
+ * The task id embedded in a task attachment's path (both shapes —
+ * `project/task/author/file` and the Jira-import `project/task/file` — put it
+ * at position 1). Epic/sprint attachment paths have a literal 'epics'/'sprints'
+ * there instead, which never matches the UUID shape, so this returns null for them.
+ */
+export function taskIdFromPath(path: string): string | null {
+  const taskId = path.split('/')[1]
+  return taskId && UUID_RE.test(taskId) ? taskId : null
+}
+
 export type AttachmentKind = 'image' | 'pdf' | 'archive' | 'file'
 
 const IMAGE_RE = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?)$/i

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Download, ExternalLink, Loader2, X } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
-import { displayFilename, officeViewerUrl, previewKind } from '@/lib/attachments'
+import { displayFilename, officeViewerUrl, previewKind, taskIdFromPath } from '@/lib/attachments'
 import { MarkdownRenderer } from '@/lib/markdown'
 import { useStore } from '@/store'
 
@@ -18,10 +18,20 @@ function Centered({ children }: { children: ReactNode }) {
 export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPreviewProps) {
   const { t } = useI18n()
   const note = useStore((state) => state.attachmentNotes[path])
+  const logActivityEvent = useStore((state) => state.logActivityEvent)
   const kind = previewKind(path, note?.mime_type)
   const filename = displayFilename(path, note?.original_name)
+  const taskId = taskIdFromPath(path)
   const [text, setText] = useState<string | null>(null)
   const [textLoading, setTextLoading] = useState(false)
+
+  function logDownload() {
+    void logActivityEvent('download_attachment', { taskId, detail: filename })
+  }
+
+  function logPlay() {
+    void logActivityEvent('play_audio', { taskId, detail: filename })
+  }
 
   // Fetch textual bodies directly (kept private — no external service).
   useEffect(() => {
@@ -55,7 +65,7 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
                 <a href={signedUrl} target="_blank" rel="noreferrer" title={t('preview.openTab')} aria-label={t('preview.openTab')} className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
                   <ExternalLink size={16} />
                 </a>
-                <a href={signedUrl} download={filename} title={t('preview.download')} aria-label={t('preview.download')} className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+                <a href={signedUrl} download={filename} onClick={logDownload} title={t('preview.download')} aria-label={t('preview.download')} className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
                   <Download size={16} />
                 </a>
               </>
@@ -83,7 +93,7 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
             </div>
           ) : kind === 'audio' ? (
             <div className="flex h-full items-center justify-center p-6">
-              <audio src={signedUrl} controls className="w-full max-w-lg" />
+              <audio src={signedUrl} controls onPlay={logPlay} className="w-full max-w-lg" />
             </div>
           ) : kind === 'markdown' ? (
             textLoading ? <Centered><Loader2 size={20} className="animate-spin" /></Centered> : (
@@ -96,7 +106,7 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
           ) : (
             <Centered>
               <p className="text-sm">{t('preview.noInline')}</p>
-              <a href={signedUrl} download={filename} className="rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk">
+              <a href={signedUrl} download={filename} onClick={logDownload} className="rounded-2xl bg-qira-pistachio px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk">
                 {t('preview.download')}
               </a>
             </Centered>

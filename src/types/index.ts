@@ -257,6 +257,20 @@ export interface AttachmentNote {
   updated_at:    string
 }
 
+export type ActivityEventType = 'login' | 'view_task' | 'download_attachment' | 'play_audio'
+
+export interface ActivityEvent {
+  id:         string
+  project_id: string
+  profile_id: string | null
+  event_type: ActivityEventType
+  task_id:    string | null
+  detail:     string | null
+  created_at: string
+  profile?:   Pick<Profile, 'id' | 'full_name' | 'email'> | null
+  task?:      Pick<Task, 'id' | 'key' | 'title'> | null
+}
+
 export type NotificationType = 'assigned' | 'unblocked' | 'comment' | 'automation' | 'system'
 
 export interface Notification {

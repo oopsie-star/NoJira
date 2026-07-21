@@ -11,9 +11,10 @@ import { useStore } from '@/store'
  * empty placeholder). Re-uploading a newer audio file via the regular
  * attachments picker replaces which one plays here.
  */
-export function VoiceCommentary({ attachments }: { attachments: string[] }) {
+export function VoiceCommentary({ attachments, taskId }: { attachments: string[]; taskId: string }) {
   const { t } = useI18n()
   const attachmentNotes = useStore((state) => state.attachmentNotes)
+  const logActivityEvent = useStore((state) => state.logActivityEvent)
   const audioPath = [...attachments].reverse().find(
     (path) => previewKind(path, attachmentNotes[path]?.mime_type) === 'audio',
   )
@@ -56,7 +57,10 @@ export function VoiceCommentary({ attachments }: { attachments: string[] }) {
         <audio
           ref={audioRef}
           src={signedUrl}
-          onPlay={() => setPlaying(true)}
+          onPlay={() => {
+            setPlaying(true)
+            void logActivityEvent('play_audio', { taskId, detail: displayFilename(audioPath, attachmentNotes[audioPath]?.original_name) })
+          }}
           onPause={() => setPlaying(false)}
           onEnded={() => setPlaying(false)}
           className="hidden"

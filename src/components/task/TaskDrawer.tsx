@@ -61,6 +61,7 @@ export function TaskDrawer() {
   const deleteTaskLink = useStore((state) => state.deleteTaskLink)
   const fetchTaskContext = useStore((state) => state.fetchTaskContext)
   const clearTaskContext = useStore((state) => state.clearTaskContext)
+  const logActivityEvent = useStore((state) => state.logActivityEvent)
   const setOpenTaskId = useStore((state) => state.setOpenTaskId)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const { profile } = useAuthContext()
@@ -70,6 +71,9 @@ export function TaskDrawer() {
 
   const [savedFlash, setSavedFlash] = useState(false)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Dedupes the view-logged event against re-renders of the *same* open task
+  // (the `task` object's identity changes on every unrelated realtime update).
+  const lastViewedTaskIdRef = useRef<string | null>(null)
 
   const flashSaved = useCallback(() => {
     setSavedFlash(true)
@@ -141,7 +145,12 @@ export function TaskDrawer() {
     setLinkType('blocks')
     setLinkedTaskId('')
     void fetchTaskContext(task.id)
-  }, [task, fetchTaskContext, clearTaskContext])
+
+    if (lastViewedTaskIdRef.current !== task.id) {
+      lastViewedTaskIdRef.current = task.id
+      void logActivityEvent('view_task', { taskId: task.id, detail: task.title })
+    }
+  }, [task, fetchTaskContext, clearTaskContext, logActivityEvent])
 
   // Restore the open task from the URL once on mount, so a hard refresh or a
   // shared deep link (e.g. /board?task=<id>) re-opens the same task instead of
@@ -441,7 +450,7 @@ export function TaskDrawer() {
               className="w-full border-none px-0 text-2xl font-semibold leading-tight text-slate-900 outline-none disabled:cursor-default sm:text-[30px]"
             />
 
-            <VoiceCommentary attachments={currentTask.attachments} />
+            <VoiceCommentary attachments={currentTask.attachments} taskId={currentTask.id} />
 
             <div className="mt-6">
               <AttachmentUpload

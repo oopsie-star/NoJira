@@ -2,6 +2,7 @@ import type { ProjectRole, TaskStatus } from '@/types'
 
 const MANAGE_PROJECT_ROLES: ProjectRole[] = ['owner', 'admin', 'founder', 'ceo']
 const OVERRIDE_DELETE_ROLES: ProjectRole[] = ['owner', 'founder', 'ceo']
+const ACTIVITY_LOG_ROLES: ProjectRole[] = ['founder', 'ceo']
 
 export function canManageProject(role: ProjectRole | null) {
   return Boolean(role && MANAGE_PROJECT_ROLES.includes(role))
@@ -15,6 +16,12 @@ export function canInviteToProject(role: ProjectRole | null) {
 
 export function canOverrideDelete(role: ProjectRole | null) {
   return Boolean(role && OVERRIDE_DELETE_ROLES.includes(role))
+}
+
+/** Who logged in, viewed a task, downloaded a file, or played audio — the global
+ * super admin, or a project founder/ceo. Nobody else, not even project owners/admins. */
+export function canViewActivityLog(role: ProjectRole | null, isSuperAdmin: boolean) {
+  return isSuperAdmin || Boolean(role && ACTIVITY_LOG_ROLES.includes(role))
 }
 
 /** Renaming an epic/sprint/task: project admins, or whoever authored it. */

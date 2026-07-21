@@ -5,6 +5,8 @@ import { isTaskBlocked } from '@/lib/ops'
 import { dedupeRecipients } from '@/lib/notify'
 import { supabase } from '@/lib/supabase'
 import type {
+  ActivityEvent,
+  ActivityEventType,
   AttachmentNote,
   DeletionRequest,
   DeletionRequestEntityType,
@@ -35,6 +37,12 @@ const TASK_SELECT = `
   epic:epics(*),
   assignee:profiles!tasks_assignee_id_fkey(*),
   reporter:profiles!tasks_reporter_id_fkey(*)
+`
+
+const ACTIVITY_EVENT_SELECT = `
+  id, project_id, profile_id, event_type, task_id, detail, created_at,
+  profile:profiles(id, full_name, email),
+  task:tasks(id, key, title)
 `
 
 // PostgREST caps a plain select at its configured max-rows (1000 by default),
@@ -401,6 +409,7 @@ interface AppState {
   projectWebhooks: ProjectWebhook[]
   taskLinks: TaskLink[]
   attachmentNotes: Record<string, AttachmentNote>
+  activityEvents: ActivityEvent[]
   notifications: Notification[]
   taskComments: TaskComment[]
   taskActivities: TaskActivity[]
@@ -450,6 +459,8 @@ interface AppState {
   fetchAttachmentNotes: () => Promise<void>
   updateAttachmentNote: (path: string, body: string) => Promise<void>
   recordAttachmentOriginalName: (projectId: string, path: string, originalName: string, mimeType?: string | null) => Promise<void>
+  fetchActivityEvents: () => Promise<void>
+  logActivityEvent: (eventType: ActivityEventType, options?: { taskId?: string | null; detail?: string | null }) => Promise<void>
   fetchNotifications: () => Promise<void>
   fetchTaskContext: (taskId: string) => Promise<void>
   clearTaskContext: () => void
@@ -588,6 +599,7 @@ export const useStore = create<AppState>((set, get) => {
     projectWebhooks: [],
     taskLinks: [],
     attachmentNotes: {},
+    activityEvents: [],
     notifications: [],
     taskComments: [],
     taskActivities: [],
@@ -664,6 +676,7 @@ export const useStore = create<AppState>((set, get) => {
         projectWebhooks: [],
         taskLinks: [],
         attachmentNotes: {},
+        activityEvents: [],
         notifications: [],
         members: [],
         placeholders: [],
@@ -1077,6 +1090,37 @@ export const useStore = create<AppState>((set, get) => {
     set((state) => ({ attachmentNotes: { ...state.attachmentNotes, [path]: data as AttachmentNote } }))
   },
 
+  fetchActivityEvents: async () => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) {
+      set({ activityEvents: [] })
+      return
+    }
+
+    const { data } = await supabase
+      .from('activity_events')
+      .select(ACTIVITY_EVENT_SELECT)
+      .eq('project_id', activeProjectId)
+      .order('created_at', { ascending: false })
+      .limit(300)
+
+    set({ activityEvents: (data ?? []) as unknown as ActivityEvent[] })
+  },
+
+  logActivityEvent: async (eventType, options) => {
+    const activeProjectId = get().activeProjectId
+    const profile = get().profile
+    if (!activeProjectId || !profile) return
+
+    await supabase.from('activity_events').insert({
+      project_id: activeProjectId,
+      profile_id: profile.id,
+      event_type: eventType,
+      task_id: options?.taskId ?? null,
+      detail: options?.detail ?? null,
+    })
+  },
+
   fetchNotifications: async () => {
     const activeProjectId = get().activeProjectId
     const profile = get().profile
@@ -1176,6 +1220,7 @@ export const useStore = create<AppState>((set, get) => {
       projectWebhooks: [],
       taskLinks: [],
       attachmentNotes: {},
+      activityEvents: [],
       notifications: [],
       members: [profile],
       projectMembers: [optimisticMembership],
@@ -1924,6 +1969,7 @@ export const useStore = create<AppState>((set, get) => {
         projectWebhooks: [],
         taskLinks: [],
         attachmentNotes: {},
+        activityEvents: [],
         notifications: [],
         members: [],
         placeholders: [],
