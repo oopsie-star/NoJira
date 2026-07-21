@@ -4,6 +4,7 @@ import { getErrorMessage } from '@/lib/errors'
 import { isTaskBlocked } from '@/lib/ops'
 import { dedupeRecipients } from '@/lib/notify'
 import { supabase } from '@/lib/supabase'
+import { EPIC_COLORS } from '@/types'
 import type {
   ActivityEvent,
   ActivityEventType,
@@ -487,6 +488,8 @@ interface AppState {
   updateEpic: (id: string, fields: Partial<Epic>) => Promise<void>
   reassignAuthor: (epicId: string, toProfileId: string) => Promise<void>
   deleteEpic: (id: string, options?: { withTasks?: boolean }) => Promise<void>
+  convertSprintToEpic: (sprintId: string) => Promise<Epic | null>
+  convertEpicToSprint: (epicId: string) => Promise<Sprint | null>
   updatePortfolioItem: (id: string, fields: Partial<PortfolioItem>) => Promise<void>
   updateAutomationSettings: (fields: Partial<ProjectAutomationSettings>) => Promise<void>
   deleteProject: (projectId: string) => Promise<void>
@@ -1867,6 +1870,104 @@ export const useStore = create<AppState>((set, get) => {
     }
     set((state) => ({ epics: state.epics.filter((epic) => epic.id !== id) }))
     await supabase.from('epics').delete().eq('id', id)
+  },
+
+  // Jira imports don't always draw the epic/sprint line consistently (a "sprint"
+  // that's really a feature grouping, or vice versa) — these let a project admin
+  // fix that after the fact without re-importing.
+  convertSprintToEpic: async (sprintId) => {
+    const sprint = get().sprints.find((item) => item.id === sprintId)
+    if (!sprint) return null
+
+    const statusMap: Record<Sprint['status'], Epic['status']> = {
+      planned: 'planned',
+      active: 'in_progress',
+      completed: 'done',
+    }
+
+    const epic = await get().createEpic({
+      title: sprint.name,
+      description: sprint.goal,
+      color: EPIC_COLORS[0],
+      status: statusMap[sprint.status],
+      parent_portfolio_item_id: null,
+      created_by: sprint.created_by,
+      attachments: sprint.attachments,
+    })
+    if (!epic) return null
+
+    // A task whose epic_id already points somewhere else (a messy Jira import can
+    // leave it out of sync with its own sprint) keeps that epic — only tasks with
+    // no other epic fold into the newly created one.
+    const sprintTasks = get().tasks.filter((task) => task.sprint_id === sprintId)
+    const tasksToFold = sprintTasks.filter((task) => !task.epic_id || task.epic_id === sprint.epic_id)
+    const tasksToDetach = sprintTasks.filter((task) => task.epic_id && task.epic_id !== sprint.epic_id)
+
+    if (tasksToFold.length) {
+      await supabase.from('tasks').update({ sprint_id: null, epic_id: epic.id }).in('id', tasksToFold.map((task) => task.id))
+    }
+    if (tasksToDetach.length) {
+      await supabase.from('tasks').update({ sprint_id: null }).in('id', tasksToDetach.map((task) => task.id))
+    }
+
+    set((state) => ({
+      tasks: state.tasks.map((task) => {
+        if (task.sprint_id !== sprintId) return task
+        if (!task.epic_id || task.epic_id === sprint.epic_id) return { ...task, sprint_id: null, epic_id: epic.id }
+        return { ...task, sprint_id: null }
+      }),
+    }))
+
+    await get().deleteSprint(sprintId)
+    return epic
+  },
+
+  convertEpicToSprint: async (epicId) => {
+    const epic = get().epics.find((item) => item.id === epicId)
+    if (!epic) return null
+
+    const statusMap: Record<Epic['status'], Sprint['status']> = {
+      planned: 'planned',
+      in_progress: 'active',
+      done: 'completed',
+    }
+
+    const sprint = await get().createSprint({
+      name: epic.title,
+      goal: epic.description,
+      epic_id: null,
+      start_date: null,
+      end_date: null,
+      status: statusMap[epic.status],
+      created_by: epic.created_by,
+      attachments: epic.attachments,
+    })
+    if (!sprint) return null
+
+    // Sprints nested under this epic become standalone top-level sprints instead
+    // of being folded in — reuses updateSprint's own epic_id → task cascade so
+    // their tasks' epic_id clears in step with them.
+    const nestedSprints = get().sprints.filter((item) => item.epic_id === epicId)
+    for (const nested of nestedSprints) {
+      await get().updateSprint(nested.id, { epic_id: null })
+    }
+
+    // Tasks directly in the epic (no sprint of their own) fold into the new sprint.
+    const directTaskIds = get().tasks
+      .filter((task) => task.epic_id === epicId && !task.sprint_id)
+      .map((task) => task.id)
+
+    if (directTaskIds.length) {
+      await supabase.from('tasks').update({ epic_id: null, sprint_id: sprint.id }).in('id', directTaskIds)
+      set((state) => ({
+        tasks: state.tasks.map((task) => (
+          directTaskIds.includes(task.id) ? { ...task, epic_id: null, sprint_id: sprint.id } : task
+        )),
+      }))
+    }
+
+    await get().deleteEpic(epicId)
+    return sprint
   },
 
   updatePortfolioItem: async (id, fields) => {

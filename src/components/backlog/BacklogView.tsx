@@ -18,7 +18,7 @@ import { useAuthContext } from '@/auth/AuthContext'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { isFreshTask, isTaskBlocked } from '@/lib/ops'
-import { canDeleteAttachment, canEditAuthoredContent } from '@/lib/permissions'
+import { canDeleteAttachment, canEditAuthoredContent, canManageProject } from '@/lib/permissions'
 import { useCurrentProjectKey } from '@/lib/projectRoutes'
 import { EPIC_COLORS, EPIC_STATUS_OPTIONS, isTerminalStatus, type Epic, type Profile, type Sprint, type Task, type TaskStatus } from '@/types'
 import { useStore } from '@/store'
@@ -574,6 +574,7 @@ export function BacklogView() {
   const updateEpic = useStore((state) => state.updateEpic)
   const reassignAuthor = useStore((state) => state.reassignAuthor)
   const deleteEpic = useStore((state) => state.deleteEpic)
+  const convertEpicToSprint = useStore((state) => state.convertEpicToSprint)
   const requestEntityDeletion = useStore((state) => state.requestEntityDeletion)
   const activeProjectId = useStore((state) => state.activeProjectId)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
@@ -876,6 +877,11 @@ export function BacklogView() {
     await requestEntityDeletion('epic', epic.id, `${epic.key} — ${epic.title}`)
   }
 
+  async function handleConvertEpicToSprint(epic: Epic) {
+    if (!window.confirm(t('backlog.convertEpicToSprintConfirm', { name: epic.title }))) return
+    await convertEpicToSprint(epic.id)
+  }
+
   const showGlobalEmptyState = sprintSections.length === 0 && backlogTasks.length === 0 && epicSections.length === 0
   const memberPreview = members.slice(0, 4)
 
@@ -1035,6 +1041,13 @@ export function BacklogView() {
                         { label: t('backlog.createIssue'), onSelect: () => openTaskModal({ epic_id: epic.id }) },
                         { label: t('backlog.createSprintInEpic'), onSelect: () => openSprintModal(epic.id) },
                       )
+                    }
+
+                    if (canManageProject(activeProjectRole)) {
+                      actions.push({
+                        label: t('backlog.convertToSprint'),
+                        onSelect: () => handleConvertEpicToSprint(epic),
+                      })
                     }
 
                     if (isSuperAdmin) {

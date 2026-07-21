@@ -45,6 +45,7 @@ export function SprintContainer({
   const completeSprint = useStore((state) => state.completeSprint)
   const updateSprint = useStore((state) => state.updateSprint)
   const deleteSprint = useStore((state) => state.deleteSprint)
+  const convertSprintToEpic = useStore((state) => state.convertSprintToEpic)
   const requestEntityDeletion = useStore((state) => state.requestEntityDeletion)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
@@ -83,6 +84,11 @@ export function SprintContainer({
     }
   }
 
+  async function handleConvertSprintToEpic() {
+    if (!window.confirm(t('backlog.convertSprintToEpicConfirm', { name: sprint.name }))) return
+    await convertSprintToEpic(sprint.id)
+  }
+
   const actionItems: SectionMenuItem[] = [
     { label: t('backlog.createIssue'), onSelect: () => setShowCreate(true) },
     ...(canManageSprint && sprint.status === 'planned'
@@ -90,6 +96,9 @@ export function SprintContainer({
       : []),
     ...(canManageSprint && sprint.status === 'active'
       ? [{ label: t('backlog.completeSprint'), onSelect: () => completeSprint(sprint.id) }]
+      : []),
+    ...(canManageSprint
+      ? [{ label: t('backlog.convertToEpic'), onSelect: handleConvertSprintToEpic }]
       : []),
     isSuperAdmin
       ? {
