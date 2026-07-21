@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Draggable } from '@hello-pangea/dnd'
-import { AlertTriangle, BookOpenText, Calendar, CheckSquare, ChevronDown, ChevronRight, CircleAlert, GripVertical, ListTree, MoreHorizontal, Paperclip } from 'lucide-react'
+import { AlertTriangle, BookOpenText, Calendar, CheckSquare, ChevronDown, ChevronRight, CircleAlert, GripVertical, ListTree, MoreHorizontal, Music, Paperclip } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/common/IssueBadges'
 import { AssigneeAvatars } from '@/components/common/AssigneeAvatars'
+import { previewKind } from '@/lib/attachments'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
 import { isFreshTask, isTaskBlocked } from '@/lib/ops'
@@ -38,7 +39,13 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
   const selectedTaskIds = useStore((state) => state.selectedTaskIds)
   const toggleTaskSelection = useStore((state) => state.toggleTaskSelection)
   const members = useStore((state) => state.members)
+  const attachmentNotes = useStore((state) => state.attachmentNotes)
   const universal = isUniversalTask(task)
+  const audioAttachmentCount = useMemo(
+    () => task.attachments.filter((path) => previewKind(path, attachmentNotes[path]?.mime_type) === 'audio').length,
+    [task.attachments, attachmentNotes],
+  )
+  const otherAttachmentCount = task.attachments.length - audioAttachmentCount
   // Newly added "To do" work stays highlighted (and pinned to the top) for a week;
   // a task also counts as fresh while it has a subtask created within that window.
   const fresh = isFreshTask(task, tasks)
@@ -136,10 +143,16 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
                         {formatDate(locale, task.due_date)}
                       </span>
                     )}
-                    {task.attachments.length > 0 && (
+                    {audioAttachmentCount > 0 && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-qira-pistachio-lt px-2 py-1 text-[11px] font-medium text-qira-pistachio-dk">
+                        <Music size={11} />
+                        {audioAttachmentCount}
+                      </span>
+                    )}
+                    {otherAttachmentCount > 0 && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
                         <Paperclip size={11} />
-                        {task.attachments.length}
+                        {otherAttachmentCount}
                       </span>
                     )}
                     {subtaskCount > 0 && (
