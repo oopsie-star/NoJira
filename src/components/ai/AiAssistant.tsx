@@ -7,7 +7,7 @@ import {
   getFillTaskToolDefinition,
   getToolDefinitions,
   mapWithConcurrency,
-  resolveAssigneeByRole,
+  resolveAssignee,
 } from '@/lib/agentTools'
 import type { FillTaskResult, SplitTasksResult } from '@/lib/agentTools'
 import { useI18n } from '@/lib/i18n'
@@ -119,7 +119,8 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
       'If the user asks you to change/clean up/reformat tasks in an epic or sprint (e.g. "remove this text from every task\'s description", "prepend the title to each task") and you don\'t already have their ids, call list_tasks first — never ask the user to paste ids, titles, or descriptions themselves, you can look them up.',
       'When editing many tasks the same way, call update_task once per task, one at a time, until you\'ve covered all of them from list_tasks — do not stop partway to ask for confirmation.',
       'The "Existing epics" list below is for REFERENCE only — reuse one of those ids only if the user\'s message explicitly says to add to / continue an existing epic. Otherwise, for a new request or a newly attached document, always call create_epic for a fresh epic — never default to the most recently mentioned or most recently created epic just because it exists.',
-      'Never invent a due date — only set one if the source text explicitly gives it. Never invent an assignee — only set a role if the source text or team roster supports it.',
+      'Never invent a due date — only set one if the source text explicitly gives it. Never invent an assignee.',
+      'If the source text names a specific person for a task, always pass their name via assignee_name (not just role) — role alone is ambiguous whenever more than one team member shares that department. If a tool result comes back saying the assignee is ambiguous or not found, do not guess: retry immediately with the exact assignee_name if you can tell it from context, otherwise leave it unassigned and ask the user to confirm instead of picking someone.',
       `Project: ${projectName ?? 'Unknown'}.`,
       `Existing epics: ${epicsList}.`,
       `Existing sprints: ${sprintsList}.`,
@@ -292,6 +293,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
 
     const fillPrompt = [
       'Extract this single task\'s fields from the given block of text. Only use what is literally stated — never invent a priority, due date, or role.',
+      'If the block names a specific person for this task, set assignee_name to their exact name (not just role) — role alone is ambiguous whenever more than one team member shares that department.',
       `Team members and their roles: ${membersList}.`,
     ].join(' ')
 
@@ -327,7 +329,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
       }
 
       const { data } = outcome
-      const { id: assigneeId, note } = resolveAssigneeByRole(data.role, members)
+      const { id: assigneeId, note } = resolveAssignee(data.assignee_name, data.role, members)
       if (!assigneeId) unassignedCount += 1
       const sprintId = data.sprint_name ? sprintIdByName.get(data.sprint_name) ?? null : null
 

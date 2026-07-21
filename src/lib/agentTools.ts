@@ -35,17 +35,61 @@ const ROLE_KEYWORDS: Array<{ department: string; keywords: string[] }> = [
   { department: 'Project Delivery', keywords: ['project', 'проект'] },
 ]
 
-export function resolveAssigneeByRole(role: string | undefined, members: Profile[]): { id: string | null; note: string } {
+function memberLabel(member: Profile): string {
+  return member.full_name || member.email
+}
+
+// A named individual (from the source text) always wins over a department
+// bucket — the department is only a fallback for when the source doesn't
+// name anyone. Both paths can be ambiguous (two people with similar names,
+// or two people sharing a department) — an ambiguous match must NOT silently
+// pick the first candidate; it has to come back empty with the candidate
+// list so the caller (chat loop or file-import summary) surfaces it instead
+// of quietly assigning the wrong person.
+export function resolveAssignee(
+  identifier: string | undefined,
+  role: string | undefined,
+  members: Profile[]
+): { id: string | null; note: string } {
+  if (identifier && identifier.trim()) {
+    const normalized = identifier.trim().toLowerCase()
+    const exact = members.filter((member) => (
+      (member.full_name ?? '').toLowerCase() === normalized || (member.email ?? '').toLowerCase() === normalized
+    ))
+    const candidates = exact.length
+      ? exact
+      : normalized.length >= 3
+        ? members.filter((member) => (
+            (member.full_name ?? '').toLowerCase().includes(normalized) || (member.email ?? '').toLowerCase().includes(normalized)
+          ))
+        : []
+
+    if (candidates.length === 1) {
+      return { id: candidates[0].id, note: ` (исполнитель: ${memberLabel(candidates[0])})` }
+    }
+    if (candidates.length > 1) {
+      const names = candidates.map(memberLabel).join(', ')
+      return { id: null, note: ` (имя "${identifier}" неоднозначно — совпало несколько человек: ${names}; исполнитель не назначен)` }
+    }
+    // Named but nobody matches — fall through to role, but only report the
+    // role's own outcome below (the name-not-found case is rare enough not
+    // to need its own message, and role may still resolve it correctly).
+  }
+
   if (!role) return { id: null, note: '' }
 
-  const normalized = role.trim().toLowerCase()
-  const bucket = ROLE_KEYWORDS.find((entry) => entry.keywords.some((kw) => normalized.includes(kw)))
+  const normalizedRole = role.trim().toLowerCase()
+  const bucket = ROLE_KEYWORDS.find((entry) => entry.keywords.some((kw) => normalizedRole.includes(kw)))
   if (!bucket) return { id: null, note: ` (роль "${role}" не распознана — исполнитель не назначен)` }
 
-  const match = members.find((member) => (member.department ?? '').toLowerCase() === bucket.department.toLowerCase())
-  if (!match) return { id: null, note: ` (в команде нет участника с ролью "${bucket.department}" — исполнитель не назначен)` }
+  const matches = members.filter((member) => (member.department ?? '').toLowerCase() === bucket.department.toLowerCase())
+  if (matches.length === 0) return { id: null, note: ` (в команде нет участника с ролью "${bucket.department}" — исполнитель не назначен)` }
+  if (matches.length > 1) {
+    const names = matches.map(memberLabel).join(', ')
+    return { id: null, note: ` (в роли "${bucket.department}" несколько человек: ${names} — нужно явно указать имя, исполнитель не назначен)` }
+  }
 
-  return { id: match.id, note: ` (исполнитель: ${match.full_name || match.email})` }
+  return { id: matches[0].id, note: ` (исполнитель: ${memberLabel(matches[0])})` }
 }
 
 export function getToolDefinitions(): LLMToolDefinition[] {
@@ -98,7 +142,8 @@ export function getToolDefinitions(): LLMToolDefinition[] {
           description: { type: 'string', description: 'Task content/description' },
           priority: { type: 'string', enum: PRIORITY_VALUES, description: 'Only set if explicitly stated in the source' },
           due_date: { type: 'string', description: 'ISO date (YYYY-MM-DD). Only set if explicitly stated in the source' },
-          role: { type: 'string', description: 'Target role/department for the assignee, e.g. "Frontend", "Backend", "Design"' },
+          assignee_name: { type: 'string', description: 'Exact name or email of the person to assign, when the source names an individual for this task. Takes priority over role — always prefer this over role when a specific person is named.' },
+          role: { type: 'string', description: 'Target role/department for the assignee, e.g. "Frontend", "Backend", "Design" — only use when no specific person is named' },
         },
         required: ['epic_id', 'title'],
       },
@@ -114,7 +159,8 @@ export function getToolDefinitions(): LLMToolDefinition[] {
           description: { type: 'string' },
           priority: { type: 'string', enum: PRIORITY_VALUES },
           due_date: { type: 'string' },
-          role: { type: 'string', description: 'Reassign to whoever holds this role/department' },
+          assignee_name: { type: 'string', description: 'Exact name or email of the person to reassign to, when a specific individual is named. Takes priority over role.' },
+          role: { type: 'string', description: 'Reassign to whoever holds this role/department — only use when no specific person is named' },
         },
         required: ['task_id'],
       },
@@ -140,6 +186,7 @@ export interface FillTaskResult {
   description?: string
   priority?: IssuePriority
   due_date?: string
+  assignee_name?: string
   role?: string
   sprint_name?: string
 }
@@ -155,7 +202,8 @@ export function getFillTaskToolDefinition(): LLMToolDefinition {
         description: { type: 'string' },
         priority: { type: 'string', enum: PRIORITY_VALUES, description: 'Only if explicitly stated' },
         due_date: { type: 'string', description: 'ISO date (YYYY-MM-DD), only if explicitly stated' },
-        role: { type: 'string', description: 'Target role/department for the assignee, e.g. "Frontend", "Backend", "Design"' },
+        assignee_name: { type: 'string', description: 'Exact name or email of the person this block names for the task. Takes priority over role — always prefer this over role when a specific person is named.' },
+        role: { type: 'string', description: 'Target role/department for the assignee, e.g. "Frontend", "Backend", "Design" — only use when no specific person is named' },
         sprint_name: { type: 'string', description: 'Must match one of the known sprint names — omit to leave the task in the epic backlog' },
       },
       required: ['title'],
@@ -232,7 +280,11 @@ export async function executeTool(name: string, argsJson: string, ctx: AgentTool
   }
 
   if (name === 'create_task') {
-    const { id: assigneeId, note } = resolveAssigneeByRole(typeof args.role === 'string' ? args.role : undefined, ctx.members)
+    const { id: assigneeId, note } = resolveAssignee(
+      typeof args.assignee_name === 'string' ? args.assignee_name : undefined,
+      typeof args.role === 'string' ? args.role : undefined,
+      ctx.members,
+    )
     const priority = PRIORITY_VALUES.includes(args.priority as IssuePriority) ? (args.priority as IssuePriority) : undefined
 
     const task = await ctx.createTask({
@@ -260,8 +312,12 @@ export async function executeTool(name: string, argsJson: string, ctx: AgentTool
     if (typeof args.due_date === 'string') fields.due_date = args.due_date
 
     let note = ''
-    if (typeof args.role === 'string') {
-      const resolved = resolveAssigneeByRole(args.role, ctx.members)
+    if (typeof args.assignee_name === 'string' || typeof args.role === 'string') {
+      const resolved = resolveAssignee(
+        typeof args.assignee_name === 'string' ? args.assignee_name : undefined,
+        typeof args.role === 'string' ? args.role : undefined,
+        ctx.members,
+      )
       if (resolved.id) fields.assignee_id = resolved.id
       note = resolved.note
     }
