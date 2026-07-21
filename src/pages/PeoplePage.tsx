@@ -9,7 +9,7 @@ import { useI18n } from '@/lib/i18n'
 import { canInviteToProject, canManageProject } from '@/lib/permissions'
 import { placeholderAsPerson } from '@/lib/people'
 import { useStore } from '@/store'
-import type { Locale, Profile, ProjectRole } from '@/types'
+import type { JiraUserPlaceholder, Locale, Profile, ProjectRole } from '@/types'
 
 const JOB_TITLE_OPTIONS = [
   'Owner',
@@ -305,6 +305,15 @@ export function PeoplePage() {
     setMemberActionError(null)
     try {
       await updateProfile(profileId, fields)
+    } catch (err) {
+      setMemberActionError(getErrorMessage(err))
+    }
+  }
+
+  async function handleUpdatePlaceholderField(placeholderId: string, fields: Partial<JiraUserPlaceholder>) {
+    setMemberActionError(null)
+    try {
+      await updatePlaceholder(placeholderId, fields)
     } catch (err) {
       setMemberActionError(getErrorMessage(err))
     }
@@ -792,24 +801,38 @@ export function PeoplePage() {
 
                             <label className="block">
                               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.jobTitle')}</span>
-                              <input
-                                list="job-title-options"
+                              <select
                                 disabled={!canEditMemberProfile}
-                                defaultValue={person.job_title ?? ''}
-                                onBlur={(event) => void handleUpdateProfileField(person.id, { job_title: event.target.value })}
+                                value={person.job_title ?? ''}
+                                onChange={(event) => void handleUpdateProfileField(person.id, { job_title: event.target.value })}
                                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
-                              />
+                              >
+                                <option value="">{t('common.none')}</option>
+                                {person.job_title && !JOB_TITLE_OPTIONS.includes(person.job_title) && (
+                                  <option value={person.job_title}>{person.job_title}</option>
+                                )}
+                                {JOB_TITLE_OPTIONS.map((option) => (
+                                  <option key={option} value={option}>{option}</option>
+                                ))}
+                              </select>
                             </label>
 
                             <label className="block">
                               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.department')}</span>
-                              <input
-                                list="department-options"
+                              <select
                                 disabled={!canEditMemberProfile}
-                                defaultValue={person.department ?? ''}
-                                onBlur={(event) => void handleUpdateProfileField(person.id, { department: event.target.value })}
+                                value={person.department ?? ''}
+                                onChange={(event) => void handleUpdateProfileField(person.id, { department: event.target.value })}
                                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
-                              />
+                              >
+                                <option value="">{t('common.none')}</option>
+                                {person.department && !DEPARTMENT_OPTIONS.includes(person.department) && (
+                                  <option value={person.department}>{person.department}</option>
+                                )}
+                                {DEPARTMENT_OPTIONS.map((option) => (
+                                  <option key={option} value={option}>{option}</option>
+                                ))}
+                              </select>
                             </label>
 
                             <label className="block">
@@ -895,24 +918,38 @@ export function PeoplePage() {
 
                           <label className="block">
                             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.jobTitle')}</span>
-                            <input
-                              list="job-title-options"
+                            <select
                               disabled={!canManage}
-                              defaultValue={placeholder.job_title ?? ''}
-                              onBlur={(event) => void updatePlaceholder(placeholder.id, { job_title: event.target.value })}
+                              value={placeholder.job_title ?? ''}
+                              onChange={(event) => void handleUpdatePlaceholderField(placeholder.id, { job_title: event.target.value })}
                               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
-                            />
+                            >
+                              <option value="">{t('common.none')}</option>
+                              {placeholder.job_title && !JOB_TITLE_OPTIONS.includes(placeholder.job_title) && (
+                                <option value={placeholder.job_title}>{placeholder.job_title}</option>
+                              )}
+                              {JOB_TITLE_OPTIONS.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
                           </label>
 
                           <label className="block">
                             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.department')}</span>
-                            <input
-                              list="department-options"
+                            <select
                               disabled={!canManage}
-                              defaultValue={placeholder.department ?? ''}
-                              onBlur={(event) => void updatePlaceholder(placeholder.id, { department: event.target.value })}
+                              value={placeholder.department ?? ''}
+                              onChange={(event) => void handleUpdatePlaceholderField(placeholder.id, { department: event.target.value })}
                               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
-                            />
+                            >
+                              <option value="">{t('common.none')}</option>
+                              {placeholder.department && !DEPARTMENT_OPTIONS.includes(placeholder.department) && (
+                                <option value={placeholder.department}>{placeholder.department}</option>
+                              )}
+                              {DEPARTMENT_OPTIONS.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
                           </label>
 
                           <label className="block">
@@ -1019,18 +1056,6 @@ export function PeoplePage() {
                 </div>
               </section>
             )}
-
-            <datalist id="job-title-options">
-              {JOB_TITLE_OPTIONS.map((option) => (
-                <option key={option} value={option} />
-              ))}
-            </datalist>
-
-            <datalist id="department-options">
-              {DEPARTMENT_OPTIONS.map((option) => (
-                <option key={option} value={option} />
-              ))}
-            </datalist>
           </>
         )}
       </div>
