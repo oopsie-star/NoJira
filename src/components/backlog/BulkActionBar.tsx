@@ -1,16 +1,26 @@
 import { CheckSquare, X } from 'lucide-react'
+import { useAuthContext } from '@/auth/AuthContext'
 import { useI18n } from '@/lib/i18n'
+import { canManageProject } from '@/lib/permissions'
 import { useStore } from '@/store'
 import type { Task, TaskStatus } from '@/types'
 
 export function BulkActionBar() {
   const { t } = useI18n()
+  const { profile } = useAuthContext()
   const selectedTaskIds = useStore((s) => s.selectedTaskIds)
   const sprints = useStore((s) => s.sprints)
+  const epics = useStore((s) => s.epics)
   const members = useStore((s) => s.members)
   const placeholders = useStore((s) => s.placeholders)
   const bulkUpdateTasks = useStore((s) => s.bulkUpdateTasks)
   const clearTaskSelection = useStore((s) => s.clearTaskSelection)
+  const activeProjectRole = useStore((s) => s.activeProjectRole)
+
+  // Reorganizing across epics (as opposed to just picking a sprint) is
+  // powerful enough — imported data can be messy — that it's reserved for
+  // project owners/admins/founders/ceos and the global super admin.
+  const canMoveAcrossEpics = canManageProject(activeProjectRole) || profile?.role === 'admin'
 
   const count = selectedTaskIds.length
   if (count === 0) return null
@@ -44,9 +54,26 @@ export function BulkActionBar() {
           <option value="deleted">{t('status.deleted')}</option>
         </select>
 
-        <select className={selectClass} value="" onChange={(e) => { if (e.target.value) apply({ sprint_id: e.target.value === 'backlog' ? null : e.target.value }) }}>
+        <select
+          className={selectClass}
+          value=""
+          onChange={(e) => {
+            const value = e.target.value
+            if (!value) return
+            if (value === 'backlog') { apply({ sprint_id: null, epic_id: null }); return }
+            if (value.startsWith('epic:')) { apply({ sprint_id: null, epic_id: value.slice('epic:'.length) }); return }
+            apply({ sprint_id: value })
+          }}
+        >
           <option value="">{t('bulk.setSprint')}</option>
           <option value="backlog">{t('common.backlog')}</option>
+          {canMoveAcrossEpics && epics.length > 0 && (
+            <optgroup label={t('backlog.epicCount', { count: epics.length })}>
+              {epics.map((epic) => (
+                <option key={epic.id} value={`epic:${epic.id}`}>{epic.key} — {epic.title}</option>
+              ))}
+            </optgroup>
+          )}
           {sprints.filter((s) => s.status !== 'completed').map((sprint) => (
             <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
           ))}
