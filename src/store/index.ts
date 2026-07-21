@@ -1100,12 +1100,18 @@ export const useStore = create<AppState>((set, get) => {
       return
     }
 
+    // 31 days covers the day/week/month breakdown the Ops activity panel
+    // shows; bounding by date (rather than a flat row limit) keeps the query
+    // cheap while guaranteeing full coverage for that window.
+    const sinceIso = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString()
+
     const { data } = await supabase
       .from('activity_events')
       .select(ACTIVITY_EVENT_SELECT)
       .eq('project_id', activeProjectId)
+      .gte('created_at', sinceIso)
       .order('created_at', { ascending: false })
-      .limit(300)
+      .limit(3000)
 
     set({ activityEvents: (data ?? []) as unknown as ActivityEvent[] })
   },

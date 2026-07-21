@@ -4,6 +4,7 @@ import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { useAuthContext } from '@/auth/AuthContext'
 import { useI18n } from '@/lib/i18n'
 import { formatDate, formatPerson } from '@/lib/format'
+import { calculateAverageCycleTimeHours, formatCycleTime } from '@/lib/ops'
 import { canViewActivityLog } from '@/lib/permissions'
 import { JiraImportWizard } from '@/components/jira/JiraImportWizard'
 import { JiraQuickSync } from '@/components/jira/JiraQuickSync'
@@ -18,7 +19,161 @@ import {
   type LLMProvider,
 } from '@/lib/ai'
 import { useStore } from '@/store'
-import { WEBHOOK_EVENT_OPTIONS, type ActivityEvent, type ActivityEventType, type ProjectAutomationSettings, type ProjectWebhook, type WebhookEvent, type WebhookType } from '@/types'
+import {
+  isTerminalStatus,
+  WEBHOOK_EVENT_OPTIONS,
+  type ActivityEvent,
+  type ActivityEventType,
+  type Profile,
+  type ProjectAutomationSettings,
+  type ProjectWebhook,
+  type Task,
+  type WebhookEvent,
+  type WebhookType,
+} from '@/types'
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+interface MemberActivityStats {
+  profileId: string
+  name: string
+  activityDay: number
+  activityWeek: number
+  activityMonth: number
+  doneWeek: number
+  doneMonth: number
+  wip: number
+  overdue: number
+  avgCycleHours: number | null
+}
+
+function computeMemberStats(
+  members: Profile[],
+  tasks: Task[],
+  activityEvents: ActivityEvent[],
+): MemberActivityStats[] {
+  const now = Date.now()
+  const dayStart = new Date().setHours(0, 0, 0, 0)
+  const weekStart = now - 7 * DAY_MS
+  const monthStart = now - 30 * DAY_MS
+
+  const statsByProfile = new Map<string, MemberActivityStats>()
+  for (const member of members) {
+    statsByProfile.set(member.id, {
+      profileId: member.id,
+      name: formatPerson(member) || member.email,
+      activityDay: 0,
+      activityWeek: 0,
+      activityMonth: 0,
+      doneWeek: 0,
+      doneMonth: 0,
+      wip: 0,
+      overdue: 0,
+      avgCycleHours: null,
+    })
+  }
+
+  for (const event of activityEvents) {
+    if (!event.profile_id) continue
+    const entry = statsByProfile.get(event.profile_id)
+    if (!entry) continue
+    const ts = new Date(event.created_at).getTime()
+    if (ts >= dayStart) entry.activityDay += 1
+    if (ts >= weekStart) entry.activityWeek += 1
+    if (ts >= monthStart) entry.activityMonth += 1
+  }
+
+  const cycleSamplesByProfile = new Map<string, Task[]>()
+  for (const task of tasks) {
+    const assigneeIds = task.assignee_ids?.length ? task.assignee_ids : (task.assignee_id ? [task.assignee_id] : [])
+    for (const id of assigneeIds) {
+      const entry = statsByProfile.get(id)
+      if (!entry) continue
+
+      if (task.status === 'in_progress') entry.wip += 1
+
+      if (task.due_date && !isTerminalStatus(task.status) && task.status !== 'done' && new Date(task.due_date).getTime() < now) {
+        entry.overdue += 1
+      }
+
+      if (task.status === 'done' && task.completed_at) {
+        const completedTs = new Date(task.completed_at).getTime()
+        if (completedTs >= weekStart) entry.doneWeek += 1
+        if (completedTs >= monthStart) entry.doneMonth += 1
+        const list = cycleSamplesByProfile.get(id) ?? []
+        list.push(task)
+        cycleSamplesByProfile.set(id, list)
+      }
+    }
+  }
+
+  for (const entry of statsByProfile.values()) {
+    entry.avgCycleHours = calculateAverageCycleTimeHours(cycleSamplesByProfile.get(entry.profileId) ?? [])
+  }
+
+  return Array.from(statsByProfile.values()).sort((a, b) => b.activityMonth - a.activityMonth)
+}
+
+function pct(count: number, total: number): string {
+  if (!total) return '—'
+  return `${Math.round((count / total) * 100)}%`
+}
+
+function TeamActivityTable({ stats }: { stats: MemberActivityStats[] }) {
+  const { t, locale } = useI18n()
+  const totalDay = stats.reduce((sum, s) => sum + s.activityDay, 0)
+  const totalWeek = stats.reduce((sum, s) => sum + s.activityWeek, 0)
+  const totalMonth = stats.reduce((sum, s) => sum + s.activityMonth, 0)
+
+  if (stats.length === 0) {
+    return <p className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">{t('ops.activity.empty')}</p>
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[720px] border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+            <th className="py-2 pr-3">{t('ops.activity.person')}</th>
+            <th className="px-3 py-2">{t('ops.activity.today')}</th>
+            <th className="px-3 py-2">{t('ops.activity.thisWeek')}</th>
+            <th className="px-3 py-2">{t('ops.activity.thisMonth')}</th>
+            <th className="px-3 py-2">{t('ops.activity.doneWeek')}</th>
+            <th className="px-3 py-2">{t('ops.activity.doneMonth')}</th>
+            <th className="px-3 py-2">{t('ops.activity.wip')}</th>
+            <th className="px-3 py-2">{t('ops.activity.overdue')}</th>
+            <th className="py-2 pl-3">{t('ops.activity.cycleTime')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stats.map((row) => (
+            <tr key={row.profileId} className="border-b border-slate-100 last:border-0">
+              <td className="py-2.5 pr-3 font-medium text-slate-900">{row.name}</td>
+              <td className="px-3 py-2.5 text-slate-600">{row.activityDay} · {pct(row.activityDay, totalDay)}</td>
+              <td className="px-3 py-2.5 text-slate-600">{row.activityWeek} · {pct(row.activityWeek, totalWeek)}</td>
+              <td className="px-3 py-2.5 text-slate-600">{row.activityMonth} · {pct(row.activityMonth, totalMonth)}</td>
+              <td className="px-3 py-2.5 text-slate-600">{row.doneWeek}</td>
+              <td className="px-3 py-2.5 text-slate-600">{row.doneMonth}</td>
+              <td className="px-3 py-2.5 text-slate-600">
+                {row.wip > 0 && row.wip >= 5 ? (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">{row.wip}</span>
+                ) : row.wip}
+              </td>
+              <td className="px-3 py-2.5">
+                {row.overdue > 0 ? (
+                  <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">{row.overdue}</span>
+                ) : (
+                  <span className="text-slate-600">0</span>
+                )}
+              </td>
+              <td className="py-2.5 pl-3 text-slate-600">{formatCycleTime(locale, row.avgCycleHours)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 
 const ACTIVITY_ICONS: Record<ActivityEventType, typeof LogIn> = {
   login: LogIn,
@@ -130,6 +285,8 @@ export function OpsPage() {
   const projectWebhooks = useStore((state) => state.projectWebhooks)
   const activityEvents = useStore((state) => state.activityEvents)
   const fetchActivityEvents = useStore((state) => state.fetchActivityEvents)
+  const members = useStore((state) => state.members)
+  const tasks = useStore((state) => state.tasks)
   const updateAutomationSettings = useStore((state) => state.updateAutomationSettings)
   const createProjectWebhook = useStore((state) => state.createProjectWebhook)
   const deleteProjectWebhook = useStore((state) => state.deleteProjectWebhook)
@@ -137,6 +294,10 @@ export function OpsPage() {
 
   const canSeeActivityLog = canViewActivityLog(activeProjectRole, profile?.role === 'admin')
   const [activityLoading, setActivityLoading] = useState(false)
+  const memberStats = useMemo(
+    () => (canSeeActivityLog ? computeMemberStats(members, tasks, activityEvents) : []),
+    [canSeeActivityLog, members, tasks, activityEvents]
+  )
 
   const initialAiConfig = useMemo(() => getLLMConfig(), [])
 
@@ -748,12 +909,22 @@ export function OpsPage() {
               </button>
             </div>
 
-            <div className="mt-4 space-y-2">
-              {activityEvents.length === 0 ? (
-                <p className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">{t('ops.activity.empty')}</p>
-              ) : (
-                activityEvents.map((event) => <ActivityEventRow key={event.id} event={event} />)
-              )}
+            <div className="mt-5">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.1em] text-slate-500">{t('ops.activity.byPerson')}</h3>
+              <div className="mt-3">
+                <TeamActivityTable stats={memberStats} />
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.1em] text-slate-500">{t('ops.activity.feed')}</h3>
+              <div className="mt-3 space-y-2">
+                {activityEvents.length === 0 ? (
+                  <p className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">{t('ops.activity.empty')}</p>
+                ) : (
+                  activityEvents.map((event) => <ActivityEventRow key={event.id} event={event} />)
+                )}
+              </div>
             </div>
           </section>
         )}
