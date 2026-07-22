@@ -638,15 +638,32 @@ export function BacklogView() {
       .map((filterId) => quickFilterMap[filterId])
       .filter(Boolean)
 
+    function matchesQueryText(task: Task) {
+      return !query || [
+        task.key,
+        task.title,
+        task.description,
+        ...task.labels,
+      ].join(' ').toLowerCase().includes(query)
+    }
+
+    // BacklogRow renders a task's subtasks unconditionally once the parent row
+    // itself is shown (it reads the full unfiltered task list, not this one) —
+    // so a subtask that matches the query is invisible unless its parent also
+    // survives the filter. Give the parent a pass on the text query whenever
+    // one of its (direct) subtasks matches, so searching by a subtask's key or
+    // text actually surfaces it instead of showing "no issues".
+    const parentIdsWithMatchingChild = query
+      ? new Set(
+          tasks
+            .filter((task) => task.parent_task_id && matchesQueryText(task))
+            .map((task) => task.parent_task_id as string),
+        )
+      : null
+
     return tasks
       .filter((task) => {
-        const matchesQuery = !query || [
-          task.key,
-          task.title,
-          task.description,
-          ...task.labels,
-        ].join(' ').toLowerCase().includes(query)
-
+        const matchesQuery = matchesQueryText(task) || Boolean(parentIdsWithMatchingChild?.has(task.id))
         const matchesEpic = !epicFilter || task.epic_id === epicFilter
         const matchesAssignee = !assigneeFilter || task.assignee_id === assigneeFilter
         const matchesQuickFilters = activeQuickFilters.every((predicate) => predicate(task))
