@@ -124,6 +124,15 @@ export function TaskDrawer() {
     [openTaskId, tasks]
   )
 
+  // Candidates for "make this a subtask of…" — anything except itself and its
+  // own direct children (picking a child as your own parent would be a cycle).
+  const potentialParents = useMemo(() => {
+    const directChildIds = new Set(tasks.filter((item) => item.parent_task_id === openTaskId).map((item) => item.id))
+    return tasks
+      .filter((item) => item.id !== openTaskId && !directChildIds.has(item.id))
+      .sort((left, right) => left.title.localeCompare(right.title))
+  }, [openTaskId, tasks])
+
   const cycleTime = useMemo(
     () => formatCycleTime(locale, calculateAverageCycleTimeHours([task ?? undefined].filter(Boolean) as Task[])),
     [locale, task]
@@ -819,6 +828,21 @@ export function TaskDrawer() {
                        : t('common.none')}
                    </p>
                  )}
+               </MetaSection>
+
+               <MetaSection title={t('task.parentIssue')}>
+                 <select
+                   value={currentTask.parent_task_id ?? ''}
+                   onChange={(event) => void quickUpdate({ parent_task_id: event.target.value || null })}
+                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
+                 >
+                   <option value="">{t('common.none')}</option>
+                   {potentialParents.map((candidate) => (
+                     <option key={candidate.id} value={candidate.id}>
+                       {candidate.key} — {candidate.title}
+                     </option>
+                   ))}
+                 </select>
                </MetaSection>
 
                <MetaSection title={t('task.links')}>
