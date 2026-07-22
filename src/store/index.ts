@@ -714,35 +714,42 @@ export const useStore = create<AppState>((set, get) => {
     }
 
     set({ loadingProjects: true })
-    let memberships: ProjectMember[] = []
-    let projects: Project[] = []
 
-    if (profile?.role === 'admin') {
-      const { data } = await supabase
-        .from('projects')
-        .select('*')
-        .order('created_at')
+    // Ask the DB for every project this JWT is allowed to see — RLS itself
+    // resolves that via is_admin() (all projects for a real super admin) or
+    // created_by/is_project_member (everyone else), evaluated against the
+    // *server's* profiles.role, not the client's. Branching this call on the
+    // client's own `profile?.role` instead (as this used to) was a race: on a
+    // fresh load, several components call fetchProjects() before the separate
+    // profiles-table fetch in AuthContext resolves, so `profile` is still null
+    // here even for a real admin — it would silently take the members-only
+    // path and, unless a later well-timed refetch happened to override it,
+    // permanently show only that admin's own explicit memberships (a project
+    // like MyFoodKiller, where the admin isn't an explicit project_members
+    // row, would just vanish from the switcher until something else fixed it).
+    const [{ data: projectRows }, { data: memberRows }] = await Promise.all([
+      supabase.from('projects').select('*').order('created_at'),
+      supabase.from('project_members').select(PROJECT_ACCESS_SELECT).eq('profile_id', profileId).order('created_at'),
+    ])
 
-      projects = (data ?? []) as Project[]
-      memberships = projects.map((project) => ({
+    const projects = (projectRows ?? []) as Project[]
+    const explicitMemberships = normalizeProjectAccess((memberRows ?? []) as unknown[])
+    const membershipByProjectId = new Map(explicitMemberships.map((membership) => [membership.project_id, membership]))
+
+    // A project this JWT can see via RLS but has no project_members row for
+    // (an admin overseeing a project they weren't explicitly added to) is
+    // synthesized as an 'owner' membership, same as before.
+    const memberships: ProjectMember[] = projects.map((project) => (
+      membershipByProjectId.get(project.id) ?? {
         id: `admin-${project.id}`,
         project_id: project.id,
         profile_id: profileId,
         project_role: 'owner',
         created_at: project.created_at,
         project,
-        profile,
-      }))
-    } else {
-      const { data } = await supabase
-        .from('project_members')
-        .select(PROJECT_ACCESS_SELECT)
-        .eq('profile_id', profileId)
-        .order('created_at')
-
-      memberships = normalizeProjectAccess((data ?? []) as unknown[])
-      projects = uniqueProjects(memberships)
-    }
+        profile: profile ?? undefined,
+      }
+    ))
 
     const storedActiveProjectId = readStoredActiveProjectId()
     const currentProjectExists = projects.some((project) => project.id === get().activeProjectId)
@@ -757,7 +764,9 @@ export const useStore = create<AppState>((set, get) => {
 
     set({
       projects,
-      workspaceProjects: profile?.role === 'admin' ? projects : [],
+      // RLS already scopes `projects` correctly for this user, so a non-admin
+      // just gets their own projects back here too — no separate branch needed.
+      workspaceProjects: projects,
       projectMemberships: memberships,
       activeProjectId: nextActiveProjectId,
       activeProjectRole: nextRole,
