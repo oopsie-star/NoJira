@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Copy, Download, Eye, EyeOff, Import, LoaderCircle, LogIn, Music, RefreshCw, Trash2 } from 'lucide-react'
+import { Copy, Download, Eye, EyeOff, Import, LoaderCircle, LogIn, Music, RefreshCw, Trash2, UserMinus, UserPlus } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { useAuthContext } from '@/auth/AuthContext'
 import { useI18n } from '@/lib/i18n'
@@ -180,6 +180,8 @@ const ACTIVITY_ICONS: Record<ActivityEventType, typeof LogIn> = {
   view_task: Eye,
   download_attachment: Download,
   play_audio: Music,
+  remove_member: UserMinus,
+  add_member: UserPlus,
 }
 
 function ActivityEventRow({ event }: { event: ActivityEvent }) {
@@ -194,7 +196,9 @@ function ActivityEventRow({ event }: { event: ActivityEvent }) {
       return t('ops.activity.viewTask', { who, task: label })
     }
     if (event.event_type === 'download_attachment') return t('ops.activity.download', { who, file: event.detail ?? '' })
-    return t('ops.activity.playAudio', { who, file: event.detail ?? '' })
+    if (event.event_type === 'play_audio') return t('ops.activity.playAudio', { who, file: event.detail ?? '' })
+    if (event.event_type === 'remove_member') return t('ops.activity.removeMember', { who, member: event.detail ?? '' })
+    return t('ops.activity.addMember', { who, member: event.detail ?? '' })
   })()
 
   return (

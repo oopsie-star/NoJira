@@ -257,7 +257,7 @@ export interface AttachmentNote {
   updated_at:    string
 }
 
-export type ActivityEventType = 'login' | 'view_task' | 'download_attachment' | 'play_audio'
+export type ActivityEventType = 'login' | 'view_task' | 'download_attachment' | 'play_audio' | 'remove_member' | 'add_member'
 
 export interface ActivityEvent {
   id:         string

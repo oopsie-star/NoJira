@@ -2315,12 +2315,22 @@ export const useStore = create<AppState>((set, get) => {
     const activeProjectId = get().activeProjectId
     if (!activeProjectId) return
 
+    const { data: removedProfile } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', profileId)
+      .single()
+
     const { error } = await supabase
       .from('project_members')
       .delete()
       .eq('project_id', activeProjectId)
       .eq('profile_id', profileId)
     if (error) throw error
+
+    void get().logActivityEvent('remove_member', {
+      detail: removedProfile?.full_name || removedProfile?.email || profileId,
+    })
 
     await Promise.all([
       get().fetchMembers(),
@@ -2342,6 +2352,16 @@ export const useStore = create<AppState>((set, get) => {
       })
 
     if (error) throw error
+
+    const { data: addedProfile } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', profileId)
+      .single()
+
+    void get().logActivityEvent('add_member', {
+      detail: addedProfile?.full_name || addedProfile?.email || profileId,
+    })
 
     await Promise.all([
       get().fetchMembers(),

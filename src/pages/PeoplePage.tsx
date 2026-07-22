@@ -831,7 +831,7 @@ export function PeoplePage() {
                               <p className="truncate text-sm text-slate-500">{person.email}</p>
                             </div>
                             {canManage && (
-                              <div className="ml-auto flex shrink-0 items-center gap-1">
+                              <div className="ml-auto flex shrink-0 items-center gap-2">
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -850,6 +850,10 @@ export function PeoplePage() {
                                 >
                                   <ArrowLeftRight size={16} />
                                 </button>
+                                {/* Extra gap + divider before the destructive action, on
+                                    purpose — this used to sit right next to "reassign tasks"
+                                    with almost no gap, an easy mis-tap on mobile. */}
+                                <span className="h-5 w-px bg-slate-200" aria-hidden />
                                 <button
                                   type="button"
                                   onClick={() => void handleRemoveMember(person.id, person.full_name || person.email)}
