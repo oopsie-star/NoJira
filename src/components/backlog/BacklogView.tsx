@@ -389,6 +389,8 @@ interface TaskListSectionProps {
   headerControl?: ReactNode
   /** Nested content rendered under the task list (e.g. an epic's sprints). */
   children?: ReactNode
+  /** Active backlog search text, forwarded to each row so subtask lists narrow to matches too. */
+  searchQuery?: string
 }
 
 function TaskListSection({
@@ -414,6 +416,7 @@ function TaskListSection({
   titleBadges,
   headerControl,
   children,
+  searchQuery,
 }: TaskListSectionProps) {
   const { t } = useI18n()
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
@@ -529,6 +532,7 @@ function TaskListSection({
                     index={index}
                     mobile={mobile}
                     dragDisabled={mobile}
+                    searchQuery={searchQuery}
                   />
                 ))}
                 {provided.placeholder}
@@ -1085,6 +1089,7 @@ export function BacklogView() {
                         key={epic.id}
                         sectionKey={`epic-${epic.id}`}
                         title={epic.title}
+                        searchQuery={search}
                         description={epic.description}
                         onDescriptionSave={canCollaborate
                           ? (value) => void updateEpic(epic.id, { description: value })
@@ -1183,6 +1188,7 @@ export function BacklogView() {
                             tasks={sprintTasks}
                             mobile={isMobile}
                             defaultCollapsed={isMobile}
+                            searchQuery={search}
                           />
                         ))}
                       </TaskListSection>
@@ -1195,6 +1201,7 @@ export function BacklogView() {
                       sprint={sprint}
                       tasks={sprintTasks}
                       mobile={isMobile}
+                      searchQuery={search}
                       defaultCollapsed={isMobile && firstExpandedSectionKey !== `sprint-${sprint.id}`}
                     />
                   ))}
@@ -1203,6 +1210,7 @@ export function BacklogView() {
                     <TaskListSection
                       sectionKey="board-placement"
                       title={t('backlog.boardSection')}
+                      searchQuery={search}
                       itemCount={boardPlacementTasks.length}
                       statusCounts={getStatusCounts(boardPlacementTasks)}
                       tasks={boardPlacementTasks}
@@ -1218,6 +1226,7 @@ export function BacklogView() {
                   <TaskListSection
                     sectionKey="backlog"
                     title={t('backlog.title')}
+                    searchQuery={search}
                     itemCount={(hasBoardPlacement ? pureBacklogTasks : backlogTasks).length}
                     statusCounts={getStatusCounts(hasBoardPlacement ? pureBacklogTasks : backlogTasks)}
                     tasks={hasBoardPlacement ? pureBacklogTasks : backlogTasks}

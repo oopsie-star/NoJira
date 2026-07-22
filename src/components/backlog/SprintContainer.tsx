@@ -19,6 +19,8 @@ interface SprintContainerProps {
   tasks: Task[]
   mobile?: boolean
   defaultCollapsed?: boolean
+  /** Active backlog search text, forwarded to each row so subtask lists narrow to matches too. */
+  searchQuery?: string
 }
 
 function getStatusCounts(tasks: Task[]): Record<TaskStatus, number> {
@@ -36,6 +38,7 @@ export function SprintContainer({
   tasks,
   mobile = false,
   defaultCollapsed = false,
+  searchQuery,
 }: SprintContainerProps) {
   const { profile } = useAuthContext()
   const { locale, t } = useI18n()
@@ -235,6 +238,7 @@ export function SprintContainer({
                       index={index}
                       mobile={mobile}
                       dragDisabled={mobile}
+                      searchQuery={searchQuery}
                     />
                   ))}
                   {provided.placeholder}

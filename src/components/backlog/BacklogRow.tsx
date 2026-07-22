@@ -15,6 +15,12 @@ interface BacklogRowProps {
   index: number
   mobile?: boolean
   dragDisabled?: boolean
+  /** Active backlog search text — when set, only subtasks matching it are shown (instead of all of them). */
+  searchQuery?: string
+}
+
+function matchesSearchText(task: Task, query: string) {
+  return [task.key, task.title, task.description, ...task.labels].join(' ').toLowerCase().includes(query)
 }
 
 const issueTypeClasses: Record<IssueType, string> = {
@@ -29,7 +35,7 @@ function IssueTypeIcon({ type }: { type: IssueType }) {
   return <CheckSquare size={14} />
 }
 
-export function BacklogRow({ task, index, mobile = false, dragDisabled = false }: BacklogRowProps) {
+export function BacklogRow({ task, index, mobile = false, dragDisabled = false, searchQuery }: BacklogRowProps) {
   const { locale, t } = useI18n()
   const setOpenTaskId = useStore((state) => state.setOpenTaskId)
   const openTaskId = useStore((state) => state.openTaskId)
@@ -53,12 +59,16 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false }
   const isOpen = task.id === openTaskId
   const isSelected = selectedTaskIds.includes(task.id)
   const bulkActive = selectedTaskIds.length > 0
-  const subtasks = useMemo(
-    () => tasks
+  const searchText = (searchQuery ?? '').trim().toLowerCase()
+  const subtasks = useMemo(() => {
+    const all = tasks
       .filter((t) => t.parent_task_id === task.id)
-      .sort((left, right) => left.position - right.position),
-    [tasks, task.id],
-  )
+      .sort((left, right) => left.position - right.position)
+    // A subtask that matched the query is what pulled this parent row into
+    // view in the first place — only show the ones that actually match
+    // instead of dumping every sibling subtask alongside it.
+    return searchText ? all.filter((t) => matchesSearchText(t, searchText)) : all
+  }, [tasks, task.id, searchText])
   const subtaskCount = subtasks.length
   const [subtasksExpanded, setSubtasksExpanded] = useState(true)
 
