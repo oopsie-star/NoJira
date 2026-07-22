@@ -490,6 +490,8 @@ interface AppState {
   deleteEpic: (id: string, options?: { withTasks?: boolean }) => Promise<void>
   convertSprintToEpic: (sprintId: string) => Promise<Epic | null>
   convertEpicToSprint: (epicId: string) => Promise<Sprint | null>
+  /** Bulk-reassigns every task in the active project from one assignee to another (e.g. an employee leaving) — covers both the single assignee_id and multi-assignee assignee_ids. Returns how many tasks changed. */
+  reassignTaskAssignee: (fromProfileId: string, toProfileId: string) => Promise<number>
   updatePortfolioItem: (id: string, fields: Partial<PortfolioItem>) => Promise<void>
   updateAutomationSettings: (fields: Partial<ProjectAutomationSettings>) => Promise<void>
   deleteProject: (projectId: string) => Promise<void>
@@ -1974,6 +1976,42 @@ export const useStore = create<AppState>((set, get) => {
 
     await get().deleteEpic(epicId)
     return sprint
+  },
+
+  reassignTaskAssignee: async (fromProfileId, toProfileId) => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId || fromProfileId === toProfileId) return 0
+
+    let changed = 0
+
+    const { data: primaryUpdated, error: primaryError } = await supabase
+      .from('tasks')
+      .update({ assignee_id: toProfileId })
+      .eq('project_id', activeProjectId)
+      .eq('assignee_id', fromProfileId)
+      .select('id')
+    if (primaryError) throw primaryError
+    changed += primaryUpdated?.length ?? 0
+
+    // "Universal" tasks (2-3 co-assignees) store the person in assignee_ids
+    // instead of/alongside assignee_id — contains() can't rewrite an array
+    // element in one UPDATE, so each match is fetched and rewritten individually.
+    const { data: universalMatches, error: universalError } = await supabase
+      .from('tasks')
+      .select('id, assignee_ids')
+      .eq('project_id', activeProjectId)
+      .contains('assignee_ids', [fromProfileId])
+    if (universalError) throw universalError
+
+    for (const row of (universalMatches ?? []) as Array<{ id: string; assignee_ids: string[] }>) {
+      const nextIds = Array.from(new Set(row.assignee_ids.map((id) => (id === fromProfileId ? toProfileId : id))))
+      const { error } = await supabase.from('tasks').update({ assignee_ids: nextIds }).eq('id', row.id)
+      if (error) throw error
+      changed += 1
+    }
+
+    if (changed > 0) await get().fetchBacklog()
+    return changed
   },
 
   updatePortfolioItem: async (id, fields) => {

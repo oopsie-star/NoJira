@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { CheckCircle, Link2, Mail, Plus, ShieldCheck, Trash2, UserCheck, UserMinus, XCircle } from 'lucide-react'
+import { ArrowLeftRight, CheckCircle, Link2, Mail, Plus, ShieldCheck, Trash2, UserCheck, UserMinus, XCircle } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { useAuthContext } from '@/auth/AuthContext'
@@ -172,6 +172,7 @@ export function PeoplePage() {
   const deletePlaceholder = useStore((state) => state.deletePlaceholder)
   const updateProfile = useStore((state) => state.updateProfile)
   const updateProjectMemberRole = useStore((state) => state.updateProjectMemberRole)
+  const reassignTaskAssignee = useStore((state) => state.reassignTaskAssignee)
 
   const [removingPlaceholderId, setRemovingPlaceholderId] = useState<string | null>(null)
   const [decliningProfileId, setDecliningProfileId] = useState<string | null>(null)
@@ -181,6 +182,10 @@ export function PeoplePage() {
   const [linkingPlaceholderId, setLinkingPlaceholderId] = useState<string | null>(null)
   const [linkTargetId, setLinkTargetId] = useState<string>('')
   const [linkSubmitting, setLinkSubmitting] = useState(false)
+  const [reassigningFromId, setReassigningFromId] = useState<string | null>(null)
+  const [reassignTargetId, setReassignTargetId] = useState<string>('')
+  const [reassignSubmitting, setReassignSubmitting] = useState(false)
+  const [reassignMessage, setReassignMessage] = useState<string | null>(null)
   const [cancelingInviteId, setCancelingInviteId] = useState<string | null>(null)
   const [memberActionError, setMemberActionError] = useState<string | null>(null)
   const [retryingProfileId, setRetryingProfileId] = useState<string | null>(null)
@@ -198,6 +203,37 @@ export function PeoplePage() {
   // (import / invite) and stay in the "Imported from Jira" section.
   const teamPlaceholders = placeholders.filter((p) => p.status === 'accepted')
   const importedPlaceholders = placeholders.filter((p) => p.status !== 'accepted')
+
+  function renderReassignPicker(fromProfileId: string) {
+    if (reassigningFromId !== fromProfileId) return null
+    return (
+      <div className="flex flex-col gap-2 rounded-xl bg-slate-50 p-3 sm:flex-row sm:items-center">
+        <p className="text-xs text-slate-500 sm:flex-1">{t('people.reassignTasksHint')}</p>
+        <select
+          value={reassignTargetId}
+          onChange={(event) => setReassignTargetId(event.target.value)}
+          className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-qira-pistachio"
+        >
+          <option value="">{t('people.reassignSelect')}</option>
+          {projectMembers
+            .filter((member) => member.profile && member.profile.id !== fromProfileId)
+            .map((member) => member.profile && (
+              <option key={member.id} value={member.profile.id}>
+                {member.profile.full_name || member.profile.email}
+              </option>
+            ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => void handleReassignTasks(fromProfileId)}
+          disabled={!reassignTargetId || reassignSubmitting}
+          className="rounded-xl bg-qira-pistachio px-3 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
+        >
+          {reassignSubmitting ? t('people.reassigning') : t('people.reassignConfirm')}
+        </button>
+      </div>
+    )
+  }
 
   function renderLinkPicker(placeholderId: string) {
     if (linkingPlaceholderId !== placeholderId) return null
@@ -316,6 +352,30 @@ export function PeoplePage() {
       await updatePlaceholder(placeholderId, fields)
     } catch (err) {
       setMemberActionError(getErrorMessage(err))
+    }
+  }
+
+  async function handleReassignTasks(fromProfileId: string) {
+    if (!reassignTargetId) return
+    setReassignSubmitting(true)
+    setMemberActionError(null)
+    setReassignMessage(null)
+    try {
+      const toProfileId = reassignTargetId
+      const fromMember = projectMembers.find((member) => member.profile?.id === fromProfileId)?.profile
+      const toMember = projectMembers.find((member) => member.profile?.id === toProfileId)?.profile
+      const count = await reassignTaskAssignee(fromProfileId, toProfileId)
+      setReassignMessage(t('people.reassignSuccess', {
+        count,
+        from: fromMember?.full_name || fromMember?.email || '',
+        to: toMember?.full_name || toMember?.email || '',
+      }))
+      setReassigningFromId(null)
+      setReassignTargetId('')
+    } catch (err) {
+      setMemberActionError(getErrorMessage(err))
+    } finally {
+      setReassignSubmitting(false)
     }
   }
 
@@ -748,6 +808,9 @@ export function PeoplePage() {
               {memberActionError && (
                 <p className="mx-4 mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{memberActionError}</p>
               )}
+              {reassignMessage && (
+                <p className="mx-4 mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{reassignMessage}</p>
+              )}
 
               {projectMembers.length === 0 && teamPlaceholders.length === 0 ? (
                 <div className="p-10 text-sm text-slate-500">{t('people.empty')}</div>
@@ -768,16 +831,36 @@ export function PeoplePage() {
                               <p className="truncate text-sm text-slate-500">{person.email}</p>
                             </div>
                             {canManage && (
-                              <button
-                                type="button"
-                                onClick={() => void handleRemoveMember(person.id, person.full_name || person.email)}
-                                disabled={removingMemberId === person.id}
-                                title={t('people.removeMember')}
-                                aria-label={t('people.removeMember')}
-                                className="ml-auto shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
-                              >
-                                <UserMinus size={16} />
-                              </button>
+                              <div className="ml-auto flex shrink-0 items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setReassignTargetId('')
+                                    setReassignMessage(null)
+                                    setReassigningFromId((cur) => (cur === person.id ? null : person.id))
+                                  }}
+                                  title={t('people.reassignTasks')}
+                                  aria-label={t('people.reassignTasks')}
+                                  className={[
+                                    'rounded-xl p-2 transition',
+                                    reassigningFromId === person.id
+                                      ? 'bg-qira-pistachio-lt text-qira-pistachio'
+                                      : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700',
+                                  ].join(' ')}
+                                >
+                                  <ArrowLeftRight size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleRemoveMember(person.id, person.full_name || person.email)}
+                                  disabled={removingMemberId === person.id}
+                                  title={t('people.removeMember')}
+                                  aria-label={t('people.removeMember')}
+                                  className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                                >
+                                  <UserMinus size={16} />
+                                </button>
+                              </div>
                             )}
                           </div>
 
@@ -849,6 +932,7 @@ export function PeoplePage() {
                             </label>
                           </div>
                         </div>
+                        {renderReassignPicker(person.id)}
                       </div>
                     )
                   })}
