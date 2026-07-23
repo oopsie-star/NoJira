@@ -10,6 +10,19 @@ import { splitMentionParts } from './mentions'
 const INLINE_RE =
   /(`[^`]+`)|(\*\*[^*]+?\*\*)|(~~[^~]+?~~)|(\*[^*\s][^*]*?\*)|(_[^_\s][^_]*?_)|(\[[^\]]+?\]\([^)\s]+?\))|(\bhttps?:\/\/[^\s<>()]+)/g
 
+// A GFM table separator row, e.g. `| --- | :--: | --: |` (dashes, optional colons).
+function isTableSeparator(line: string): boolean {
+  return line.includes('|') && /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/.test(line)
+}
+
+// Split a `| a | b |` row into trimmed cells, ignoring the outer pipes.
+function splitTableRow(row: string): string[] {
+  let s = row.trim()
+  if (s.startsWith('|')) s = s.slice(1)
+  if (s.endsWith('|')) s = s.slice(0, -1)
+  return s.split('|').map((cell) => cell.trim())
+}
+
 function renderText(text: string, members: Profile[] | undefined, keyPrefix: string): ReactNode[] {
   if (!members?.length) return [text]
   return splitMentionParts(text, members).map((part, i) =>
@@ -97,6 +110,55 @@ export function MarkdownRenderer({ source, members, className = '' }: { source: 
       const Tag = (`h${level}`) as keyof JSX.IntrinsicElements
       blocks.push(<Tag key={`h${key++}`} className={`mb-2 mt-4 font-semibold text-slate-900 ${sizes[level]}`}>{renderInline(heading[2], members, `h${key}`)}</Tag>)
       i++
+      continue
+    }
+
+    // GFM pipe table: a header row followed by a |---|:--:| separator row.
+    if (line.includes('|') && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+      flushPara()
+      const headers = splitTableRow(line)
+      const aligns = splitTableRow(lines[i + 1]).map((cell) => {
+        const left = cell.startsWith(':')
+        const right = cell.endsWith(':')
+        return right && left ? 'text-center' : right ? 'text-right' : 'text-left'
+      })
+      const alignFor = (idx: number) => aligns[idx] ?? 'text-left'
+      i += 2
+
+      const rows: string[][] = []
+      while (i < lines.length && lines[i].includes('|') && lines[i].trim() !== '' && !isTableSeparator(lines[i])) {
+        rows.push(splitTableRow(lines[i]))
+        i++
+      }
+
+      blocks.push(
+        // Shrinks to the container width (cells wrap); scrolls only if it truly
+        // can't fit, so a wide table never pushes the task window wider.
+        <div key={`tbl${key++}`} className="my-2 max-w-full overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr>
+                {headers.map((cell, ci) => (
+                  <th key={ci} className={`border-b border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-slate-900 ${alignFor(ci)}`}>
+                    {renderInline(cell, members, `th${key}-${ci}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, ri) => (
+                <tr key={ri} className="align-top">
+                  {headers.map((_, ci) => (
+                    <td key={ci} className={`break-words border-b border-slate-100 px-3 py-2 text-slate-700 ${alignFor(ci)}`}>
+                      {renderInline(row[ci] ?? '', members, `td${key}-${ri}-${ci}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      )
       continue
     }
 
