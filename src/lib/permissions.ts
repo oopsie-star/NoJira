@@ -24,6 +24,11 @@ export function canViewActivityLog(role: ProjectRole | null, isSuperAdmin: boole
   return isSuperAdmin || Boolean(role && ACTIVITY_LOG_ROLES.includes(role))
 }
 
+/** Who can download an entire epic (tasks + files) as a ZIP: super admin, founder, ceo. */
+export function canExportEpic(role: ProjectRole | null, isSuperAdmin: boolean) {
+  return isSuperAdmin || Boolean(role && ACTIVITY_LOG_ROLES.includes(role))
+}
+
 /** Renaming an epic/sprint/task: project admins, or whoever authored it. */
 export function canEditAuthoredContent(
   role: ProjectRole | null,

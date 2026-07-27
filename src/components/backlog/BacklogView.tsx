@@ -18,7 +18,8 @@ import { useAuthContext } from '@/auth/AuthContext'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { isFreshTask, isTaskBlocked } from '@/lib/ops'
-import { canDeleteAttachment, canEditAuthoredContent, canManageProject } from '@/lib/permissions'
+import { canDeleteAttachment, canEditAuthoredContent, canExportEpic, canManageProject } from '@/lib/permissions'
+import { exportEpicToZip } from '@/lib/epicExport'
 import { useCurrentProjectKey } from '@/lib/projectRoutes'
 import { EPIC_COLORS, EPIC_STATUS_OPTIONS, isTerminalStatus, type Epic, type Profile, type Sprint, type Task, type TaskStatus } from '@/types'
 import { useStore } from '@/store'
@@ -584,6 +585,22 @@ export function BacklogView() {
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const profileId = useStore((state) => state.profile?.id ?? null)
   const clearTaskSelection = useStore((state) => state.clearTaskSelection)
+  const placeholders = useStore((state) => state.placeholders)
+  const attachmentNotes = useStore((state) => state.attachmentNotes)
+  const notify = useStore((state) => state.notify)
+  const [exportingEpicId, setExportingEpicId] = useState<string | null>(null)
+
+  async function handleExportEpic(epic: Epic) {
+    setExportingEpicId(epic.id)
+    notify(t('backlog.exportStarted'), 'success')
+    try {
+      await exportEpicToZip(epic, { members, placeholders, attachmentNotes, sprints })
+    } catch (err) {
+      notify(getErrorMessage(err))
+    } finally {
+      setExportingEpicId(null)
+    }
+  }
 
   // Drop any multi-select when leaving the backlog.
   useEffect(() => () => clearTaskSelection(), [clearTaskSelection])
@@ -1068,6 +1085,13 @@ export function BacklogView() {
                       actions.push({
                         label: t('backlog.convertToSprint'),
                         onSelect: () => handleConvertEpicToSprint(epic),
+                      })
+                    }
+
+                    if (canExportEpic(activeProjectRole, isSuperAdmin)) {
+                      actions.push({
+                        label: exportingEpicId === epic.id ? t('backlog.exporting') : t('backlog.exportEpic'),
+                        onSelect: () => { if (exportingEpicId !== epic.id) void handleExportEpic(epic) },
                       })
                     }
 
