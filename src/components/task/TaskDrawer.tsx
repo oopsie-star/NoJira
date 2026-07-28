@@ -514,31 +514,6 @@ export function TaskDrawer() {
               />
             </div>
 
-            <div className="mt-6 grid gap-6 sm:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="mb-2 text-sm font-semibold text-slate-900">{t('task.reporter')}</p>
-                <div className="flex items-center gap-3">
-                  <UserAvatar profile={reporterDisplay?.person} size={34} muted={!reporterDisplay} />
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">
-                      {reporterDisplay?.person.full_name || reporterDisplay?.person.email || '—'}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {reporterDisplay?.imported ? t('people.fromJira') : t('task.reporter')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="mb-2 text-sm font-semibold text-slate-900">{t('task.dueDate')}</p>
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <Calendar size={16} />
-                  {formatDate(locale, currentTask.due_date)}
-                </div>
-              </div>
-            </div>
-
             <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('task.description')}</p>
@@ -568,6 +543,34 @@ export function TaskDrawer() {
                   onAiSuggest={handleAiSuggestDescription}
                 />
               )}
+            </div>
+
+            {/* Already shown in the (collapsible) meta panel — kept here too,
+                but out of the way below the description, not competing with it
+                for the reader's first glance. */}
+            <div className="mt-6 grid gap-6 sm:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="mb-2 text-sm font-semibold text-slate-900">{t('task.reporter')}</p>
+                <div className="flex items-center gap-3">
+                  <UserAvatar profile={reporterDisplay?.person} size={34} muted={!reporterDisplay} />
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">
+                      {reporterDisplay?.person.full_name || reporterDisplay?.person.email || '—'}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {reporterDisplay?.imported ? t('people.fromJira') : t('task.reporter')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="mb-2 text-sm font-semibold text-slate-900">{t('task.dueDate')}</p>
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <Calendar size={16} />
+                  {formatDate(locale, currentTask.due_date)}
+                </div>
+              </div>
             </div>
 
             <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

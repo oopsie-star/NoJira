@@ -37,22 +37,21 @@ export function VoiceCommentary({ attachments, taskId }: { attachments: string[]
   }
 
   return (
-    <div className="mt-6 flex items-center gap-3 rounded-2xl border border-qira-pistachio/30 bg-qira-pistachio-lt/40 px-4 py-3">
+    <div className="mt-6 flex items-center gap-3 rounded-2xl border border-qira-pistachio/30 bg-qira-pistachio-lt/40 px-3 py-2">
       <button
         type="button"
         onClick={toggle}
         disabled={!signedUrl}
         aria-label={t(playing ? 'task.pauseVoiceComment' : 'task.playVoiceComment')}
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-qira-pistachio text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-qira-pistachio text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
       >
-        {playing ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
+        {playing ? <Pause size={15} /> : <Play size={15} className="ml-0.5" />}
       </button>
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-slate-900">{t('task.voiceComment')}</p>
-        <p className="truncate text-xs text-slate-500">
-          {displayFilename(audioPath, attachmentNotes[audioPath]?.original_name)}
-        </p>
-      </div>
+      <p className="min-w-0 flex-1 truncate text-sm text-slate-700">
+        <span className="font-semibold text-slate-900">{t('task.voiceComment')}</span>
+        {' · '}
+        {displayFilename(audioPath, attachmentNotes[audioPath]?.original_name)}
+      </p>
       {signedUrl && (
         <audio
           ref={audioRef}

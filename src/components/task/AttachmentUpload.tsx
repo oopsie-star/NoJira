@@ -326,19 +326,19 @@ export function AttachmentUpload({
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         className={[
-          'cursor-pointer rounded-2xl border-2 border-dashed px-4 py-8 text-center transition',
+          'cursor-pointer rounded-2xl border-2 border-dashed px-4 py-3 text-center transition',
           dragOver ? 'border-qira-pistachio bg-qira-pistachio-lt' : 'border-slate-200 bg-slate-50 hover:border-slate-300',
         ].join(' ')}
       >
         {uploading ? (
           <div className="flex justify-center">
-            <Loader2 size={18} className="animate-spin text-qira-pistachio" />
+            <Loader2 size={16} className="animate-spin text-qira-pistachio" />
           </div>
         ) : (
-          <>
-            <Upload size={18} className="mx-auto mb-2 text-slate-500" />
+          <div className="flex items-center justify-center gap-2">
+            <Upload size={16} className="shrink-0 text-slate-500" />
             <p className="text-sm text-slate-600">{t('task.dropFiles')}</p>
-          </>
+          </div>
         )}
       </div>
 
