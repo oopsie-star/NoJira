@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Calendar, Link2, MessageSquare, Paperclip, Plus, Send, ShieldAlert, Timer, Trash2, X } from 'lucide-react'
+import { Calendar, ChevronLeft, ChevronRight, Link2, MessageSquare, Paperclip, Plus, Send, ShieldAlert, Timer, Trash2, X } from 'lucide-react'
 import { callLLM, getLLMConfig } from '@/lib/ai'
 import type { LLMMessage } from '@/lib/ai'
 import { supabase } from '@/lib/supabase'
@@ -74,6 +74,29 @@ export function TaskDrawer() {
   // Dedupes the view-logged event against re-renders of the *same* open task
   // (the `task` object's identity changes on every unrelated realtime update).
   const lastViewedTaskIdRef = useRef<string | null>(null)
+
+  // Desktop-only: the meta/settings column can be collapsed to give the
+  // description more room. Persisted so the choice sticks across tasks/reloads
+  // — mobile ignores this entirely (that layout was already fine).
+  const [metaCollapsed, setMetaCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('nojira:task-meta-collapsed') === '1'
+    } catch {
+      return false
+    }
+  })
+
+  function toggleMetaCollapsed() {
+    setMetaCollapsed((current) => {
+      const next = !current
+      try {
+        localStorage.setItem('nojira:task-meta-collapsed', next ? '1' : '0')
+      } catch {
+        // ignore — localStorage unavailable
+      }
+      return next
+    })
+  }
 
   const flashSaved = useCallback(() => {
     setSavedFlash(true)
@@ -439,7 +462,10 @@ export function TaskDrawer() {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto lg:grid lg:overflow-hidden lg:grid-cols-[1.6fr_0.9fr]">
+        <div className={[
+          'flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto lg:grid lg:overflow-hidden',
+          metaCollapsed ? 'lg:grid-cols-[1fr_44px]' : 'lg:grid-cols-[1.6fr_0.9fr]',
+        ].join(' ')}>
           <div className="p-5 sm:p-6 lg:min-h-0 lg:overflow-y-auto">
             {parentTask && (
               <button
@@ -451,12 +477,29 @@ export function TaskDrawer() {
               </button>
             )}
 
+            {/* Mobile/tablet: unchanged single-line input. */}
             <input
               value={draftTitle}
               onChange={(event) => setDraftTitle(event.target.value)}
               onBlur={persistDrafts}
               disabled={!canEditTitle}
-              className="w-full border-none px-0 text-2xl font-semibold leading-tight text-slate-900 outline-none disabled:cursor-default sm:text-[30px]"
+              className="w-full border-none px-0 text-2xl font-semibold leading-tight text-slate-900 outline-none disabled:cursor-default sm:text-[30px] lg:hidden"
+            />
+            {/* Desktop: smaller + wraps across up to two lines instead of being
+                cut off — long titles didn't fit on one line at this width. */}
+            <textarea
+              value={draftTitle}
+              onChange={(event) => setDraftTitle(event.target.value)}
+              onBlur={persistDrafts}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  event.currentTarget.blur()
+                }
+              }}
+              disabled={!canEditTitle}
+              rows={2}
+              className="hidden w-full resize-none border-none px-0 text-xl font-semibold leading-tight text-slate-900 outline-none disabled:cursor-default lg:block"
             />
 
             <VoiceCommentary attachments={currentTask.attachments} taskId={currentTask.id} />
@@ -723,8 +766,21 @@ export function TaskDrawer() {
             </div>
           </div>
 
-          <div className="border-t border-slate-200 bg-slate-50 p-5 sm:p-6 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0">
-            <div className="space-y-5">
+          <div className={[
+            'border-t border-slate-200 bg-slate-50 p-5 sm:p-6 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0',
+            metaCollapsed ? 'lg:p-2' : '',
+          ].join(' ')}>
+            <button
+              type="button"
+              onClick={toggleMetaCollapsed}
+              title={t(metaCollapsed ? 'task.expandPanel' : 'task.collapsePanel')}
+              aria-label={t(metaCollapsed ? 'task.expandPanel' : 'task.collapsePanel')}
+              className="mb-3 hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 lg:flex"
+            >
+              {metaCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+            </button>
+
+            <div className={metaCollapsed ? 'space-y-5 lg:hidden' : 'space-y-5'}>
               <MetaSection title={t('task.status')}>
                 <StatusDropdown
                   value={currentTask.status}
