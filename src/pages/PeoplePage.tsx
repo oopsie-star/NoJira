@@ -1,12 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { ArrowLeftRight, CheckCircle, Link2, Mail, Plus, ShieldCheck, Trash2, UserCheck, UserMinus, XCircle } from 'lucide-react'
+import { ArrowLeftRight, CheckCircle, Link2, Mail, Plus, Send, ShieldCheck, Trash2, UserCheck, UserMinus, XCircle } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { useAuthContext } from '@/auth/AuthContext'
 import { parseSandboxDeliveryNote } from '@/lib/approvalNotifications'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
-import { canInviteToProject, canManageProject } from '@/lib/permissions'
+import { canInviteToProject, canManageProject, canManageTelegramLink } from '@/lib/permissions'
 import { placeholderAsPerson } from '@/lib/people'
 import { useStore } from '@/store'
 import type { JiraUserPlaceholder, Locale, Profile, ProjectRole } from '@/types'
@@ -171,6 +171,7 @@ export function PeoplePage() {
   const fetchPlaceholders = useStore((state) => state.fetchPlaceholders)
   const deletePlaceholder = useStore((state) => state.deletePlaceholder)
   const updateProfile = useStore((state) => state.updateProfile)
+  const disconnectTelegram = useStore((state) => state.disconnectTelegram)
   const updateProjectMemberRole = useStore((state) => state.updateProjectMemberRole)
   const reassignTaskAssignee = useStore((state) => state.reassignTaskAssignee)
 
@@ -197,6 +198,7 @@ export function PeoplePage() {
   const isAdmin = profile?.role === 'admin'
   const canManage = canManageProject(activeProjectRole)
   const canInvite = canInviteToProject(activeProjectRole)
+  const canManageTelegram = canManageTelegramLink(activeProjectRole, isAdmin)
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
 
   // Accepted placeholders belong to the team roster; the rest still need action
@@ -936,6 +938,22 @@ export function PeoplePage() {
                             </label>
                           </div>
                         </div>
+
+                        {(person.telegram_chat_id || canManageTelegram) && (
+                          <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                            <Send size={12} />
+                            <span>{person.telegram_chat_id ? t('telegram.connected') : t('telegram.notConnected')}</span>
+                            {person.telegram_chat_id && canManageTelegram && (
+                              <button
+                                type="button"
+                                onClick={() => void disconnectTelegram(person.id)}
+                                className="font-semibold text-rose-600 transition hover:text-rose-700"
+                              >
+                                {t('telegram.disconnect')}
+                              </button>
+                            )}
+                          </div>
+                        )}
                         {renderReassignPicker(person.id)}
                       </div>
                     )

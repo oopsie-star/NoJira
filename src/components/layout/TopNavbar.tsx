@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bell, Check, ChevronDown, FolderPlus, Globe, LogOut, Menu, Plus } from 'lucide-react'
+import { Bell, Check, ChevronDown, FolderPlus, Globe, LogOut, Menu, Plus, Send } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthContext } from '@/auth/AuthContext'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { CreateProjectModal } from '@/components/project/CreateProjectModal'
 import { CreateTaskModal } from '@/components/task/CreateTaskModal'
 import { useI18n } from '@/lib/i18n'
+import { canManageTelegramLink } from '@/lib/permissions'
 import { projectPath, sectionFromPathname, useCurrentProjectKey } from '@/lib/projectRoutes'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store'
@@ -235,8 +236,14 @@ function HeaderMenu() {
   const ref = useRef<HTMLDivElement>(null)
   const { profile, signOut } = useAuthContext()
   const updateProfile = useStore((state) => state.updateProfile)
+  const generateTelegramLinkCode = useStore((state) => state.generateTelegramLinkCode)
+  const disconnectTelegram = useStore((state) => state.disconnectTelegram)
+  const activeProjectRole = useStore((state) => state.activeProjectRole)
+  const telegramChatId = useStore((state) => state.profile?.telegram_chat_id ?? null)
   const { locale, setLocale, t } = useI18n()
   const [open, setOpen] = useState(false)
+  const [connectingTelegram, setConnectingTelegram] = useState(false)
+  const pollTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     function handleMouseDown(event: MouseEvent) {
@@ -248,6 +255,10 @@ function HeaderMenu() {
     return () => document.removeEventListener('mousedown', handleMouseDown)
   }, [])
 
+  useEffect(() => () => {
+    if (pollTimerRef.current) window.clearInterval(pollTimerRef.current)
+  }, [])
+
   async function handleLocaleChange(nextLocale: Locale) {
     setLocale(nextLocale)
     if (profile && profile.locale !== nextLocale) {
@@ -255,7 +266,34 @@ function HeaderMenu() {
     }
   }
 
+  async function handleConnectTelegram() {
+    const botUsername = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined
+    if (!profile || !botUsername) return
+    const code = await generateTelegramLinkCode()
+    if (!code) return
+
+    window.open(`https://t.me/${botUsername}?start=${code}`, '_blank', 'noopener')
+    setConnectingTelegram(true)
+
+    const startedAt = Date.now()
+    pollTimerRef.current = window.setInterval(async () => {
+      if (Date.now() - startedAt > 2 * 60 * 1000) {
+        if (pollTimerRef.current) window.clearInterval(pollTimerRef.current)
+        setConnectingTelegram(false)
+        return
+      }
+      const { data } = await supabase.from('profiles').select('telegram_chat_id').eq('id', profile.id).single()
+      if (data?.telegram_chat_id) {
+        if (pollTimerRef.current) window.clearInterval(pollTimerRef.current)
+        setConnectingTelegram(false)
+        useStore.getState().setProfile({ ...profile, telegram_chat_id: data.telegram_chat_id })
+      }
+    }, 3000)
+  }
+
   if (!profile) return null
+
+  const canDisconnectOwnTelegram = canManageTelegramLink(activeProjectRole, profile.role === 'admin')
 
   return (
     <div ref={ref} className="relative">
@@ -306,6 +344,36 @@ function HeaderMenu() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="mt-2 rounded-xl border border-slate-200 p-2">
+            <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <Send size={12} />
+              Telegram
+            </p>
+            {telegramChatId ? (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-slate-700">{t('telegram.connected')}</span>
+                {canDisconnectOwnTelegram && (
+                  <button
+                    type="button"
+                    onClick={() => void disconnectTelegram(profile.id)}
+                    className="text-xs font-semibold text-rose-600 transition hover:text-rose-700"
+                  >
+                    {t('telegram.disconnect')}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleConnectTelegram()}
+                disabled={connectingTelegram}
+                className="w-full rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-200 disabled:opacity-50"
+              >
+                {connectingTelegram ? t('telegram.connecting') : t('telegram.connect')}
+              </button>
+            )}
           </div>
 
           <button

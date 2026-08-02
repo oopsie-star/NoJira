@@ -5,3 +5,8 @@ project_id = "ityvlpfupodfgdgecsun"
 # gate 401s every request before the function code ever runs.
 [functions.internal-heartbeat]
 verify_jwt = false
+
+# telegram-webhook is called by Telegram itself (authenticated via
+# X-Telegram-Bot-Api-Secret-Token, not a Supabase JWT) — same reasoning.
+[functions.telegram-webhook]
+verify_jwt = false
