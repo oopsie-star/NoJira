@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import { getMoodCopy } from '@/lib/weeklyDigest'
@@ -101,12 +102,12 @@ export function WeeklyDigestModal() {
               <ul className="mt-3 space-y-3">
                 {stats.tasksViewed.map((task) => (
                   <li key={task.taskId} className="rounded-xl bg-slate-50 px-3 py-2.5 text-sm">
-                    <a
-                      href={`${projectPath(current.projectKey, 'backlog')}?task=${task.taskId}`}
+                    <Link
+                      to={{ pathname: projectPath(current.projectKey, 'backlog'), search: `?task=${task.taskId}` }}
                       className="font-semibold text-qira-pistachio-dk underline"
                     >
                       {task.taskKey}
-                    </a>
+                    </Link>
                     <span className="ml-1.5 text-slate-700">{task.title}</span>
                     {task.count > 1 && <span className="ml-1.5 text-slate-400">×{task.count}</span>}
                   </li>
