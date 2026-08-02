@@ -60,21 +60,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const fallback = setTimeout(async () => {  // 800ms covers normal auth init latency
       if (settled) return
       try {
-        const projectRef = new URL(import.meta.env.VITE_SUPABASE_URL as string).hostname.split('.')[0]
-        const raw = localStorage.getItem(`sb-${projectRef}-auth-token`)
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+        const projectRef = new URL(supabaseUrl).hostname.split('.')[0]
+        const storageKey = `sb-${projectRef}-auth-token`
+        const raw = localStorage.getItem(storageKey)
         const stored = raw ? JSON.parse(raw) : null
+
+        let accessToken: string | null = null
+        let user: unknown = null
+
         if (stored?.access_token && stored.expires_at > Date.now() / 1000) {
-          const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/user`, {
-            headers: {
-              apikey:        import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-              Authorization: `Bearer ${stored.access_token}`,
-            },
+          accessToken = stored.access_token
+        } else if (stored?.refresh_token) {
+          // The stored access token only lives an hour. Without spending the
+          // refresh token sitting right next to it, any device that hadn't
+          // opened the app for that long — a phone, typically — silently
+          // looked logged out and got bounced to /auth. Refreshing is
+          // normally onAuthStateChange's job, but that listener not firing
+          // is the exact reason this fallback exists.
+          const refreshed = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: { apikey: anonKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: stored.refresh_token }),
           })
-          if (res.ok) {
-            const user = await res.json()
-            await fetchProfile(user.id)
-            setSession({ access_token: stored.access_token, user } as any)
+          if (refreshed.ok) {
+            const next = await refreshed.json()
+            accessToken = next.access_token ?? null
+            user = next.user ?? null
+            // Persist it the way supabase-js stores it, so the client's own
+            // later calls (fetchProjects opens with auth.getUser()) see a
+            // valid token instead of the expired one.
+            localStorage.setItem(storageKey, JSON.stringify({
+              ...stored,
+              ...next,
+              expires_at: next.expires_at ?? Math.floor(Date.now() / 1000) + (next.expires_in ?? 3600),
+            }))
           }
+        }
+
+        if (accessToken && !user) {
+          const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+            headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}` },
+          })
+          if (res.ok) user = await res.json()
+        }
+
+        if (accessToken && user) {
+          setSession({ access_token: accessToken, user } as any)
+          // Fire-and-forget, exactly like the onAuthStateChange path above:
+          // awaiting it here meant a profiles request that never settled
+          // (flaky mobile connection — Supabase requests have no timeout)
+          // left setIsLoading(false) below unreachable, hanging the app on
+          // the full-page spinner forever.
+          void fetchProfile((user as { id: string }).id)
         }
       } catch { /* silent */ }
       setIsLoading(false)
