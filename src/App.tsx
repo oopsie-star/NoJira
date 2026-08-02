@@ -22,7 +22,12 @@ function FullPageSpinner() {
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { session, profile, isLoading, isPendingApproval } = useAuthContext()
   if (isLoading) return <FullPageSpinner />
-  if (!session) return <Navigate to="/auth" replace />
+  // No profile means no identity, and rendering the app without one showed
+  // its sections with every field blank — and skipped the approval check
+  // below, which needs the profile to reject anyone. AuthProvider already
+  // refuses to set a session without a profile; this keeps that invariant
+  // enforced at the gate itself.
+  if (!session || !profile) return <Navigate to="/auth" replace />
   if (isPendingApproval) return <Navigate to="/pending-approval" replace />
   return <>{children}</>
 }
