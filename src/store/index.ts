@@ -34,6 +34,13 @@ import type {
   WebhookEvent,
 } from '@/types'
 
+export interface WeeklyDigestQueueItem {
+  projectId: string
+  projectKey: string
+  projectName: string
+  stats: WeeklyDigestStats
+}
+
 const TASK_SELECT = `
   *,
   epic:epics(*),
@@ -412,7 +419,7 @@ interface AppState {
   taskLinks: TaskLink[]
   attachmentNotes: Record<string, AttachmentNote>
   activityEvents: ActivityEvent[]
-  weeklyDigest: WeeklyDigestStats | null
+  weeklyDigestQueue: WeeklyDigestQueueItem[]
   notifications: Notification[]
   taskComments: TaskComment[]
   taskActivities: TaskActivity[]
@@ -638,7 +645,7 @@ export const useStore = create<AppState>((set, get) => {
     taskLinks: [],
     attachmentNotes: {},
     activityEvents: [],
-    weeklyDigest: null,
+    weeklyDigestQueue: [],
     notifications: [],
     taskComments: [],
     taskActivities: [],
@@ -662,7 +669,7 @@ export const useStore = create<AppState>((set, get) => {
     profile,
     workspaceProjects: profile?.role === 'admin' ? state.workspaceProjects : [],
     deletionRequests: profile?.role === 'admin' ? state.deletionRequests : [],
-    weeklyDigest: profile ? state.weeklyDigest : null,
+    weeklyDigestQueue: profile ? state.weeklyDigestQueue : [],
   })),
   setOpenTaskId: (openTaskId) => set({ openTaskId }),
   toast: null,
@@ -1176,56 +1183,79 @@ export const useStore = create<AppState>((set, get) => {
     })
   },
 
-  // Personal, private digest of the trailing week: built from the same
-  // activity_events log the admin-only "Журнал активности" panel uses
-  // (OpsPage.tsx), but scoped to the caller's own rows via the
-  // activity_events_select_own RLS policy (20260802000000_weekly_digest.sql)
-  // — nobody else can see this. Shown once per calendar day (every day the
-  // person logs in, not just once a week) — skipped only for accounts
-  // younger than a week, since there's no meaningful week to show yet.
+  // Personal, private digest of the trailing week — one per project (a
+  // person can be on several; a single mixed-in digest made it unclear
+  // which project a task belonged to). Built from the same activity_events
+  // log the admin-only "Журнал активности" panel uses (OpsPage.tsx), but
+  // scoped to the caller's own rows via the activity_events_select_own RLS
+  // policy (20260802000000_weekly_digest.sql) — nobody else can see this.
+  // Shown once per project per calendar day (weekly_digest_views,
+  // 20260803000000_weekly_digest_per_project.sql) — skipped only for
+  // accounts younger than a week, since there's no meaningful week yet.
   fetchWeeklyDigestIfDue: async () => {
     const profile = get().profile
-    if (!profile) return
+    const projects = get().projects
+    if (!profile || !projects.length) return
 
     const WEEK_MS = 7 * 24 * 60 * 60 * 1000
     const accountAge = Date.now() - new Date(profile.created_at).getTime()
     if (accountAge < WEEK_MS) return
 
-    const lastShown = profile.weekly_digest_last_shown_at
-    if (lastShown && isSameLocalDay(new Date(lastShown), new Date())) return
+    const { data: viewRows } = await supabase
+      .from('weekly_digest_views')
+      .select('project_id, shown_at')
+      .eq('profile_id', profile.id)
+
+    const now = new Date()
+    const shownTodayProjectIds = new Set(
+      (viewRows ?? [])
+        .filter((row) => isSameLocalDay(new Date(row.shown_at), now))
+        .map((row) => row.project_id),
+    )
+    const dueProjects = projects.filter((project) => !shownTodayProjectIds.has(project.id))
+    if (!dueProjects.length) return
 
     const sinceIso = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
     const weekStartIso = new Date(Date.now() - WEEK_MS).toISOString()
 
-    const [eventsResult, commentsResult] = await Promise.all([
-      supabase
-        .from('activity_events')
-        .select('*')
-        .eq('profile_id', profile.id)
-        .gte('created_at', sinceIso)
-        .order('created_at', { ascending: false })
-        .limit(2000),
-      supabase
-        .from('task_comments')
-        .select('id', { count: 'exact', head: true })
-        .eq('author_id', profile.id)
-        .gte('created_at', weekStartIso),
-    ])
+    const queue: WeeklyDigestQueueItem[] = []
+    for (const project of dueProjects) {
+      const [eventsResult, commentsResult] = await Promise.all([
+        supabase
+          .from('activity_events')
+          .select(ACTIVITY_EVENT_SELECT)
+          .eq('profile_id', profile.id)
+          .eq('project_id', project.id)
+          .gte('created_at', sinceIso)
+          .order('created_at', { ascending: false })
+          .limit(2000),
+        supabase
+          .from('task_comments')
+          .select('id', { count: 'exact', head: true })
+          .eq('author_id', profile.id)
+          .eq('project_id', project.id)
+          .gte('created_at', weekStartIso),
+      ])
 
-    const digest = computeWeeklyDigest(
-      (eventsResult.data ?? []) as unknown as ActivityEvent[],
-      commentsResult.count ?? 0,
-      profile.locale,
-    )
-    set({ weeklyDigest: digest })
+      const stats = computeWeeklyDigest(
+        (eventsResult.data ?? []) as unknown as ActivityEvent[],
+        commentsResult.count ?? 0,
+        profile.locale,
+      )
+      queue.push({ projectId: project.id, projectKey: project.key, projectName: project.name, stats })
+    }
+
+    set({ weeklyDigestQueue: queue })
   },
 
   dismissWeeklyDigest: async () => {
     const profile = get().profile
-    if (!profile) return
-    const shownAt = new Date().toISOString()
-    set({ weeklyDigest: null, profile: { ...profile, weekly_digest_last_shown_at: shownAt } })
-    await supabase.from('profiles').update({ weekly_digest_last_shown_at: shownAt }).eq('id', profile.id)
+    const current = get().weeklyDigestQueue[0]
+    if (!profile || !current) return
+    set((state) => ({ weeklyDigestQueue: state.weeklyDigestQueue.slice(1) }))
+    await supabase
+      .from('weekly_digest_views')
+      .upsert({ profile_id: profile.id, project_id: current.projectId, shown_at: new Date().toISOString() })
   },
 
   // Anyone can generate their own code; a super admin/founder/ceo can also

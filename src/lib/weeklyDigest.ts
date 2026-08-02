@@ -18,7 +18,7 @@ export interface WeeklyDigestStats {
   missedDayLabels: string[]
   activeDaysThisWeek: number
   activeDaysPrevWeek: number
-  tasksViewed: { title: string; count: number }[]
+  tasksViewed: { taskId: string; taskKey: string; title: string; count: number }[]
   filesDownloaded: string[]
   audioPlayedCount: number
   commentsAdded: number
@@ -77,11 +77,12 @@ export function computeWeeklyDigest(
   const weekStart = dayBounds(6, now).start
   const thisWeekEvents = events.filter((e) => new Date(e.created_at).getTime() >= weekStart)
 
-  const viewCounts = new Map<string, { title: string; count: number }>()
+  const viewCounts = new Map<string, { taskId: string; taskKey: string; title: string; count: number }>()
   for (const event of thisWeekEvents) {
     if (event.event_type !== 'view_task' || !event.task_id) continue
     const title = event.detail ?? event.task?.title ?? '—'
-    const entry = viewCounts.get(event.task_id) ?? { title, count: 0 }
+    const taskKey = event.task?.key ?? '—'
+    const entry = viewCounts.get(event.task_id) ?? { taskId: event.task_id, taskKey, title, count: 0 }
     entry.count += 1
     viewCounts.set(event.task_id, entry)
   }

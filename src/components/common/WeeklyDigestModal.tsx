@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import { getMoodCopy } from '@/lib/weeklyDigest'
+import { projectPath } from '@/lib/projectRoutes'
 import { useStore } from '@/store'
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -16,26 +17,30 @@ function Row({ label, value }: { label: string; value: string }) {
 /**
  * Private, personal weekly digest — never a public leaderboard, just what
  * this one person did this week (see fetchWeeklyDigestIfDue in the store).
+ * One project at a time: a person on several projects gets queued digests,
+ * shown one after another as each is dismissed (weeklyDigestQueue).
  * Must be read to the bottom before it can be closed: the close controls
  * stay disabled until the content is scrolled all the way down, or — for a
  * short digest that doesn't need scrolling — as soon as it's laid out.
  */
 export function WeeklyDigestModal() {
-  const digest = useStore((state) => state.weeklyDigest)
+  const current = useStore((state) => state.weeklyDigestQueue[0])
   const dismiss = useStore((state) => state.dismissWeeklyDigest)
   const { t, locale } = useI18n()
   const contentRef = useRef<HTMLDivElement>(null)
   const [canClose, setCanClose] = useState(false)
 
   useLayoutEffect(() => {
-    if (!digest) { setCanClose(false); return }
+    if (!current) { setCanClose(false); return }
+    setCanClose(false)
     const el = contentRef.current
     if (el && el.scrollHeight <= el.clientHeight + 4) setCanClose(true)
-  }, [digest])
+  }, [current])
 
-  if (!digest) return null
+  if (!current) return null
 
-  const mood = getMoodCopy(digest.mood, locale)
+  const { stats } = current
+  const mood = getMoodCopy(stats.mood, locale)
 
   function handleScroll() {
     const el = contentRef.current
@@ -50,7 +55,10 @@ export function WeeklyDigestModal() {
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/50 p-4">
       <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <span className="text-2xl" aria-hidden>{mood.emoji}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl" aria-hidden>{mood.emoji}</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{current.projectName}</span>
+          </div>
           <button
             type="button"
             onClick={handleClose}
@@ -72,25 +80,41 @@ export function WeeklyDigestModal() {
           <dl className="mt-5 divide-y divide-slate-100 text-sm">
             <Row
               label={t('weeklyDigest.activeDays')}
-              value={digest.activeDayLabels.length ? digest.activeDayLabels.join(', ') : '—'}
+              value={stats.activeDayLabels.length ? stats.activeDayLabels.join(', ') : '—'}
             />
             <Row
               label={t('weeklyDigest.missedDays')}
-              value={digest.missedDayLabels.length ? digest.missedDayLabels.join(', ') : '—'}
-            />
-            <Row
-              label={t('weeklyDigest.tasksViewed')}
-              value={digest.tasksViewed.length
-                ? digest.tasksViewed.map((task) => `${task.title}${task.count > 1 ? ` ×${task.count}` : ''}`).join(', ')
-                : t('weeklyDigest.noActivity')}
+              value={stats.missedDayLabels.length ? stats.missedDayLabels.join(', ') : '—'}
             />
             <Row
               label={t('weeklyDigest.filesDownloaded')}
-              value={digest.filesDownloaded.length ? digest.filesDownloaded.join(', ') : t('weeklyDigest.noActivity')}
+              value={stats.filesDownloaded.length ? stats.filesDownloaded.join(', ') : t('weeklyDigest.noActivity')}
             />
-            <Row label={t('weeklyDigest.audioPlayed')} value={String(digest.audioPlayedCount)} />
-            <Row label={t('weeklyDigest.commentsAdded')} value={String(digest.commentsAdded)} />
+            <Row label={t('weeklyDigest.audioPlayed')} value={String(stats.audioPlayedCount)} />
+            <Row label={t('weeklyDigest.commentsAdded')} value={String(stats.commentsAdded)} />
           </dl>
+
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <p className="text-sm text-slate-500">{t('weeklyDigest.tasksViewed')}</p>
+            {stats.tasksViewed.length ? (
+              <ul className="mt-3 space-y-3">
+                {stats.tasksViewed.map((task) => (
+                  <li key={task.taskId} className="rounded-xl bg-slate-50 px-3 py-2.5 text-sm">
+                    <a
+                      href={`${projectPath(current.projectKey, 'backlog')}?task=${task.taskId}`}
+                      className="font-semibold text-qira-pistachio-dk underline"
+                    >
+                      {task.taskKey}
+                    </a>
+                    <span className="ml-1.5 text-slate-700">{task.title}</span>
+                    {task.count > 1 && <span className="ml-1.5 text-slate-400">×{task.count}</span>}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm font-medium text-slate-900">{t('weeklyDigest.noActivity')}</p>
+            )}
+          </div>
         </div>
 
         <div className="border-t border-slate-100 px-5 py-3">

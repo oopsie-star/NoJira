@@ -92,11 +92,12 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
     }
   }, [activeProjectId, logActivityEvent])
 
-  // Gating (account age, once per calendar day) lives in the store action
-  // itself; this just asks once per signed-in profile.
+  // Gating (account age, once per project per calendar day) lives in the
+  // store action itself; this just asks once projects have loaded (the
+  // action builds one queued digest per project, so it needs the list).
   useEffect(() => {
-    if (profileId) void fetchWeeklyDigestIfDue()
-  }, [profileId, fetchWeeklyDigestIfDue])
+    if (profileId && projects.length > 0) void fetchWeeklyDigestIfDue()
+  }, [profileId, projects.length, fetchWeeklyDigestIfDue])
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-[#F7F8F9]">
