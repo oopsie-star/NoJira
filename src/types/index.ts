@@ -23,8 +23,6 @@ export interface Profile {
   approval_email_last_error:      string | null
   access_declined:                boolean
   access_declined_at:             string | null
-  weekly_digest_last_shown_at:    string | null
-  telegram_chat_id:               number | null
 }
 
 // ─── Domain ───────────────────────────────────────────────────────────────────

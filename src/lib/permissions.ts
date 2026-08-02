@@ -29,13 +29,6 @@ export function canExportEpic(role: ProjectRole | null, isSuperAdmin: boolean) {
   return isSuperAdmin || Boolean(role && ACTIVITY_LOG_ROLES.includes(role))
 }
 
-/** Who can disconnect someone's (including their own) Telegram link: super admin, founder, ceo.
- * Mirrors the DB trigger (enforce_telegram_disconnect_permission) — this is only the UI-gating
- * mirror; the real enforcement lives at the database layer. */
-export function canManageTelegramLink(role: ProjectRole | null, isSuperAdmin: boolean) {
-  return isSuperAdmin || Boolean(role && ACTIVITY_LOG_ROLES.includes(role))
-}
-
 /** Renaming an epic/sprint/task: project admins, or whoever authored it. */
 export function canEditAuthoredContent(
   role: ProjectRole | null,

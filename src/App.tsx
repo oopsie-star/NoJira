@@ -45,18 +45,7 @@ function ProjectRedirect() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    // Safety net: fetchProjects() opens with supabase.auth.getUser(), and
-    // Supabase requests carry no timeout — on a flaky mobile connection one
-    // can hang indefinitely, which used to pin this route on the spinner
-    // with no way out. Give up waiting after 8s and render the board (its
-    // own empty state); if projects do arrive later, this re-renders and
-    // redirects normally.
-    const giveUp = window.setTimeout(() => setReady(true), 8000)
-    void fetchProjects().finally(() => {
-      window.clearTimeout(giveUp)
-      setReady(true)
-    })
-    return () => window.clearTimeout(giveUp)
+    void fetchProjects().finally(() => setReady(true))
   }, [fetchProjects])
 
   if (!ready) return <FullPageSpinner />
