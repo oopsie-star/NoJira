@@ -3,7 +3,7 @@ import { FunctionsHttpError } from '@supabase/supabase-js'
 import { getErrorMessage } from '@/lib/errors'
 import { isTaskBlocked } from '@/lib/ops'
 import { dedupeRecipients } from '@/lib/notify'
-import { computeWeeklyDigest, type WeeklyDigestStats } from '@/lib/weeklyDigest'
+import { computeWeeklyDigest, isSameLocalDay, type WeeklyDigestStats } from '@/lib/weeklyDigest'
 import { supabase } from '@/lib/supabase'
 import { EPIC_COLORS } from '@/types'
 import type {
@@ -1147,11 +1147,13 @@ export const useStore = create<AppState>((set, get) => {
     })
   },
 
-  // Personal, private weekly digest: built from the same activity_events log
-  // the admin-only "Журнал активности" panel uses (OpsPage.tsx), but scoped
-  // to the caller's own rows via the activity_events_select_own RLS policy
-  // (20260802000000_weekly_digest.sql) — nobody else can see this. Skipped
-  // for accounts younger than a week, and at most once every 7 days.
+  // Personal, private digest of the trailing week: built from the same
+  // activity_events log the admin-only "Журнал активности" panel uses
+  // (OpsPage.tsx), but scoped to the caller's own rows via the
+  // activity_events_select_own RLS policy (20260802000000_weekly_digest.sql)
+  // — nobody else can see this. Shown once per calendar day (every day the
+  // person logs in, not just once a week) — skipped only for accounts
+  // younger than a week, since there's no meaningful week to show yet.
   fetchWeeklyDigestIfDue: async () => {
     const profile = get().profile
     if (!profile) return
@@ -1161,7 +1163,7 @@ export const useStore = create<AppState>((set, get) => {
     if (accountAge < WEEK_MS) return
 
     const lastShown = profile.weekly_digest_last_shown_at
-    if (lastShown && Date.now() - new Date(lastShown).getTime() < WEEK_MS) return
+    if (lastShown && isSameLocalDay(new Date(lastShown), new Date())) return
 
     const sinceIso = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
     const weekStartIso = new Date(Date.now() - WEEK_MS).toISOString()

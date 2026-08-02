@@ -6,6 +6,11 @@ const WEEKDAY_LABELS: Record<Locale, string[]> = {
   en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
 }
 
+/** Whether two timestamps fall on the same local calendar day (for "shown today?" gating). */
+export function isSameLocalDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
+
 export type DigestMood = 'praise' | 'neutral' | 'nudge' | 'sad'
 
 export interface WeeklyDigestStats {

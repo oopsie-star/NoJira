@@ -92,8 +92,8 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
     }
   }, [activeProjectId, logActivityEvent])
 
-  // Gating (account age, once-every-7-days) lives in the store action itself;
-  // this just asks once per signed-in profile.
+  // Gating (account age, once per calendar day) lives in the store action
+  // itself; this just asks once per signed-in profile.
   useEffect(() => {
     if (profileId) void fetchWeeklyDigestIfDue()
   }, [profileId, fetchWeeklyDigestIfDue])
