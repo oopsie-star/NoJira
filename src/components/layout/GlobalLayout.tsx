@@ -8,6 +8,7 @@ import { AiAssistant } from '@/components/ai/AiAssistant'
 import { CommandPalette } from '@/components/common/CommandPalette'
 import { RealtimeSync } from '@/components/common/RealtimeSync'
 import { Toaster } from '@/components/common/Toaster'
+import { WeeklyDigestModal } from '@/components/common/WeeklyDigestModal'
 import { useAuthContext } from '@/auth/AuthContext'
 import { useStore } from '@/store'
 
@@ -24,6 +25,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
   const fetchTaskLinks = useStore((state) => state.fetchTaskLinks)
   const fetchAttachmentNotes = useStore((state) => state.fetchAttachmentNotes)
   const logActivityEvent = useStore((state) => state.logActivityEvent)
+  const fetchWeeklyDigestIfDue = useStore((state) => state.fetchWeeklyDigestIfDue)
   const fetchProjectTaskCount = useStore((state) => state.fetchProjectTaskCount)
   const fetchPendingMembers = useStore((state) => state.fetchPendingMembers)
   const activeProjectId = useStore((state) => state.activeProjectId)
@@ -90,6 +92,12 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
     }
   }, [activeProjectId, logActivityEvent])
 
+  // Gating (account age, once-every-7-days) lives in the store action itself;
+  // this just asks once per signed-in profile.
+  useEffect(() => {
+    if (profileId) void fetchWeeklyDigestIfDue()
+  }, [profileId, fetchWeeklyDigestIfDue])
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-[#F7F8F9]">
       <TopNavbar onToggleSidebar={() => setSidebarOpen((v) => !v)} />
@@ -110,6 +118,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
       <CommandPalette />
       <RealtimeSync />
       <Toaster />
+      <WeeklyDigestModal />
     </div>
   )
 }

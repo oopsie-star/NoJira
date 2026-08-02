@@ -3,6 +3,7 @@ import { FunctionsHttpError } from '@supabase/supabase-js'
 import { getErrorMessage } from '@/lib/errors'
 import { isTaskBlocked } from '@/lib/ops'
 import { dedupeRecipients } from '@/lib/notify'
+import { computeWeeklyDigest, type WeeklyDigestStats } from '@/lib/weeklyDigest'
 import { supabase } from '@/lib/supabase'
 import { EPIC_COLORS } from '@/types'
 import type {
@@ -411,6 +412,7 @@ interface AppState {
   taskLinks: TaskLink[]
   attachmentNotes: Record<string, AttachmentNote>
   activityEvents: ActivityEvent[]
+  weeklyDigest: WeeklyDigestStats | null
   notifications: Notification[]
   taskComments: TaskComment[]
   taskActivities: TaskActivity[]
@@ -462,6 +464,8 @@ interface AppState {
   recordAttachmentOriginalName: (projectId: string, path: string, originalName: string, mimeType?: string | null) => Promise<void>
   fetchActivityEvents: () => Promise<void>
   logActivityEvent: (eventType: ActivityEventType, options?: { taskId?: string | null; detail?: string | null }) => Promise<void>
+  fetchWeeklyDigestIfDue: () => Promise<void>
+  dismissWeeklyDigest: () => Promise<void>
   fetchNotifications: () => Promise<void>
   fetchTaskContext: (taskId: string) => Promise<void>
   clearTaskContext: () => void
@@ -605,6 +609,7 @@ export const useStore = create<AppState>((set, get) => {
     taskLinks: [],
     attachmentNotes: {},
     activityEvents: [],
+    weeklyDigest: null,
     notifications: [],
     taskComments: [],
     taskActivities: [],
@@ -628,6 +633,7 @@ export const useStore = create<AppState>((set, get) => {
     profile,
     workspaceProjects: profile?.role === 'admin' ? state.workspaceProjects : [],
     deletionRequests: profile?.role === 'admin' ? state.deletionRequests : [],
+    weeklyDigest: profile ? state.weeklyDigest : null,
   })),
   setOpenTaskId: (openTaskId) => set({ openTaskId }),
   toast: null,
@@ -1139,6 +1145,56 @@ export const useStore = create<AppState>((set, get) => {
       task_id: options?.taskId ?? null,
       detail: options?.detail ?? null,
     })
+  },
+
+  // Personal, private weekly digest: built from the same activity_events log
+  // the admin-only "Журнал активности" panel uses (OpsPage.tsx), but scoped
+  // to the caller's own rows via the activity_events_select_own RLS policy
+  // (20260802000000_weekly_digest.sql) — nobody else can see this. Skipped
+  // for accounts younger than a week, and at most once every 7 days.
+  fetchWeeklyDigestIfDue: async () => {
+    const profile = get().profile
+    if (!profile) return
+
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+    const accountAge = Date.now() - new Date(profile.created_at).getTime()
+    if (accountAge < WEEK_MS) return
+
+    const lastShown = profile.weekly_digest_last_shown_at
+    if (lastShown && Date.now() - new Date(lastShown).getTime() < WEEK_MS) return
+
+    const sinceIso = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+    const weekStartIso = new Date(Date.now() - WEEK_MS).toISOString()
+
+    const [eventsResult, commentsResult] = await Promise.all([
+      supabase
+        .from('activity_events')
+        .select('*')
+        .eq('profile_id', profile.id)
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: false })
+        .limit(2000),
+      supabase
+        .from('task_comments')
+        .select('id', { count: 'exact', head: true })
+        .eq('author_id', profile.id)
+        .gte('created_at', weekStartIso),
+    ])
+
+    const digest = computeWeeklyDigest(
+      (eventsResult.data ?? []) as unknown as ActivityEvent[],
+      commentsResult.count ?? 0,
+      profile.locale,
+    )
+    set({ weeklyDigest: digest })
+  },
+
+  dismissWeeklyDigest: async () => {
+    const profile = get().profile
+    if (!profile) return
+    const shownAt = new Date().toISOString()
+    set({ weeklyDigest: null, profile: { ...profile, weekly_digest_last_shown_at: shownAt } })
+    await supabase.from('profiles').update({ weekly_digest_last_shown_at: shownAt }).eq('id', profile.id)
   },
 
   fetchNotifications: async () => {
