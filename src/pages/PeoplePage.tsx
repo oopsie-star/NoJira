@@ -172,6 +172,7 @@ export function PeoplePage() {
   const deletePlaceholder = useStore((state) => state.deletePlaceholder)
   const updateProfile = useStore((state) => state.updateProfile)
   const disconnectTelegram = useStore((state) => state.disconnectTelegram)
+  const generateTelegramLinkCode = useStore((state) => state.generateTelegramLinkCode)
   const updateProjectMemberRole = useStore((state) => state.updateProjectMemberRole)
   const reassignTaskAssignee = useStore((state) => state.reassignTaskAssignee)
 
@@ -189,6 +190,7 @@ export function PeoplePage() {
   const [reassignMessage, setReassignMessage] = useState<string | null>(null)
   const [cancelingInviteId, setCancelingInviteId] = useState<string | null>(null)
   const [memberActionError, setMemberActionError] = useState<string | null>(null)
+  const [telegramLinks, setTelegramLinks] = useState<Record<string, string>>({})
   const [retryingProfileId, setRetryingProfileId] = useState<string | null>(null)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
   const [addingProfileId, setAddingProfileId] = useState<string | null>(null)
@@ -345,6 +347,20 @@ export function PeoplePage() {
       await updateProfile(profileId, fields)
     } catch (err) {
       setMemberActionError(getErrorMessage(err))
+    }
+  }
+
+  async function handleGenerateTelegramLink(personId: string) {
+    const botUsername = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined
+    if (!botUsername) return
+    const code = await generateTelegramLinkCode(personId)
+    if (!code) return
+    const link = `https://t.me/${botUsername}?start=${code}`
+    setTelegramLinks((state) => ({ ...state, [personId]: link }))
+    try {
+      await navigator.clipboard.writeText(link)
+    } catch {
+      // Clipboard may be unavailable — the link is still shown inline to copy by hand.
     }
   }
 
@@ -940,17 +956,37 @@ export function PeoplePage() {
                         </div>
 
                         {(person.telegram_chat_id || canManageTelegram) && (
-                          <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-                            <Send size={12} />
-                            <span>{person.telegram_chat_id ? t('telegram.connected') : t('telegram.notConnected')}</span>
-                            {person.telegram_chat_id && canManageTelegram && (
-                              <button
-                                type="button"
-                                onClick={() => void disconnectTelegram(person.id)}
-                                className="font-semibold text-rose-600 transition hover:text-rose-700"
-                              >
-                                {t('telegram.disconnect')}
-                              </button>
+                          <div className="mt-3 space-y-1.5">
+                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                              <Send size={12} />
+                              <span>{person.telegram_chat_id ? t('telegram.connected') : t('telegram.notConnected')}</span>
+                              {person.telegram_chat_id && canManageTelegram && (
+                                <button
+                                  type="button"
+                                  onClick={() => void disconnectTelegram(person.id)}
+                                  className="font-semibold text-rose-600 transition hover:text-rose-700"
+                                >
+                                  {t('telegram.disconnect')}
+                                </button>
+                              )}
+                              {!person.telegram_chat_id && canManageTelegram && (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleGenerateTelegramLink(person.id)}
+                                  className="font-semibold text-qira-pistachio-dk transition hover:text-qira-pistachio"
+                                >
+                                  {t('telegram.generateLink')}
+                                </button>
+                              )}
+                            </div>
+                            {telegramLinks[person.id] && (
+                              <p className="rounded-lg bg-slate-50 px-2 py-1.5 text-xs text-slate-600">
+                                {t('telegram.linkReady')}{' '}
+                                <a href={telegramLinks[person.id]} target="_blank" rel="noreferrer" className="break-all text-qira-pistachio-dk underline">
+                                  {telegramLinks[person.id]}
+                                </a>
+                                {' '}({t('telegram.linkCopied')})
+                              </p>
                             )}
                           </div>
                         )}

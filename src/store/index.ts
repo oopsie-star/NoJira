@@ -466,7 +466,7 @@ interface AppState {
   logActivityEvent: (eventType: ActivityEventType, options?: { taskId?: string | null; detail?: string | null }) => Promise<void>
   fetchWeeklyDigestIfDue: () => Promise<void>
   dismissWeeklyDigest: () => Promise<void>
-  generateTelegramLinkCode: () => Promise<string | null>
+  generateTelegramLinkCode: (targetProfileId: string) => Promise<string | null>
   disconnectTelegram: (profileId: string) => Promise<void>
   fetchNotifications: () => Promise<void>
   fetchTaskContext: (taskId: string) => Promise<void>
@@ -1228,19 +1228,19 @@ export const useStore = create<AppState>((set, get) => {
     await supabase.from('profiles').update({ weekly_digest_last_shown_at: shownAt }).eq('id', profile.id)
   },
 
-  // Linking is self-service (anyone can generate their own code); unlinking
-  // is not — see disconnectTelegram and the profiles_telegram_disconnect_guard
-  // trigger (20260802010000_telegram_notifications.sql).
-  generateTelegramLinkCode: async () => {
-    const profile = get().profile
-    if (!profile) return null
-
+  // Anyone can generate their own code; a super admin/founder/ceo can also
+  // generate one for someone else (telegram_link_codes_manage RLS policy,
+  // 20260802020000_telegram_admin_generated_links.sql) — team members won't
+  // reliably self-serve, so an admin can drive linking directly. Unlinking
+  // stays admin-only either way — see disconnectTelegram and the
+  // profiles_telegram_disconnect_guard trigger.
+  generateTelegramLinkCode: async (targetProfileId) => {
     const code = Math.random().toString(36).slice(2, 10)
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
 
     const { error } = await supabase
       .from('telegram_link_codes')
-      .upsert({ profile_id: profile.id, code, expires_at: expiresAt })
+      .upsert({ profile_id: targetProfileId, code, expires_at: expiresAt })
     if (error) {
       get().notify(getErrorMessage(error))
       return null

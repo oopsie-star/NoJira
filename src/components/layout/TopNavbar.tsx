@@ -269,7 +269,7 @@ function HeaderMenu() {
   async function handleConnectTelegram() {
     const botUsername = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined
     if (!profile || !botUsername) return
-    const code = await generateTelegramLinkCode()
+    const code = await generateTelegramLinkCode(profile.id)
     if (!code) return
 
     window.open(`https://t.me/${botUsername}?start=${code}`, '_blank', 'noopener')
