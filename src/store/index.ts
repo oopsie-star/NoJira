@@ -1217,13 +1217,17 @@ export const useStore = create<AppState>((set, get) => {
 
     const [eventsResult, commentsResult] = await Promise.all([
       supabase
+        // Deliberately leaner than ACTIVITY_EVENT_SELECT: the digest never
+        // reads the actor's profile (it's always the caller), so that join
+        // is pure payload on a phone. Keep it light — this runs on every
+        // project entry.
         .from('activity_events')
-        .select(ACTIVITY_EVENT_SELECT)
+        .select('event_type, task_id, detail, created_at, task:tasks(id, key, title)')
         .eq('profile_id', profile.id)
         .eq('project_id', project.id)
         .gte('created_at', sinceIso)
         .order('created_at', { ascending: false })
-        .limit(2000),
+        .limit(500),
       supabase
         .from('task_comments')
         .select('id', { count: 'exact', head: true })

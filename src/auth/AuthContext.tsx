@@ -72,8 +72,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           })
           if (res.ok) {
             const user = await res.json()
-            await fetchProfile(user.id)
             setSession({ access_token: stored.access_token, user } as any)
+            // Fire-and-forget, exactly like the onAuthStateChange path above:
+            // awaiting it here meant a profiles request that never settled
+            // (flaky mobile connection — Supabase requests have no timeout)
+            // left setIsLoading(false) below unreachable, hanging the app on
+            // the full-page spinner forever.
+            void fetchProfile(user.id)
           }
         }
       } catch { /* silent */ }
