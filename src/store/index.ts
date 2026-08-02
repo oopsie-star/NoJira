@@ -34,7 +34,7 @@ import type {
   WebhookEvent,
 } from '@/types'
 
-export interface WeeklyDigestQueueItem {
+export interface WeeklyDigestEntry {
   projectId: string
   projectKey: string
   projectName: string
@@ -419,7 +419,7 @@ interface AppState {
   taskLinks: TaskLink[]
   attachmentNotes: Record<string, AttachmentNote>
   activityEvents: ActivityEvent[]
-  weeklyDigestQueue: WeeklyDigestQueueItem[]
+  weeklyDigest: WeeklyDigestEntry | null
   notifications: Notification[]
   taskComments: TaskComment[]
   taskActivities: TaskActivity[]
@@ -645,7 +645,7 @@ export const useStore = create<AppState>((set, get) => {
     taskLinks: [],
     attachmentNotes: {},
     activityEvents: [],
-    weeklyDigestQueue: [],
+    weeklyDigest: null,
     notifications: [],
     taskComments: [],
     taskActivities: [],
@@ -669,7 +669,7 @@ export const useStore = create<AppState>((set, get) => {
     profile,
     workspaceProjects: profile?.role === 'admin' ? state.workspaceProjects : [],
     deletionRequests: profile?.role === 'admin' ? state.deletionRequests : [],
-    weeklyDigestQueue: profile ? state.weeklyDigestQueue : [],
+    weeklyDigest: profile ? state.weeklyDigest : null,
   })),
   setOpenTaskId: (openTaskId) => set({ openTaskId }),
   toast: null,
@@ -1183,76 +1183,68 @@ export const useStore = create<AppState>((set, get) => {
     })
   },
 
-  // Personal, private digest of the trailing week — one per project (a
-  // person can be on several; a single mixed-in digest made it unclear
-  // which project a task belonged to). Built from the same activity_events
-  // log the admin-only "Журнал активности" panel uses (OpsPage.tsx), but
-  // scoped to the caller's own rows via the activity_events_select_own RLS
-  // policy (20260802000000_weekly_digest.sql) — nobody else can see this.
-  // Shown once per project per calendar day (weekly_digest_views,
+  // Personal, private digest of the trailing week, scoped to whichever
+  // project the person just entered (not all their projects at once — a
+  // combined or queued-up digest made it unclear which project a task
+  // belonged to, and showed up regardless of which project they actually
+  // opened). Built from the same activity_events log the admin-only
+  // "Журнал активности" panel uses (OpsPage.tsx), but scoped to the
+  // caller's own rows via the activity_events_select_own RLS policy
+  // (20260802000000_weekly_digest.sql) — nobody else can see this. Shown
+  // once per project per calendar day (weekly_digest_views,
   // 20260803000000_weekly_digest_per_project.sql) — skipped only for
   // accounts younger than a week, since there's no meaningful week yet.
   fetchWeeklyDigestIfDue: async () => {
     const profile = get().profile
-    const projects = get().projects
-    if (!profile || !projects.length) return
+    const activeProjectId = get().activeProjectId
+    const project = get().projects.find((p) => p.id === activeProjectId)
+    if (!profile || !project) return
 
     const WEEK_MS = 7 * 24 * 60 * 60 * 1000
     const accountAge = Date.now() - new Date(profile.created_at).getTime()
     if (accountAge < WEEK_MS) return
 
-    const { data: viewRows } = await supabase
+    const { data: viewRow } = await supabase
       .from('weekly_digest_views')
-      .select('project_id, shown_at')
+      .select('shown_at')
       .eq('profile_id', profile.id)
-
-    const now = new Date()
-    const shownTodayProjectIds = new Set(
-      (viewRows ?? [])
-        .filter((row) => isSameLocalDay(new Date(row.shown_at), now))
-        .map((row) => row.project_id),
-    )
-    const dueProjects = projects.filter((project) => !shownTodayProjectIds.has(project.id))
-    if (!dueProjects.length) return
+      .eq('project_id', project.id)
+      .maybeSingle()
+    if (viewRow && isSameLocalDay(new Date(viewRow.shown_at), new Date())) return
 
     const sinceIso = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
     const weekStartIso = new Date(Date.now() - WEEK_MS).toISOString()
 
-    const queue: WeeklyDigestQueueItem[] = []
-    for (const project of dueProjects) {
-      const [eventsResult, commentsResult] = await Promise.all([
-        supabase
-          .from('activity_events')
-          .select(ACTIVITY_EVENT_SELECT)
-          .eq('profile_id', profile.id)
-          .eq('project_id', project.id)
-          .gte('created_at', sinceIso)
-          .order('created_at', { ascending: false })
-          .limit(2000),
-        supabase
-          .from('task_comments')
-          .select('id', { count: 'exact', head: true })
-          .eq('author_id', profile.id)
-          .eq('project_id', project.id)
-          .gte('created_at', weekStartIso),
-      ])
+    const [eventsResult, commentsResult] = await Promise.all([
+      supabase
+        .from('activity_events')
+        .select(ACTIVITY_EVENT_SELECT)
+        .eq('profile_id', profile.id)
+        .eq('project_id', project.id)
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: false })
+        .limit(2000),
+      supabase
+        .from('task_comments')
+        .select('id', { count: 'exact', head: true })
+        .eq('author_id', profile.id)
+        .eq('project_id', project.id)
+        .gte('created_at', weekStartIso),
+    ])
 
-      const stats = computeWeeklyDigest(
-        (eventsResult.data ?? []) as unknown as ActivityEvent[],
-        commentsResult.count ?? 0,
-        profile.locale,
-      )
-      queue.push({ projectId: project.id, projectKey: project.key, projectName: project.name, stats })
-    }
-
-    set({ weeklyDigestQueue: queue })
+    const stats = computeWeeklyDigest(
+      (eventsResult.data ?? []) as unknown as ActivityEvent[],
+      commentsResult.count ?? 0,
+      profile.locale,
+    )
+    set({ weeklyDigest: { projectId: project.id, projectKey: project.key, projectName: project.name, stats } })
   },
 
   dismissWeeklyDigest: async () => {
     const profile = get().profile
-    const current = get().weeklyDigestQueue[0]
+    const current = get().weeklyDigest
     if (!profile || !current) return
-    set((state) => ({ weeklyDigestQueue: state.weeklyDigestQueue.slice(1) }))
+    set({ weeklyDigest: null })
     await supabase
       .from('weekly_digest_views')
       .upsert({ profile_id: profile.id, project_id: current.projectId, shown_at: new Date().toISOString() })

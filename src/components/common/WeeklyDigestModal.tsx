@@ -17,14 +17,15 @@ function Row({ label, value }: { label: string; value: string }) {
 /**
  * Private, personal weekly digest — never a public leaderboard, just what
  * this one person did this week (see fetchWeeklyDigestIfDue in the store).
- * One project at a time: a person on several projects gets queued digests,
- * shown one after another as each is dismissed (weeklyDigestQueue).
- * Must be read to the bottom before it can be closed: the close controls
- * stay disabled until the content is scrolled all the way down, or — for a
- * short digest that doesn't need scrolling — as soon as it's laid out.
+ * Scoped to whichever project is currently active: it appears when you
+ * enter a project you haven't seen today's digest for, not all at once on
+ * app load. Must be read to the bottom before it can be closed: the close
+ * controls stay disabled until the content is scrolled all the way down,
+ * or — for a short digest that doesn't need scrolling — as soon as it's
+ * laid out.
  */
 export function WeeklyDigestModal() {
-  const current = useStore((state) => state.weeklyDigestQueue[0])
+  const current = useStore((state) => state.weeklyDigest)
   const dismiss = useStore((state) => state.dismissWeeklyDigest)
   const { t, locale } = useI18n()
   const contentRef = useRef<HTMLDivElement>(null)
