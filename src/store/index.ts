@@ -3,6 +3,7 @@ import { FunctionsHttpError } from '@supabase/supabase-js'
 import { getErrorMessage } from '@/lib/errors'
 import { isTaskBlocked } from '@/lib/ops'
 import { dedupeRecipients } from '@/lib/notify'
+import { computeWeeklyDigest, isSameLocalDay, type WeeklyDigestStats } from '@/lib/weeklyDigest'
 import { supabase } from '@/lib/supabase'
 import { EPIC_COLORS } from '@/types'
 import type {
@@ -32,6 +33,13 @@ import type {
   TaskStatus,
   WebhookEvent,
 } from '@/types'
+
+export interface WeeklyDigestEntry {
+  projectId: string
+  projectKey: string
+  projectName: string
+  stats: WeeklyDigestStats
+}
 
 const TASK_SELECT = `
   *,
@@ -411,6 +419,7 @@ interface AppState {
   taskLinks: TaskLink[]
   attachmentNotes: Record<string, AttachmentNote>
   activityEvents: ActivityEvent[]
+  weeklyDigest: WeeklyDigestEntry | null
   notifications: Notification[]
   taskComments: TaskComment[]
   taskActivities: TaskActivity[]
@@ -462,6 +471,10 @@ interface AppState {
   recordAttachmentOriginalName: (projectId: string, path: string, originalName: string, mimeType?: string | null) => Promise<void>
   fetchActivityEvents: () => Promise<void>
   logActivityEvent: (eventType: ActivityEventType, options?: { taskId?: string | null; detail?: string | null }) => Promise<void>
+  fetchWeeklyDigestIfDue: () => Promise<void>
+  dismissWeeklyDigest: () => Promise<void>
+  generateTelegramLinkCode: (targetProfileId: string) => Promise<string | null>
+  disconnectTelegram: (profileId: string) => Promise<void>
   fetchNotifications: () => Promise<void>
   fetchTaskContext: (taskId: string) => Promise<void>
   clearTaskContext: () => void
@@ -560,35 +573,62 @@ export const useStore = create<AppState>((set, get) => {
   }
 
   // Fans a notification out to recipients: an in-app row (real-time, via the
-  // existing notifications table/bell) plus a best-effort email. Email
+  // existing notifications table/bell) plus best-effort email, plus
+  // best-effort Telegram to a separately-sized audience — Telegram is meant
+  // to broadcast wide (all project members) while email/in-app stay
+  // narrowly targeted, so telegramRecipientIds defaults to recipientIds
+  // only when the caller doesn't pass its own (wider) list. Delivery
   // failures never block the in-app notification, which has already landed
   // by the time the edge function is invoked.
   const notifyRecipients = async (
     recipientIds: string[],
-    opts: { projectId: string; taskId: string | null; notificationType: NotificationType; title: string; body: string },
+    opts: {
+      projectId: string
+      taskId: string | null
+      notificationType: NotificationType
+      title: string
+      body: string
+      telegramRecipientIds?: string[]
+    },
   ) => {
-    if (!recipientIds.length) return
-    const { projectId, taskId, notificationType, title, body } = opts
+    const { projectId, taskId, notificationType, title, body, telegramRecipientIds } = opts
+    const telegramIds = telegramRecipientIds ?? recipientIds
+    if (!recipientIds.length && !telegramIds.length) return
 
-    await supabase.from('notifications').insert(
-      recipientIds.map((profileId) => ({
-        project_id: projectId,
-        profile_id: profileId,
-        task_id: taskId,
-        notification_type: notificationType,
-        title,
-        body,
-      })),
-    )
+    if (recipientIds.length) {
+      await supabase.from('notifications').insert(
+        recipientIds.map((profileId) => ({
+          project_id: projectId,
+          profile_id: profileId,
+          task_id: taskId,
+          notification_type: notificationType,
+          title,
+          body,
+        })),
+      )
+    }
 
     try {
       await supabase.functions.invoke('send-task-notification', {
-        body: { recipient_ids: recipientIds, project_id: projectId, task_id: taskId, subject: title, body_text: body },
+        body: {
+          recipient_ids: recipientIds,
+          telegram_recipient_ids: telegramIds,
+          project_id: projectId,
+          task_id: taskId,
+          subject: title,
+          body_text: body,
+        },
       })
     } catch {
       // Best-effort: the in-app notification already landed above.
     }
   }
+
+  // Everyone on the active project except the actor — the wide audience
+  // Telegram broadcasts use (new tasks, status changes, comments, new
+  // attachments), as opposed to email's narrow author/assignee/thread set.
+  const allProjectMemberIdsExcept = (excludeId: string | null) =>
+    dedupeRecipients(get().projectMembers.map((member) => member.profile_id), excludeId)
 
   return ({
     profile: null,
@@ -605,6 +645,7 @@ export const useStore = create<AppState>((set, get) => {
     taskLinks: [],
     attachmentNotes: {},
     activityEvents: [],
+    weeklyDigest: null,
     notifications: [],
     taskComments: [],
     taskActivities: [],
@@ -628,6 +669,7 @@ export const useStore = create<AppState>((set, get) => {
     profile,
     workspaceProjects: profile?.role === 'admin' ? state.workspaceProjects : [],
     deletionRequests: profile?.role === 'admin' ? state.deletionRequests : [],
+    weeklyDigest: profile ? state.weeklyDigest : null,
   })),
   setOpenTaskId: (openTaskId) => set({ openTaskId }),
   toast: null,
@@ -1141,6 +1183,115 @@ export const useStore = create<AppState>((set, get) => {
     })
   },
 
+  // Personal, private digest of the trailing week, scoped to whichever
+  // project the person just entered (not all their projects at once — a
+  // combined or queued-up digest made it unclear which project a task
+  // belonged to, and showed up regardless of which project they actually
+  // opened). Built from the same activity_events log the admin-only
+  // "Журнал активности" panel uses (OpsPage.tsx), but scoped to the
+  // caller's own rows via the activity_events_select_own RLS policy
+  // (20260802000000_weekly_digest.sql) — nobody else can see this. Shown
+  // once per project per calendar day (weekly_digest_views,
+  // 20260803000000_weekly_digest_per_project.sql) — skipped only for
+  // accounts younger than a week, since there's no meaningful week yet.
+  fetchWeeklyDigestIfDue: async () => {
+    const profile = get().profile
+    const activeProjectId = get().activeProjectId
+    const project = get().projects.find((p) => p.id === activeProjectId)
+    if (!profile || !project) return
+
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+    const accountAge = Date.now() - new Date(profile.created_at).getTime()
+    if (accountAge < WEEK_MS) return
+
+    const { data: viewRow } = await supabase
+      .from('weekly_digest_views')
+      .select('shown_at')
+      .eq('profile_id', profile.id)
+      .eq('project_id', project.id)
+      .maybeSingle()
+    if (viewRow && isSameLocalDay(new Date(viewRow.shown_at), new Date())) return
+
+    const sinceIso = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+    const weekStartIso = new Date(Date.now() - WEEK_MS).toISOString()
+
+    const [eventsResult, commentsResult] = await Promise.all([
+      supabase
+        .from('activity_events')
+        .select(ACTIVITY_EVENT_SELECT)
+        .eq('profile_id', profile.id)
+        .eq('project_id', project.id)
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: false })
+        .limit(2000),
+      supabase
+        .from('task_comments')
+        .select('id', { count: 'exact', head: true })
+        .eq('author_id', profile.id)
+        .eq('project_id', project.id)
+        .gte('created_at', weekStartIso),
+    ])
+
+    const stats = computeWeeklyDigest(
+      (eventsResult.data ?? []) as unknown as ActivityEvent[],
+      commentsResult.count ?? 0,
+      profile.locale,
+    )
+    set({ weeklyDigest: { projectId: project.id, projectKey: project.key, projectName: project.name, stats } })
+  },
+
+  dismissWeeklyDigest: async () => {
+    const profile = get().profile
+    const current = get().weeklyDigest
+    if (!profile || !current) return
+    set({ weeklyDigest: null })
+    await supabase
+      .from('weekly_digest_views')
+      .upsert({ profile_id: profile.id, project_id: current.projectId, shown_at: new Date().toISOString() })
+  },
+
+  // Anyone can generate their own code; a super admin/founder/ceo can also
+  // generate one for someone else (telegram_link_codes_manage RLS policy,
+  // 20260802020000_telegram_admin_generated_links.sql) — team members won't
+  // reliably self-serve, so an admin can drive linking directly. Unlinking
+  // stays admin-only either way — see disconnectTelegram and the
+  // profiles_telegram_disconnect_guard trigger.
+  //
+  // 7-day TTL, not the original 15 minutes: an admin-generated link is
+  // handed over manually (WhatsApp, in person, whenever they next see that
+  // person), not clicked on the spot, and the person themselves might not
+  // open Telegram for a day or two. Low risk either way — it's single-use,
+  // deleted the moment it's redeemed, and only reachable by whoever the
+  // link was actually sent to.
+  generateTelegramLinkCode: async (targetProfileId) => {
+    const code = Math.random().toString(36).slice(2, 10)
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    const { error } = await supabase
+      .from('telegram_link_codes')
+      .upsert({ profile_id: targetProfileId, code, expires_at: expiresAt })
+    if (error) {
+      get().notify(getErrorMessage(error))
+      return null
+    }
+    return code
+  },
+
+  // Enforcement is the DB trigger, not this function — a caller without
+  // permission gets a clear Postgres error surfaced via the toast below.
+  // The UI only needs to hide the button for people who can't use it.
+  disconnectTelegram: async (profileId) => {
+    const { error } = await supabase.from('profiles').update({ telegram_chat_id: null }).eq('id', profileId)
+    if (error) {
+      get().notify(getErrorMessage(error))
+      return
+    }
+    set((state) => ({
+      profile: state.profile?.id === profileId ? { ...state.profile, telegram_chat_id: null } : state.profile,
+      members: state.members.map((member) => (member.id === profileId ? { ...member, telegram_chat_id: null } : member)),
+    }))
+  },
+
   fetchNotifications: async () => {
     const activeProjectId = get().activeProjectId
     const profile = get().profile
@@ -1333,7 +1484,21 @@ export const useStore = create<AppState>((set, get) => {
       task: data,
     }, (data as Task).id)
 
-    return data as Task
+    // Telegram-only broadcast (recipientIds empty — no email/in-app change
+    // for task creation, only the wide Telegram audience the team asked for).
+    const createdTask = data as Task
+    await notifyRecipients([], {
+      projectId: activeProjectId,
+      taskId: createdTask.id,
+      notificationType: 'automation',
+      title: fields.parent_task_id
+        ? `${profile.full_name || profile.email} created a subtask: ${createdTask.key}`
+        : `${profile.full_name || profile.email} created ${createdTask.key}`,
+      body: createdTask.title,
+      telegramRecipientIds: allProjectMemberIdsExcept(profile.id),
+    })
+
+    return createdTask
   },
 
   createSubtask: async (parentTaskId, title) => {
@@ -1413,6 +1578,10 @@ export const useStore = create<AppState>((set, get) => {
         notificationType: 'comment',
         title: `${authorName} mentioned you`,
         body: commentBodyPreview,
+        // The broad "commented on" broadcast below already reaches every
+        // project member (mentioned people included) on Telegram — skip it
+        // here so a mentioned person doesn't get two Telegram messages.
+        telegramRecipientIds: [],
       })
     }
 
@@ -1423,15 +1592,17 @@ export const useStore = create<AppState>((set, get) => {
       [currentTask.reporter_id, currentTask.assignee_id, ...currentTask.assignee_ids, ...threadParticipantIds],
       profile.id,
     ).filter((id) => !mentionedRecipients.includes(id))
-    if (otherRecipients.length) {
-      await notifyRecipients(otherRecipients, {
-        projectId: currentTask.project_id,
-        taskId,
-        notificationType: 'comment',
-        title: `${authorName} commented on ${currentTask.key}`,
-        body: commentBodyPreview,
-      })
-    }
+    // Unconditional (not gated on otherRecipients.length): the wide Telegram
+    // broadcast should fire on every comment even when email has nobody to
+    // notify (e.g. an unassigned task with no prior thread).
+    await notifyRecipients(otherRecipients, {
+      projectId: currentTask.project_id,
+      taskId,
+      notificationType: 'comment',
+      title: `${authorName} commented on ${currentTask.key}`,
+      body: commentBodyPreview,
+      telegramRecipientIds: allProjectMemberIdsExcept(profile.id),
+    })
 
     await supabase.from('task_activities').insert({
       project_id: currentTask.project_id,
@@ -1647,7 +1818,25 @@ export const useStore = create<AppState>((set, get) => {
           notificationType: 'automation',
           title: `${actorName} moved ${nextTask.key} to ${statusLabel}`,
           body: nextTask.title,
+          telegramRecipientIds: allProjectMemberIdsExcept(profile.id),
         })
+      }
+
+      // Telegram-only broadcast for newly-added attachments (email/in-app
+      // untouched — attachments never notified before this).
+      if (profile && normalizedFields.attachments) {
+        const newPaths = nextTask.attachments.filter((path) => !previousTask.attachments.includes(path))
+        if (newPaths.length) {
+          const actorName = profile.full_name || profile.email
+          await notifyRecipients([], {
+            projectId: nextTask.project_id,
+            taskId: nextTask.id,
+            notificationType: 'automation',
+            title: `${actorName} added ${newPaths.length > 1 ? `${newPaths.length} files` : 'a file'} to ${nextTask.key}`,
+            body: nextTask.title,
+            telegramRecipientIds: allProjectMemberIdsExcept(profile.id),
+          })
+        }
       }
 
       if (previousTask.status !== 'done' && nextTask.status === 'done') {
