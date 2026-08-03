@@ -35,6 +35,69 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   ])
 }
 
+// TEMPORARY diagnostic trace for the Google sign-in bounce-back bug — remove
+// once resolved. sessionStorage (not just a JS variable) because signing in
+// with Google navigates away to accounts.google.com and back; an in-memory
+// log wouldn't survive that round trip, and there's no devtools access on
+// the phone where this is actually failing.
+const TRACE_KEY = 'nojira:auth-trace'
+
+export function traceAuth(msg: string) {
+  try {
+    const prev = JSON.parse(sessionStorage.getItem(TRACE_KEY) ?? '[]') as string[]
+    prev.push(`${new Date().toISOString().slice(11, 23)} ${msg}`)
+    sessionStorage.setItem(TRACE_KEY, JSON.stringify(prev.slice(-40)))
+  } catch { /* ignore */ }
+}
+
+export function readAuthTrace(): string[] {
+  try {
+    return JSON.parse(sessionStorage.getItem(TRACE_KEY) ?? '[]') as string[]
+  } catch {
+    return []
+  }
+}
+
+export function clearAuthTrace() {
+  try { sessionStorage.removeItem(TRACE_KEY) } catch { /* ignore */ }
+}
+
+/** TEMPORARY — shows the trace above on-screen (no devtools access on the
+ * phone this is failing on). Remove alongside the trace calls once resolved. */
+export function AuthDebugPanel() {
+  const [lines, setLines] = useState<string[]>([])
+
+  useEffect(() => {
+    setLines(readAuthTrace())
+  }, [])
+
+  if (!lines.length) return null
+
+  const text = lines.join('\n')
+
+  return (
+    <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 9999, background: '#0f172a', color: '#a7f3d0', fontSize: 11, fontFamily: 'monospace', maxHeight: '40vh', overflowY: 'auto', padding: 8 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+        <button
+          type="button"
+          onClick={() => { void navigator.clipboard.writeText(text) }}
+          style={{ background: '#334155', color: 'white', border: 'none', borderRadius: 6, padding: '4px 8px' }}
+        >
+          Copy
+        </button>
+        <button
+          type="button"
+          onClick={() => { clearAuthTrace(); setLines([]) }}
+          style={{ background: '#334155', color: 'white', border: 'none', borderRadius: 6, padding: '4px 8px' }}
+        >
+          Clear
+        </button>
+      </div>
+      <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{text}</pre>
+    </div>
+  )
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session,   setSession]   = useState<Session | null>(null)
   const [profile,   setProfile]   = useState<Profile | null>(null)
@@ -63,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * outcome: the sign-in screen.
    */
   const establishSession = useCallback(async (nextSession: Session | null) => {
+    traceAuth(`establishSession: nextSession=${nextSession ? nextSession.user.id : 'null'}`)
     let loadedProfile: Profile | null = null
 
     if (nextSession) {
@@ -73,14 +137,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       for (let attempt = 0; attempt < PROFILE_ATTEMPTS && !loadedProfile; attempt += 1) {
         if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, PROFILE_RETRY_MS))
         loadedProfile = await withTimeout(fetchProfile(nextSession.user.id), PROFILE_TIMEOUT_MS)
+        traceAuth(`establishSession: profile attempt ${attempt} -> ${loadedProfile ? 'ok' : 'null'}`)
       }
     }
 
     if (nextSession && loadedProfile) {
+      traceAuth('establishSession: setting session (profile loaded)')
       setSession(nextSession)
       return
     }
 
+    traceAuth(`establishSession: clearing session (nextSession=${!!nextSession}, profile=${!!loadedProfile})`)
     setSession(null)
     setProfile(null)
     useStore.getState().setProfile(null)
@@ -88,9 +155,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let settled = false
+    traceAuth(`boot: url=${window.location.pathname}${window.location.search}${window.location.hash}`)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        traceAuth(`onAuthStateChange: event=${event} session=${session ? session.user.id : 'null'}`)
         settled = true
         await establishSession(session)
         setIsLoading(false)
@@ -100,7 +169,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Fallback: if onAuthStateChange doesn't fire within 3 s (can happen with
     // some Supabase key formats), resolve auth manually from localStorage.
     const fallback = setTimeout(async () => {  // 800ms covers normal auth init latency
-      if (settled) return
+      if (settled) { traceAuth('fallback: skipped, already settled'); return }
+      traceAuth('fallback: running')
       try {
         // Ask the client what it already has first. That covers a sign-in
         // this fallback must not touch: returning from Google, the code
@@ -109,11 +179,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // straight back to the sign-in screen.
         const existing = await withTimeout(supabase.auth.getSession(), SESSION_TIMEOUT_MS)
         let nextSession = existing?.data?.session ?? null
+        traceAuth(`fallback: getSession -> ${nextSession ? nextSession.user.id : 'null'}`)
 
         // A callback still carrying its code/token in the URL means a
         // sign-in is mid-flight; the stored tokens below are the *previous*
         // session and must not be installed over it.
         const oauthCallbackInFlight = /[?&#](code|access_token)=/.test(window.location.href)
+        traceAuth(`fallback: oauthCallbackInFlight=${oauthCallbackInFlight}`)
 
         if (!nextSession && !oauthCallbackInFlight) {
           const projectRef = new URL(import.meta.env.VITE_SUPABASE_URL as string).hostname.split('.')[0]
@@ -136,13 +208,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               SESSION_TIMEOUT_MS,
             )
             nextSession = result?.data?.session ?? null
+            traceAuth(`fallback: setSession(stored) -> ${nextSession ? nextSession.user.id : 'null'}`)
+          } else {
+            traceAuth('fallback: no stored tokens found')
           }
         }
 
         // onAuthStateChange may have landed while we were awaiting; it owns
         // the outcome in that case, so don't overwrite what it just set.
         if (!settled && nextSession) await establishSession(nextSession)
-      } catch { /* silent */ }
+      } catch (err) {
+        traceAuth(`fallback: threw ${err instanceof Error ? err.message : String(err)}`)
+      }
       if (!settled) setIsLoading(false)
     }, 800)
 
@@ -180,8 +257,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         skipBrowserRedirect: true,
       },
     })
-    if (error) return error.message
+    if (error) { traceAuth(`signInWithGoogle: error ${error.message}`); return error.message }
     if (!data.url) return 'Google sign-in is not available for this project.'
+    traceAuth('signInWithGoogle: redirecting to Google')
     window.location.assign(data.url)
     return null
   }, [])

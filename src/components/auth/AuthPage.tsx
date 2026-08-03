@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowRight } from 'lucide-react'
-import { useAuthContext } from '@/auth/AuthContext'
+import { AuthDebugPanel, useAuthContext } from '@/auth/AuthContext'
 import { useI18n } from '@/lib/i18n'
 
 function GoogleLogo() {
@@ -183,6 +183,7 @@ export function AuthPage() {
           </form>
         </section>
       </div>
+      <AuthDebugPanel />
     </div>
   )
 }
