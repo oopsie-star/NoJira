@@ -69,13 +69,22 @@ Deno.serve(async (req) => {
   }
 
   // Only a member of the project may trigger delivery (anti-abuse), same guard as notify-webhook.
+  // A global super admin frequently has no project_members row at all for a
+  // given project — they reach it via the is_admin() RLS bypass instead
+  // (see fetchProjects in store/index.ts for the same gotcha) — so an
+  // admin-authored task/comment/status-change silently 403'd here and never
+  // reached Telegram, with the client swallowing the error.
   const { data: membership } = await admin
     .from('project_members')
     .select('profile_id')
     .eq('project_id', projectId)
     .eq('profile_id', authData.user.id)
     .maybeSingle()
-  if (!membership) return json(403, { error: 'Not a project member.' })
+
+  if (!membership) {
+    const { data: callerProfile } = await admin.from('profiles').select('role').eq('id', authData.user.id).single()
+    if (callerProfile?.role !== 'admin') return json(403, { error: 'Not a project member.' })
+  }
 
   const { data: project } = await admin.from('projects').select('key').eq('id', projectId).single()
   const taskLink = project?.key && taskId
