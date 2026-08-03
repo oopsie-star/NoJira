@@ -1,7 +1,7 @@
 // @refresh reset
 import {
   createContext, useContext, useState, useEffect,
-  useMemo, useCallback, type ReactNode,
+  useMemo, useCallback, useRef, type ReactNode,
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
@@ -102,6 +102,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session,   setSession]   = useState<Session | null>(null)
   const [profile,   setProfile]   = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  // Tracks whose profile is currently loaded, outside React state so
+  // establishSession can read it without becoming stale inside its own
+  // useCallback closure. See establishSession for why this exists.
+  const profileUserIdRef = useRef<string | null>(null)
 
   const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
@@ -119,35 +123,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /**
    * A session counts as established only once its profile is actually in
-   * hand. Surfacing the session first (with the profile still loading in
-   * the background) rendered the app shell with no identity — empty fields,
-   * and the not-yet-approved check silently passing because it needs the
-   * profile to say no. Not knowing who someone is has exactly one correct
-   * outcome: the sign-in screen.
+   * hand — but only the *first* time we see a given user. onAuthStateChange
+   * fires repeatedly during a normal session (TOKEN_REFRESHED in particular,
+   * on a timer, completely unprompted), and re-running the gated profile
+   * fetch on every single one of those meant any one slow/flaky attempt —
+   * nothing to do with whether the session was actually still valid — signed
+   * an already-working session out. Once a user's profile is loaded, later
+   * events for that same user just refresh the session token and leave it
+   * alone.
    */
   const establishSession = useCallback(async (nextSession: Session | null) => {
     traceAuth(`establishSession: nextSession=${nextSession ? nextSession.user.id : 'null'}`)
-    let loadedProfile: Profile | null = null
 
-    if (nextSession) {
-      // Retry briefly: on a first-ever Google sign-in the profile row is
-      // created by a database trigger, and we can arrive here before it
-      // exists. Without this, a brand-new account bounced straight back to
-      // the sign-in screen.
-      for (let attempt = 0; attempt < PROFILE_ATTEMPTS && !loadedProfile; attempt += 1) {
-        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, PROFILE_RETRY_MS))
-        loadedProfile = await withTimeout(fetchProfile(nextSession.user.id), PROFILE_TIMEOUT_MS)
-        traceAuth(`establishSession: profile attempt ${attempt} -> ${loadedProfile ? 'ok' : 'null'}`)
-      }
+    if (!nextSession) {
+      traceAuth('establishSession: no session, clearing')
+      profileUserIdRef.current = null
+      setSession(null)
+      setProfile(null)
+      useStore.getState().setProfile(null)
+      return
     }
 
-    if (nextSession && loadedProfile) {
-      traceAuth('establishSession: setting session (profile loaded)')
+    if (profileUserIdRef.current === nextSession.user.id) {
+      traceAuth('establishSession: profile already loaded for this user, refreshing session only')
       setSession(nextSession)
       return
     }
 
-    traceAuth(`establishSession: clearing session (nextSession=${!!nextSession}, profile=${!!loadedProfile})`)
+    // Retry briefly: on a first-ever Google sign-in the profile row is
+    // created by a database trigger, and we can arrive here before it
+    // exists. Without this, a brand-new account bounced straight back to
+    // the sign-in screen.
+    let loadedProfile: Profile | null = null
+    for (let attempt = 0; attempt < PROFILE_ATTEMPTS && !loadedProfile; attempt += 1) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, PROFILE_RETRY_MS))
+      loadedProfile = await withTimeout(fetchProfile(nextSession.user.id), PROFILE_TIMEOUT_MS)
+      traceAuth(`establishSession: profile attempt ${attempt} -> ${loadedProfile ? 'ok' : 'null'}`)
+    }
+
+    if (loadedProfile) {
+      traceAuth('establishSession: setting session (profile loaded)')
+      profileUserIdRef.current = nextSession.user.id
+      setSession(nextSession)
+      return
+    }
+
+    traceAuth('establishSession: clearing session (profile fetch failed)')
+    profileUserIdRef.current = null
     setSession(null)
     setProfile(null)
     useStore.getState().setProfile(null)
