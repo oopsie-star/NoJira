@@ -25,6 +25,8 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 // boot used to leave the app on the full-page spinner with no way out.
 const PROFILE_TIMEOUT_MS = 6000
 const SESSION_TIMEOUT_MS = 6000
+const PROFILE_ATTEMPTS = 3
+const PROFILE_RETRY_MS = 400
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([
@@ -61,9 +63,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * outcome: the sign-in screen.
    */
   const establishSession = useCallback(async (nextSession: Session | null) => {
-    const loadedProfile = nextSession
-      ? await withTimeout(fetchProfile(nextSession.user.id), PROFILE_TIMEOUT_MS)
-      : null
+    let loadedProfile: Profile | null = null
+
+    if (nextSession) {
+      // Retry briefly: on a first-ever Google sign-in the profile row is
+      // created by a database trigger, and we can arrive here before it
+      // exists. Without this, a brand-new account bounced straight back to
+      // the sign-in screen.
+      for (let attempt = 0; attempt < PROFILE_ATTEMPTS && !loadedProfile; attempt += 1) {
+        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, PROFILE_RETRY_MS))
+        loadedProfile = await withTimeout(fetchProfile(nextSession.user.id), PROFILE_TIMEOUT_MS)
+      }
+    }
 
     if (nextSession && loadedProfile) {
       setSession(nextSession)
@@ -91,29 +102,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const fallback = setTimeout(async () => {  // 800ms covers normal auth init latency
       if (settled) return
       try {
-        const projectRef = new URL(import.meta.env.VITE_SUPABASE_URL as string).hostname.split('.')[0]
-        const raw = localStorage.getItem(`sb-${projectRef}-auth-token`)
-        const stored = raw ? JSON.parse(raw) : null
+        // Ask the client what it already has first. That covers a sign-in
+        // this fallback must not touch: returning from Google, the code
+        // exchange may still be in flight, and writing the *stored* (old)
+        // tokens over it killed the fresh session and bounced the person
+        // straight back to the sign-in screen.
+        const existing = await withTimeout(supabase.auth.getSession(), SESSION_TIMEOUT_MS)
+        let nextSession = existing?.data?.session ?? null
 
-        if (stored?.access_token && stored?.refresh_token) {
-          // Hand the stored tokens to the client rather than calling the
-          // REST endpoints directly: setSession refreshes an expired access
-          // token (they last an hour, so a phone opened once a day always
-          // needs it) *and* installs the result into the client's in-memory
-          // session. Refreshing by hand into localStorage did neither — the
-          // client kept using the dead token, so every later query, the
-          // profile fetch included, quietly failed.
-          const result = await withTimeout(
-            supabase.auth.setSession({
-              access_token: stored.access_token,
-              refresh_token: stored.refresh_token,
-            }),
-            SESSION_TIMEOUT_MS,
-          )
-          await establishSession(result?.data?.session ?? null)
+        // A callback still carrying its code/token in the URL means a
+        // sign-in is mid-flight; the stored tokens below are the *previous*
+        // session and must not be installed over it.
+        const oauthCallbackInFlight = /[?&#](code|access_token)=/.test(window.location.href)
+
+        if (!nextSession && !oauthCallbackInFlight) {
+          const projectRef = new URL(import.meta.env.VITE_SUPABASE_URL as string).hostname.split('.')[0]
+          const raw = localStorage.getItem(`sb-${projectRef}-auth-token`)
+          const stored = raw ? JSON.parse(raw) : null
+
+          if (stored?.access_token && stored?.refresh_token) {
+            // Hand the stored tokens to the client rather than calling the
+            // REST endpoints directly: setSession refreshes an expired
+            // access token (they last an hour, so a phone opened once a day
+            // always needs it) *and* installs the result into the client's
+            // in-memory session. Refreshing by hand into localStorage did
+            // neither — the client kept using the dead token, so every later
+            // query, the profile fetch included, quietly failed.
+            const result = await withTimeout(
+              supabase.auth.setSession({
+                access_token: stored.access_token,
+                refresh_token: stored.refresh_token,
+              }),
+              SESSION_TIMEOUT_MS,
+            )
+            nextSession = result?.data?.session ?? null
+          }
         }
+
+        // onAuthStateChange may have landed while we were awaiting; it owns
+        // the outcome in that case, so don't overwrite what it just set.
+        if (!settled && nextSession) await establishSession(nextSession)
       } catch { /* silent */ }
-      setIsLoading(false)
+      if (!settled) setIsLoading(false)
     }, 800)
 
     return () => {
