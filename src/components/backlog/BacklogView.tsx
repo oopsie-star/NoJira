@@ -355,7 +355,14 @@ function EpicDescriptionField({ description, onSave }: { description: string; on
     <MarkdownEditor
       value={draft}
       onChange={setDraft}
-      onBlur={() => { if (draft.trim() !== description.trim()) onSave(draft) }}
+      onBlur={() => {
+        if (draft.trim() !== description.trim()) onSave(draft)
+        // Same reasoning as the title input: a real save re-renders with a
+        // new `description` prop (remounting via key={description}), but a
+        // proposal never changes the row, so snap the draft back or the
+        // typed text would keep showing as if it had been saved.
+        setDraft(description)
+      }}
       rows={3}
       placeholder={t('task.descriptionPlaceholder')}
     />
@@ -447,7 +454,12 @@ function TaskListSection({
                   onBlur={(event) => {
                     const value = event.target.value.trim()
                     if (value && value !== title) onTitleSave(value)
-                    else event.target.value = title
+                    // Always snap back to the real title: a genuine save
+                    // re-renders with the new title anyway (key={title}
+                    // remounts this input), while a proposal never touches
+                    // the row, so leaving the typed text showing would
+                    // falsely read as "saved" until the next full reload.
+                    event.target.value = title
                   }}
                   className="min-w-0 flex-1 truncate rounded-md border border-transparent bg-transparent px-1 -mx-1 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-200 focus:bg-white sm:text-base"
                 />
@@ -577,6 +589,7 @@ export function BacklogView() {
   const taskLinks = useStore((state) => state.taskLinks)
   const updateTask = useStore((state) => state.updateTask)
   const updateEpic = useStore((state) => state.updateEpic)
+  const proposeEpicFieldChange = useStore((state) => state.proposeEpicFieldChange)
   const reassignAuthor = useStore((state) => state.reassignAuthor)
   const deleteEpic = useStore((state) => state.deleteEpic)
   const convertEpicToSprint = useStore((state) => state.convertEpicToSprint)
@@ -1124,12 +1137,26 @@ export function BacklogView() {
                         title={epic.title}
                         searchQuery={search}
                         description={epic.description}
-                        onDescriptionSave={canCollaborate
-                          ? (value) => void updateEpic(epic.id, { description: value })
-                          : undefined}
-                        onTitleSave={canEditAuthoredContent(activeProjectRole, profileId, epic.created_by)
-                          ? (value) => void updateEpic(epic.id, { title: value })
-                          : undefined}
+                        onDescriptionSave={(() => {
+                          if (canEditAuthoredContent(activeProjectRole, profileId, epic.created_by)) {
+                            return (value: string) => void updateEpic(epic.id, { description: value })
+                          }
+                          if (canCollaborate) {
+                            return (value: string) =>
+                              void proposeEpicFieldChange(epic.id, 'description', epic.description, value)
+                          }
+                          return undefined
+                        })()}
+                        onTitleSave={(() => {
+                          if (canEditAuthoredContent(activeProjectRole, profileId, epic.created_by)) {
+                            return (value: string) => void updateEpic(epic.id, { title: value })
+                          }
+                          if (canCollaborate) {
+                            return (value: string) =>
+                              void proposeEpicFieldChange(epic.id, 'title', epic.title, value)
+                          }
+                          return undefined
+                        })()}
                         attachmentsCount={epic.attachments.length}
                         attachmentsSlot={(
                           <AttachmentUpload

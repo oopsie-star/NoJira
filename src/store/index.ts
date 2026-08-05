@@ -499,6 +499,12 @@ interface AppState {
   deleteSprint: (id: string, options?: { withTasks?: boolean }) => Promise<void>
   createEpic: (fields: Partial<Epic>) => Promise<Epic | null>
   updateEpic: (id: string, fields: Partial<Epic>) => Promise<void>
+  proposeEpicFieldChange: (
+    epicId: string,
+    field: 'title' | 'description',
+    fromValue: string,
+    toValue: string,
+  ) => Promise<void>
   reassignAuthor: (epicId: string, toProfileId: string) => Promise<void>
   deleteEpic: (id: string, options?: { withTasks?: boolean }) => Promise<void>
   convertSprintToEpic: (sprintId: string) => Promise<Epic | null>
@@ -2088,6 +2094,40 @@ export const useStore = create<AppState>((set, get) => {
         epics: state.epics.map((epic) => (epic.id === id ? data as Epic : epic)),
       }))
     }
+  },
+
+  // Collaborators without edit rights on an epic (not its author, not a
+  // project manager) get an editable field anyway, but "saving" never
+  // touches the epics row — it only pings super admin + founder/ceo on
+  // Telegram with the proposed text. Nothing is persisted; if they like it,
+  // they make the edit themselves with their own (already-unrestricted) access.
+  proposeEpicFieldChange: async (epicId, field, fromValue, toValue) => {
+    const { profile, epics, members, projectMembers } = get()
+    if (!profile) return
+    const epic = epics.find((item) => item.id === epicId)
+    if (!epic) return
+
+    const recipientIds = new Set<string>()
+    for (const member of members) {
+      if (member.role === 'admin') recipientIds.add(member.id)
+    }
+    for (const pm of projectMembers) {
+      if (pm.project_id === epic.project_id && (pm.project_role === 'founder' || pm.project_role === 'ceo')) {
+        recipientIds.add(pm.profile_id)
+      }
+    }
+    recipientIds.delete(profile.id)
+    if (!recipientIds.size) return
+
+    const fieldLabel = field === 'title' ? 'название' : 'описание'
+    await notifyRecipients([], {
+      projectId: epic.project_id,
+      taskId: null,
+      notificationType: 'automation',
+      title: `${profile.full_name || profile.email} предлагает изменить ${fieldLabel} эпика «${epic.title}»`,
+      body: `Было: ${fromValue || '(пусто)'}\n\nПредложено: ${toValue || '(пусто)'}`,
+      telegramRecipientIds: [...recipientIds],
+    })
   },
 
   deleteEpic: async (id, options) => {
