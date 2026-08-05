@@ -1361,6 +1361,27 @@ export const useStore = create<AppState>((set, get) => {
     if (!data) return null
 
     const nextProject = data as Project
+
+    // Pinned "Product Vision" epic: a real epics row (not a synthetic UI
+    // card) seeded from the description just submitted, so the backlog's
+    // existing epic UI — inline editing, attachments — becomes the edit
+    // surface for it going forward (there's no other project-description
+    // edit UI). See 20260803010000_epic_vision_pin.sql for the same shape
+    // backfilled onto pre-existing projects.
+    const { data: visionEpic } = await supabase
+      .from('epics')
+      .insert({
+        project_id: nextProject.id,
+        title: `Продуктовое видение «${nextProject.name}»`,
+        description: nextProject.description,
+        color: '#0C66E4',
+        status: 'planned',
+        is_vision: true,
+        created_by: profile.id,
+      })
+      .select('*')
+      .single()
+
     const optimisticMembership: ProjectMember = {
       id: `local-${nextProject.id}`,
       project_id: nextProject.id,
@@ -1385,7 +1406,7 @@ export const useStore = create<AppState>((set, get) => {
       openTaskId: null,
       tasks: [],
       sprints: [],
-      epics: [],
+      epics: visionEpic ? [visionEpic as Epic] : [],
       portfolioItems: [],
       automationSettings: null,
       projectWebhooks: [],

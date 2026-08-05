@@ -874,7 +874,7 @@ export function TaskDrawer() {
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio disabled:bg-slate-50"
                 >
                   <option value="">{t('common.none')}</option>
-                  {epics.map((epic) => (
+                  {epics.filter((epic) => !epic.is_vision).map((epic) => (
                     <option key={epic.id} value={epic.id}>
                       {epic.key} — {epic.title}
                     </option>

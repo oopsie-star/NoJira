@@ -107,6 +107,7 @@ export interface Epic {
   created_by:               string | null
   attachments:              string[]
   created_at:               string
+  is_vision:                boolean
 }
 
 export type SprintStatus = 'planned' | 'active' | 'completed'

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { DragDropContext, Droppable, type DropResult } from '@hello-pangea/dnd'
-import { ChevronDown, ChevronRight, Flag, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
+import { AlertCircle, ChevronDown, ChevronRight, Flag, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
 import { BacklogRow } from './BacklogRow'
 import { BacklogStatusSummary } from './BacklogStatusSummary'
 import { BulkActionBar } from './BulkActionBar'
@@ -122,7 +122,7 @@ function CreateSprintModal({
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-qira-pistachio"
               >
                 <option value="">{t('common.none')}</option>
-                {epics.map((epic) => (
+                {epics.filter((epic) => !epic.is_vision).map((epic) => (
                   <option key={epic.id} value={epic.id}>
                     {epic.key} — {epic.title}
                   </option>
@@ -284,7 +284,7 @@ function FiltersSheet({
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-qira-pistachio"
             >
               <option value="">{t('board.epicFilter')} — {t('common.all')}</option>
-              {epics.map((epic) => (
+              {epics.filter((epic) => !epic.is_vision).map((epic) => (
                 <option key={epic.id} value={epic.id}>{epic.title}</option>
               ))}
             </select>
@@ -810,10 +810,13 @@ export function BacklogView() {
           statusCounts: getStatusCounts(directTasks),
         }
       })
-      .filter(({ directTasks, epicSprints }) => !hasActiveFilters || directTasks.length > 0 || epicSprints.length > 0)
-      // An epic holding freshly added work (directly or in one of its sprints)
-      // rises to the top, carrying the new task into view.
+      .filter(({ epic, directTasks, epicSprints }) => epic.is_vision || !hasActiveFilters || directTasks.length > 0 || epicSprints.length > 0)
+      // The pinned "Product Vision" epic always leads, never displaced by
+      // fresh work. Beneath it: an epic holding freshly added work
+      // (directly or in one of its sprints) rises to the top, carrying the
+      // new task into view.
       .sort((left, right) => {
+        if (left.epic.is_vision !== right.epic.is_vision) return left.epic.is_vision ? -1 : 1
         const fresh = (section: typeof left) =>
           section.directTasks.some((t) => isFreshTask(t, tasks))
           || section.epicSprints.some(({ tasks: sprintTasks }) => sprintTasks.some((t) => isFreshTask(t, tasks)))
@@ -1072,40 +1075,46 @@ export function BacklogView() {
                   {/* Epics are the top-level container: their own issues plus the
                       sprints that belong to them are nested inside. */}
                   {epicSections.map(({ epic, directTasks, epicSprints, linkedSprintCount, statusCounts }) => {
+                    // The pinned vision epic is a description card, not a
+                    // work container — none of these actions (add work to
+                    // it, convert it, delete it) make sense on it, and there
+                    // is no re-creation flow if it were deleted.
                     const actions: SectionMenuItem[] = []
 
-                    if (canCollaborate) {
-                      actions.push(
-                        { label: t('backlog.createIssue'), onSelect: () => openTaskModal({ epic_id: epic.id }) },
-                        { label: t('backlog.createSprintInEpic'), onSelect: () => openSprintModal(epic.id) },
-                      )
-                    }
+                    if (!epic.is_vision) {
+                      if (canCollaborate) {
+                        actions.push(
+                          { label: t('backlog.createIssue'), onSelect: () => openTaskModal({ epic_id: epic.id }) },
+                          { label: t('backlog.createSprintInEpic'), onSelect: () => openSprintModal(epic.id) },
+                        )
+                      }
 
-                    if (canManageProject(activeProjectRole)) {
-                      actions.push({
-                        label: t('backlog.convertToSprint'),
-                        onSelect: () => handleConvertEpicToSprint(epic),
-                      })
-                    }
+                      if (canManageProject(activeProjectRole)) {
+                        actions.push({
+                          label: t('backlog.convertToSprint'),
+                          onSelect: () => handleConvertEpicToSprint(epic),
+                        })
+                      }
 
-                    if (canExportEpic(activeProjectRole, isSuperAdmin)) {
-                      actions.push({
-                        label: exportingEpicId === epic.id ? t('backlog.exporting') : t('backlog.exportEpic'),
-                        onSelect: () => { if (exportingEpicId !== epic.id) void handleExportEpic(epic) },
-                      })
-                    }
+                      if (canExportEpic(activeProjectRole, isSuperAdmin)) {
+                        actions.push({
+                          label: exportingEpicId === epic.id ? t('backlog.exporting') : t('backlog.exportEpic'),
+                          onSelect: () => { if (exportingEpicId !== epic.id) void handleExportEpic(epic) },
+                        })
+                      }
 
-                    if (isSuperAdmin) {
-                      actions.push({
-                        label: t('backlog.deleteEpic'),
-                        onSelect: () => handleDeleteEpic(epic),
-                        danger: true,
-                      })
-                    } else {
-                      actions.push({
-                        label: t('backlog.requestDelete'),
-                        onSelect: () => handleRequestDeleteEpic(epic),
-                      })
+                      if (isSuperAdmin) {
+                        actions.push({
+                          label: t('backlog.deleteEpic'),
+                          onSelect: () => handleDeleteEpic(epic),
+                          danger: true,
+                        })
+                      } else {
+                        actions.push({
+                          label: t('backlog.requestDelete'),
+                          onSelect: () => handleRequestDeleteEpic(epic),
+                        })
+                      }
                     }
 
                     return (
@@ -1148,7 +1157,7 @@ export function BacklogView() {
                             style={{ backgroundColor: `${epic.color}20`, color: epic.color }}
                             aria-hidden
                           >
-                            <Flag size={14} />
+                            {epic.is_vision ? <AlertCircle size={14} /> : <Flag size={14} />}
                           </span>
                         )}
                         titleBadges={(

@@ -109,7 +109,9 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
 
   async function runAgentLoopBody(userContent: string, history: ChatMessage[], extraInstruction: string, maxIterations: number, controller: AbortController) {
     const aiAgentProfileId = findAiAgentProfile(members)?.id ?? null
-    const epicsList = epics.map((epic) => `${epic.id}: ${epic.title}`).join('; ') || 'none yet'
+    // Exclude the pinned "Product Vision" epic — a description card, not
+    // somewhere the AI should ever file real work into.
+    const epicsList = epics.filter((epic) => !epic.is_vision).map((epic) => `${epic.id}: ${epic.title}`).join('; ') || 'none yet'
     const sprintsList = sprints.map((sprint) => `${sprint.id}: ${sprint.name} (epic ${sprint.epic_id ?? 'none'})`).join('; ') || 'none yet'
     const membersList = members.map((member) => `${member.full_name || member.email} — ${member.department || 'no department set'}`).join('; ') || 'none'
 

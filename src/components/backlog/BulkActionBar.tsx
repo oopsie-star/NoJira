@@ -10,7 +10,9 @@ export function BulkActionBar() {
   const { profile } = useAuthContext()
   const selectedTaskIds = useStore((s) => s.selectedTaskIds)
   const sprints = useStore((s) => s.sprints)
-  const epics = useStore((s) => s.epics)
+  // The pinned "Product Vision" epic is a description card, not a valid
+  // bulk-move target.
+  const epics = useStore((s) => s.epics).filter((epic) => !epic.is_vision)
   const members = useStore((s) => s.members)
   const placeholders = useStore((s) => s.placeholders)
   const bulkUpdateTasks = useStore((s) => s.bulkUpdateTasks)
