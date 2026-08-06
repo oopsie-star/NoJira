@@ -10,7 +10,10 @@ import {
   resolveAssignee,
 } from '@/lib/agentTools'
 import type { FillTaskResult, SplitTasksResult } from '@/lib/agentTools'
+import { storageBucket } from '@/lib/attachments'
 import { useI18n } from '@/lib/i18n'
+import { canUseAiManagementTools } from '@/lib/permissions'
+import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store'
 import type { LLMMessage } from '@/lib/ai'
 
@@ -53,10 +56,29 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
   const sprints = useStore((state) => state.sprints)
   const members = useStore((state) => state.members)
   const tasks = useStore((state) => state.tasks)
+  const profile = useStore((state) => state.profile)
+  const activeProjectRole = useStore((state) => state.activeProjectRole)
   const createEpic = useStore((state) => state.createEpic)
   const createSprint = useStore((state) => state.createSprint)
   const createTask = useStore((state) => state.createTask)
   const updateTask = useStore((state) => state.updateTask)
+
+  // Super admin, founder, ceo get the full create/edit toolset; everyone
+  // else gets a read-only assistant that can explain the canon and existing
+  // tasks but never changes anything (see canUseAiManagementTools).
+  const isSuperAdmin = profile?.role === 'admin'
+  const canManage = canUseAiManagementTools(activeProjectRole, isSuperAdmin)
+
+  /** Backs read_product_vision — downloads a canon attachment (.md) as text. Returns null on any failure so the tool degrades gracefully instead of throwing mid-conversation. */
+  async function downloadAttachmentText(path: string): Promise<string | null> {
+    try {
+      const { data, error } = await supabase.storage.from(storageBucket(path)).download(path)
+      if (error || !data) return null
+      return await data.text()
+    } catch {
+      return null
+    }
+  }
 
   useEffect(() => {
     const config = getLLMConfig()
@@ -116,17 +138,22 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     const membersList = members.map((member) => `${member.full_name || member.email} — ${member.department || 'no department set'}`).join('; ') || 'none'
 
     const systemPrompt = [
-      'You are Qira AI, an agent that manages epics, sprints, and tasks for this project management app.',
-      'You have tools to list tasks, create epics/sprints/tasks, and edit tasks — actually call the tools, do not just describe what you would do.',
-      'If the user asks you to change/clean up/reformat tasks in an epic or sprint (e.g. "remove this text from every task\'s description", "prepend the title to each task") and you don\'t already have their ids, call list_tasks first — never ask the user to paste ids, titles, or descriptions themselves, you can look them up.',
-      'When editing many tasks the same way, call update_task once per task, one at a time, until you\'ve covered all of them from list_tasks — do not stop partway to ask for confirmation.',
-      'The "Existing epics" list below is for REFERENCE only — reuse one of those ids only if the user\'s message explicitly says to add to / continue an existing epic. Otherwise, for a new request or a newly attached document, always call create_epic for a fresh epic — never default to the most recently mentioned or most recently created epic just because it exists.',
-      'Never invent a due date — only set one if the source text explicitly gives it. Never invent an assignee.',
-      'If the source text names a specific person for a task, always pass their name via assignee_name (not just role) — role alone is ambiguous whenever more than one team member shares that department. If a tool result comes back saying the assignee is ambiguous or not found, do not guess: retry immediately with the exact assignee_name if you can tell it from context, otherwise leave it unassigned and ask the user to confirm instead of picking someone.',
+      canManage
+        ? 'You are Qira AI, an agent that manages epics, sprints, and tasks for this project management app, and can also explain existing product decisions.'
+        : 'You are Qira AI, a read-only assistant for this project management app. You explain existing product decisions, the pinned product-vision canon, and existing tasks — you do NOT create or edit epics, sprints, or tasks, even if asked. If the user asks you to create or change something, say that only a super admin, founder, or ceo can do that through the assistant (they can still create/edit things themselves through the normal UI), and offer to explain or look up whatever they actually need instead.',
+      'Whenever the user asks what has already been decided, why something works a certain way, or what a specific screen/feature should contain, call read_product_vision and/or list_tasks first and answer from what they return — never answer a product-logic question from general knowledge or generic conventions when the actual decision might already exist in this project.',
+      canManage && [
+        'You have tools to list tasks, create epics/sprints/tasks, and edit tasks — actually call the tools, do not just describe what you would do.',
+        'If the user asks you to change/clean up/reformat tasks in an epic or sprint (e.g. "remove this text from every task\'s description", "prepend the title to each task") and you don\'t already have their ids, call list_tasks first — never ask the user to paste ids, titles, or descriptions themselves, you can look them up.',
+        'When editing many tasks the same way, call update_task once per task, one at a time, until you\'ve covered all of them from list_tasks — do not stop partway to ask for confirmation.',
+        'The "Existing epics" list below is for REFERENCE only — reuse one of those ids only if the user\'s message explicitly says to add to / continue an existing epic. Otherwise, for a new request or a newly attached document, always call create_epic for a fresh epic — never default to the most recently mentioned or most recently created epic just because it exists.',
+        'Never invent a due date — only set one if the source text explicitly gives it. Never invent an assignee.',
+        'If the source text names a specific person for a task, always pass their name via assignee_name (not just role) — role alone is ambiguous whenever more than one team member shares that department. If a tool result comes back saying the assignee is ambiguous or not found, do not guess: retry immediately with the exact assignee_name if you can tell it from context, otherwise leave it unassigned and ask the user to confirm instead of picking someone.',
+        `Existing sprints: ${sprintsList}.`,
+        `Team members and their roles: ${membersList}.`,
+      ].filter(Boolean).join(' '),
       `Project: ${projectName ?? 'Unknown'}.`,
       `Existing epics: ${epicsList}.`,
-      `Existing sprints: ${sprintsList}.`,
-      `Team members and their roles: ${membersList}.`,
       extraInstruction,
       'Respond concisely.',
     ].filter(Boolean).join(' ')
@@ -137,8 +164,8 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
       { role: 'user', content: userContent },
     ]
 
-    const tools = getToolDefinitions()
-    const toolCtx = { members, tasks, aiAgentProfileId, createEpic, createSprint, createTask, updateTask }
+    const tools = getToolDefinitions({ canManage })
+    const toolCtx = { members, tasks, epics, aiAgentProfileId, createEpic, createSprint, createTask, updateTask, downloadAttachmentText }
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
       let result = await callLLM(wireMessages, { maxTokens: 3000, tools, signal: controller.signal })
@@ -362,6 +389,12 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
   }
 
   async function handleImportFile(file: PendingFile, userText: string) {
+    if (!canManage) {
+      setMessages((prev) => [...prev, { role: 'user', content: `📎 ${file.name}` }])
+      say('Массовый импорт задач из файла доступен только супер-админу, founder или ceo. Спросите меня о содержимом файла текстом — я отвечу, просто не создам из него задачи.')
+      return
+    }
+
     if (file.name.toLowerCase().endsWith('.json')) {
       await importFromJson(file, userText)
       return

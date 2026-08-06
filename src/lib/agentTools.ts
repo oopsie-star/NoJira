@@ -5,12 +5,18 @@ export interface AgentToolsContext {
   members: Profile[]
   /** Current project's tasks — backs the read-only list_tasks tool so the agent can bulk-edit without being told every id up front. */
   tasks: Task[]
+  /** Current project's epics — backs read_product_vision (finds the pinned is_vision epic). */
+  epics: Epic[]
   /** Profile id the agent stamps as reporter/created_by. Null if not provisioned yet. */
   aiAgentProfileId: string | null
   createEpic: (fields: Partial<Epic>) => Promise<Epic | null>
   createSprint: (fields: Partial<Sprint>) => Promise<Sprint | null>
   createTask: (fields: Partial<Task>) => Promise<Task | null>
   updateTask: (id: string, fields: Partial<Task>) => Promise<void>
+  /** Downloads a storage attachment and returns it as text (markdown/plain-text
+   * files only — used by read_product_vision to read the canon doc's content,
+   * not just its filename). Returns null on any failure (missing, binary, etc.). */
+  downloadAttachmentText: (path: string) => Promise<string | null>
 }
 
 const PRIORITY_VALUES: IssuePriority[] = ['lowest', 'low', 'medium', 'high', 'highest']
@@ -92,11 +98,12 @@ export function resolveAssignee(
   return { id: matches[0].id, note: ` (исполнитель: ${memberLabel(matches[0])})` }
 }
 
-export function getToolDefinitions(): LLMToolDefinition[] {
+/** Tools available to every user, regardless of role: look things up, never change anything. */
+export function getReadOnlyToolDefinitions(): LLMToolDefinition[] {
   return [
     {
       name: 'list_tasks',
-      description: 'List existing tasks (id, key, title, description, priority) in the current project, optionally filtered by epic or sprint. Call this before bulk-editing tasks you don\'t already have ids for — do not ask the user to paste ids/titles/descriptions themselves.',
+      description: 'List existing tasks (id, key, title, description, priority) in the current project, optionally filtered by epic or sprint. Call this before bulk-editing tasks you don\'t already have ids for — do not ask the user to paste ids/titles/descriptions themselves. Also call this whenever the user asks what has already been decided for a specific screen/feature/task — read the real description before answering, never guess from general product conventions.',
       parameters: {
         type: 'object',
         properties: {
@@ -105,6 +112,17 @@ export function getToolDefinitions(): LLMToolDefinition[] {
         },
       },
     },
+    {
+      name: 'read_product_vision',
+      description: 'Read this project\'s pinned "Product Vision" epic — its description plus the text content of any attached canon/spec documents (.md files). This is the product\'s source of truth. Call this whenever the user asks about product logic, decisions, or "why" something works a certain way, before answering from general knowledge.',
+      parameters: { type: 'object', properties: {} },
+    },
+  ]
+}
+
+/** Tools that create or change data — gated to super admin/founder/ceo by the caller (see canUseAiManagementTools). */
+export function getManagementToolDefinitions(): LLMToolDefinition[] {
+  return [
     {
       name: 'create_epic',
       description: 'Create a new epic in the current project.',
@@ -166,6 +184,15 @@ export function getToolDefinitions(): LLMToolDefinition[] {
       },
     },
   ]
+}
+
+/** Full tool list for the current user: read-only tools always, management
+ * tools (create/edit) only when they're super admin, founder, or ceo — see
+ * canUseAiManagementTools in @/lib/permissions, which the caller checks. */
+export function getToolDefinitions({ canManage }: { canManage: boolean }): LLMToolDefinition[] {
+  return canManage
+    ? [...getReadOnlyToolDefinitions(), ...getManagementToolDefinitions()]
+    : getReadOnlyToolDefinitions()
 }
 
 // ─── File import ───────────────────────────────────────────────────────────
@@ -256,6 +283,26 @@ export async function executeTool(name: string, argsJson: string, ctx: AgentTool
       description: task.description,
       priority: task.priority,
     })))
+  }
+
+  if (name === 'read_product_vision') {
+    const visionEpic = ctx.epics.find((epic) => epic.is_vision)
+    if (!visionEpic) return 'No pinned Product Vision epic exists for this project yet.'
+
+    const parts: string[] = [`# ${visionEpic.title}\n\n${visionEpic.description || '(no description set)'}`]
+    const mdAttachments = visionEpic.attachments.filter((path) => path.toLowerCase().endsWith('.md'))
+    for (const path of mdAttachments) {
+      const text = await ctx.downloadAttachmentText(path)
+      if (text) parts.push(`\n\n---\n\n## Attachment: ${path.split('/').pop()}\n\n${text}`)
+    }
+
+    // Keep this bounded — the canon doc can be tens of kB and this goes
+    // straight into the prompt on every call, no separate retrieval step.
+    const MAX_CHARS = 20000
+    const combined = parts.join('')
+    return combined.length > MAX_CHARS
+      ? `${combined.slice(0, MAX_CHARS)}\n\n[...truncated, ${combined.length - MAX_CHARS} more characters not shown...]`
+      : combined
   }
 
   if (name === 'create_epic') {

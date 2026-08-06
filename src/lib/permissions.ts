@@ -29,6 +29,15 @@ export function canExportEpic(role: ProjectRole | null, isSuperAdmin: boolean) {
   return isSuperAdmin || Boolean(role && ACTIVITY_LOG_ROLES.includes(role))
 }
 
+/** Who gets the AI assistant's task/epic/sprint creation and editing tools
+ * (bulk file import included) versus its read-only "explain the canon and
+ * existing tasks" mode: super admin, founder, ceo — same tier as
+ * canViewActivityLog/canExportEpic. Everyone else can still talk to the
+ * assistant, it just can't create or change anything on their behalf. */
+export function canUseAiManagementTools(role: ProjectRole | null, isSuperAdmin: boolean) {
+  return isSuperAdmin || Boolean(role && ACTIVITY_LOG_ROLES.includes(role))
+}
+
 /** Who can disconnect someone's (including their own) Telegram link: super admin, founder, ceo.
  * Mirrors the DB trigger (enforce_telegram_disconnect_permission) — this is only the UI-gating
  * mirror; the real enforcement lives at the database layer. */
