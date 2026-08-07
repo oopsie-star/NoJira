@@ -27,6 +27,7 @@ import type {
   Sprint,
   TaskActivity,
   TaskComment,
+  TaskFieldChange,
   Task,
   TaskLink,
   TaskLinkType,
@@ -423,6 +424,7 @@ interface AppState {
   notifications: Notification[]
   taskComments: TaskComment[]
   taskActivities: TaskActivity[]
+  taskFieldChanges: TaskFieldChange[]
   tasks: Task[]
   sprints: Sprint[]
   epics: Epic[]
@@ -655,6 +657,7 @@ export const useStore = create<AppState>((set, get) => {
     notifications: [],
     taskComments: [],
     taskActivities: [],
+    taskFieldChanges: [],
     tasks: [],
     sprints: [],
     epics: [],
@@ -739,6 +742,7 @@ export const useStore = create<AppState>((set, get) => {
         assignableProfiles: [],
         taskComments: [],
         taskActivities: [],
+        taskFieldChanges: [],
     })
   },
 
@@ -1320,11 +1324,11 @@ export const useStore = create<AppState>((set, get) => {
   fetchTaskContext: async (taskId) => {
     const currentTask = get().tasks.find((task) => task.id === taskId)
     if (!currentTask) {
-      set({ taskComments: [], taskActivities: [] })
+      set({ taskComments: [], taskActivities: [], taskFieldChanges: [] })
       return
     }
 
-    const [{ data: comments }, { data: activities }] = await Promise.all([
+    const [{ data: comments }, { data: activities }, { data: fieldChanges }] = await Promise.all([
       supabase
         .from('task_comments')
         .select(TASK_COMMENT_SELECT)
@@ -1335,16 +1339,22 @@ export const useStore = create<AppState>((set, get) => {
         .select(TASK_ACTIVITY_SELECT)
         .eq('task_id', taskId)
         .order('created_at', { ascending: false }),
+      supabase
+        .from('task_field_changes')
+        .select(`*, profile:profiles(id, full_name, email)`)
+        .eq('task_id', taskId)
+        .order('changed_at', { ascending: false }),
     ])
 
     set({
       taskComments: (comments ?? []) as TaskComment[],
       taskActivities: (activities ?? []) as TaskActivity[],
+      taskFieldChanges: (fieldChanges ?? []) as unknown as TaskFieldChange[],
     })
   },
 
   clearTaskContext: () => {
-    set({ taskComments: [], taskActivities: [] })
+    set({ taskComments: [], taskActivities: [], taskFieldChanges: [] })
   },
 
   createProject: async (fields) => {
@@ -1425,6 +1435,7 @@ export const useStore = create<AppState>((set, get) => {
       projectInvites: [],
       taskComments: [],
       taskActivities: [],
+      taskFieldChanges: [],
     }))
 
     void Promise.allSettled([get().fetchProjects(), get().fetchMembers(), get().fetchProjectInvites()])
@@ -1909,7 +1920,7 @@ export const useStore = create<AppState>((set, get) => {
     const previousTasks = get().tasks
     set((state) => ({ tasks: state.tasks.filter((task) => task.id !== id) }))
     if (get().openTaskId === id) {
-      set({ openTaskId: null, taskComments: [], taskActivities: [] })
+      set({ openTaskId: null, taskComments: [], taskActivities: [], taskFieldChanges: [] })
     }
     const { error } = await supabase.from('tasks').delete().eq('id', id)
     if (error) {
@@ -2382,6 +2393,7 @@ export const useStore = create<AppState>((set, get) => {
         projectInvites: [],
         taskComments: [],
         taskActivities: [],
+        taskFieldChanges: [],
       } : {}),
     }))
 
@@ -2684,7 +2696,7 @@ export const useStore = create<AppState>((set, get) => {
 
     if (request?.project_id === get().activeProjectId) {
       if (request.entity_type === 'task' && get().openTaskId === request.entity_id) {
-        set({ openTaskId: null, taskComments: [], taskActivities: [] })
+        set({ openTaskId: null, taskComments: [], taskActivities: [], taskFieldChanges: [] })
       }
 
       await Promise.all([

@@ -274,6 +274,20 @@ export interface ActivityEvent {
   task?:      Pick<Task, 'id' | 'key' | 'title'> | null
 }
 
+export type TaskFieldChangeName = 'title' | 'description'
+
+export interface TaskFieldChange {
+  id:         string
+  task_id:    string
+  project_id: string
+  field_name: TaskFieldChangeName
+  old_value:  string | null
+  new_value:  string | null
+  changed_by: string | null
+  changed_at: string
+  profile?:   Pick<Profile, 'id' | 'full_name' | 'email'> | null
+}
+
 export type NotificationType = 'assigned' | 'unblocked' | 'comment' | 'automation' | 'system'
 
 export interface Notification {

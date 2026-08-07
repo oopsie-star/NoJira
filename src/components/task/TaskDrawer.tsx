@@ -8,6 +8,7 @@ import { IssueTypeBadge, PriorityBadge } from '@/components/common/IssueBadges'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { AttachmentUpload } from './AttachmentUpload'
 import { VoiceCommentary } from './VoiceCommentary'
+import { TaskChangeHistory } from './TaskChangeHistory'
 import { JiraDescriptionRenderer } from './JiraDescriptionRenderer'
 import { StatusDropdown } from './StatusDropdown'
 import { useAuthContext } from '@/auth/AuthContext'
@@ -51,6 +52,7 @@ export function TaskDrawer() {
   const taskLinks = useStore((state) => state.taskLinks)
   const taskComments = useStore((state) => state.taskComments)
   const taskActivities = useStore((state) => state.taskActivities)
+  const taskFieldChanges = useStore((state) => state.taskFieldChanges)
   const updateTask = useStore((state) => state.updateTask)
   const deleteTask = useStore((state) => state.deleteTask)
   const requestEntityDeletion = useStore((state) => state.requestEntityDeletion)
@@ -544,6 +546,8 @@ export function TaskDrawer() {
                 />
               )}
             </div>
+
+            <TaskChangeHistory changes={taskFieldChanges} />
 
             {/* Already shown in the (collapsible) meta panel — kept here too,
                 but out of the way below the description, not competing with it
