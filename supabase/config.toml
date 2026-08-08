@@ -10,3 +10,10 @@ verify_jwt = false
 # X-Telegram-Bot-Api-Secret-Token, not a Supabase JWT) — same reasoning.
 [functions.telegram-webhook]
 verify_jwt = false
+
+# mcp-server is authenticated by its own Authorization: Bearer <MCP_API_KEY>
+# static key (an MCP client, not a browser session), not a Supabase JWT — must
+# stay off, or the platform-level JWT gate 401s every request before the
+# function code ever runs.
+[functions.mcp-server]
+verify_jwt = false
