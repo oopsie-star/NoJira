@@ -2,6 +2,7 @@ import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts'
 
 import { timingSafeEqual } from './shared.ts'
 import { handleRequest } from './rpc.ts'
+import { handleOAuthRoute, sha256Base64Url } from './oauth.ts'
 import { isUuid } from './tools/resolvers.ts'
 import { TASK_STATUSES } from './types.ts'
 
@@ -72,4 +73,59 @@ Deno.test('handleRequest: malformed request body returns -32600', async () => {
   const result = await handleRequest(undefined as any, 'not an object')
   const body = result.body as { error: { code: number } }
   assertEquals(body.error.code, -32600)
+})
+
+Deno.test('sha256Base64Url matches the RFC 7636 PKCE test vector', async () => {
+  const challenge = await sha256Base64Url('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk')
+  assertEquals(challenge, 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM')
+})
+
+Deno.test('handleOAuthRoute: non-oauth path returns null so index.ts falls through to JSON-RPC', async () => {
+  const request = new Request('https://example.com/functions/v1/mcp-server', { method: 'POST' })
+  // deno-lint-ignore no-explicit-any
+  const result = await handleOAuthRoute(request, undefined as any)
+  assertEquals(result, null)
+})
+
+Deno.test('handleOAuthRoute: /authorize hit with the wrong method returns 405, never falls through', async () => {
+  const request = new Request('https://example.com/functions/v1/mcp-server/authorize', { method: 'POST' })
+  // deno-lint-ignore no-explicit-any
+  const result = await handleOAuthRoute(request, undefined as any)
+  assertEquals(result?.status, 405)
+})
+
+Deno.test('handleOAuthRoute: /token hit with the wrong method returns 405, never falls through', async () => {
+  const request = new Request('https://example.com/functions/v1/mcp-server/token', { method: 'GET' })
+  // deno-lint-ignore no-explicit-any
+  const result = await handleOAuthRoute(request, undefined as any)
+  assertEquals(result?.status, 405)
+})
+
+Deno.test('handleOAuthRoute: protected resource metadata is served without touching the DB', async () => {
+  // Metadata URLs are built from the SUPABASE_URL env var, not request.url's
+  // origin (the Edge Runtime's proxy reports request.url as http:// even
+  // though the function is only reachable over https://) — so these
+  // assertions check path structure, not a specific origin.
+  const request = new Request('https://example.com/functions/v1/mcp-server/.well-known/oauth-protected-resource', {
+    method: 'GET',
+  })
+  // deno-lint-ignore no-explicit-any
+  const result = await handleOAuthRoute(request, undefined as any)
+  assertEquals(result?.status, 200)
+  const body = await result!.json()
+  assertEquals(body.resource.endsWith('/functions/v1/mcp-server'), true)
+  assertEquals(body.authorization_servers, [body.resource])
+})
+
+Deno.test('handleOAuthRoute: authorization server metadata is served without touching the DB', async () => {
+  const request = new Request('https://example.com/functions/v1/mcp-server/.well-known/oauth-authorization-server', {
+    method: 'GET',
+  })
+  // deno-lint-ignore no-explicit-any
+  const result = await handleOAuthRoute(request, undefined as any)
+  assertEquals(result?.status, 200)
+  const body = await result!.json()
+  assertEquals(body.authorization_endpoint.endsWith('/functions/v1/mcp-server/authorize'), true)
+  assertEquals(body.token_endpoint.endsWith('/functions/v1/mcp-server/token'), true)
+  assertEquals(body.code_challenge_methods_supported, ['S256'])
 })
