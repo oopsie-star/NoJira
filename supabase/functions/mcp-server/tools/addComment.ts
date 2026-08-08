@@ -36,5 +36,18 @@ export async function addComment(admin: SupabaseClient, args: AddCommentArgs) {
     console.error('[mcp-server] Failed to record comment_added activity', activityError.message)
   }
 
-  return { id: data.id, task_key: task.key, created_at: data.created_at }
+  const result = { id: data.id, task_key: task.key, created_at: data.created_at }
+
+  const { error: auditError } = await admin.from('agent_audit_log').insert({
+    agent_type: 'mcp',
+    agent_profile_id: authorId,
+    project_id: task.project_id,
+    task_id: task.id,
+    action_type: 'add_comment',
+    payload: args,
+    result,
+  })
+  if (auditError) console.error('[mcp-server] Failed to record agent_audit_log', auditError.message)
+
+  return result
 }

@@ -30,14 +30,25 @@ Deno.test('handleRequest: initialize returns protocol/server info without touchi
   assertEquals(body.result.serverInfo.name, 'qira-mcp-server')
 })
 
-Deno.test('handleRequest: tools/list returns all 6 tool schemas without touching the DB', async () => {
+Deno.test('handleRequest: tools/list returns all 10 tool schemas without touching the DB', async () => {
   // deno-lint-ignore no-explicit-any
   const result = await handleRequest(undefined as any, { jsonrpc: '2.0', id: 2, method: 'tools/list' })
   const body = result.body as { result: { tools: { name: string }[] } }
-  assertEquals(body.result.tools.length, 6)
+  assertEquals(body.result.tools.length, 10)
   assertEquals(
     body.result.tools.map((t) => t.name).sort(),
-    ['add_comment', 'create_task', 'get_task', 'list_tasks', 'search_tasks', 'update_task_status'],
+    [
+      'add_comment',
+      'create_epic',
+      'create_sprint',
+      'create_task',
+      'get_project',
+      'get_task',
+      'list_tasks',
+      'search_tasks',
+      'update_task',
+      'update_task_status',
+    ],
   )
 })
 

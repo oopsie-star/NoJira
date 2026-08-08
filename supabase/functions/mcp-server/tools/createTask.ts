@@ -70,5 +70,16 @@ export async function createTask(admin: SupabaseClient, args: CreateTaskArgs) {
     console.error('[mcp-server] Failed to record task_created activity', activityError.message)
   }
 
+  const { error: auditError } = await admin.from('agent_audit_log').insert({
+    agent_type: 'mcp',
+    agent_profile_id: reporterId,
+    project_id: project.id,
+    task_id: data.id,
+    action_type: 'create_task',
+    payload: args,
+    result: data,
+  })
+  if (auditError) console.error('[mcp-server] Failed to record agent_audit_log', auditError.message)
+
   return data
 }

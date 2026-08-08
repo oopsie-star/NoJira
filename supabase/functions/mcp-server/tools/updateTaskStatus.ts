@@ -51,5 +51,16 @@ export async function updateTaskStatus(admin: SupabaseClient, args: UpdateTaskSt
     console.error('[mcp-server] Failed to record task_updated activity', activityError.message)
   }
 
+  const { error: auditError } = await admin.from('agent_audit_log').insert({
+    agent_type: 'mcp',
+    agent_profile_id: actorId,
+    project_id: task.project_id,
+    task_id: task.id,
+    action_type: 'update_task_status',
+    payload: args,
+    result: data,
+  })
+  if (auditError) console.error('[mcp-server] Failed to record agent_audit_log', auditError.message)
+
   return { key: data.key, status: data.status }
 }

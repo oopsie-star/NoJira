@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabase'
 import type { LLMToolDefinition } from '@/lib/ai'
 import type { Epic, IssuePriority, Profile, Sprint, Task } from '@/types'
 
@@ -9,6 +10,8 @@ export interface AgentToolsContext {
   epics: Epic[]
   /** Profile id the agent stamps as reporter/created_by. Null if not provisioned yet. */
   aiAgentProfileId: string | null
+  /** Current project — stamped on agent_audit_log rows. Null if none active. */
+  activeProjectId: string | null
   createEpic: (fields: Partial<Epic>) => Promise<Epic | null>
   createSprint: (fields: Partial<Sprint>) => Promise<Sprint | null>
   createTask: (fields: Partial<Task>) => Promise<Task | null>
@@ -254,6 +257,34 @@ export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (i
   return results
 }
 
+// Best-effort audit trail for the in-app AI agent, mirroring the MCP
+// server's agent_audit_log inserts (see supabase/functions/mcp-server) so
+// both agent identities show up in one place. Written directly from the
+// client under the human's own session — RLS only allows this for the same
+// founder/ceo/admin tier that's already gated to have these tools at all.
+// Takes just the two identity fields (not the full AgentToolsContext) so it
+// can also be called from the bulk file-import path in AiAssistant.tsx,
+// which creates epics/sprints/tasks directly rather than via executeTool.
+export async function logAgentAction(
+  identity: Pick<AgentToolsContext, 'aiAgentProfileId' | 'activeProjectId'>,
+  actionType: string,
+  taskId: string | null,
+  payload: unknown,
+  result: unknown,
+): Promise<void> {
+  if (!identity.aiAgentProfileId || !identity.activeProjectId) return
+  const { error } = await supabase.from('agent_audit_log').insert({
+    agent_type: 'in_app',
+    agent_profile_id: identity.aiAgentProfileId,
+    project_id: identity.activeProjectId,
+    task_id: taskId,
+    action_type: actionType,
+    payload,
+    result,
+  })
+  if (error) console.error('[agentTools] Failed to record agent_audit_log', error.message)
+}
+
 export async function executeTool(name: string, argsJson: string, ctx: AgentToolsContext): Promise<string> {
   let args: Record<string, unknown>
   try {
@@ -312,6 +343,7 @@ export async function executeTool(name: string, argsJson: string, ctx: AgentTool
       created_by: ctx.aiAgentProfileId ?? undefined,
     })
     if (!epic) return 'Error: failed to create epic'
+    await logAgentAction(ctx, 'create_epic', null, args, epic)
     return `Created epic "${epic.title}" — id=${epic.id}, key=${epic.key}`
   }
 
@@ -323,6 +355,7 @@ export async function executeTool(name: string, argsJson: string, ctx: AgentTool
       created_by: ctx.aiAgentProfileId ?? undefined,
     })
     if (!sprint) return 'Error: failed to create sprint'
+    await logAgentAction(ctx, 'create_sprint', null, args, sprint)
     return `Created sprint "${sprint.name}" — id=${sprint.id}`
   }
 
@@ -345,6 +378,7 @@ export async function executeTool(name: string, argsJson: string, ctx: AgentTool
       ...reporterFields,
     })
     if (!task) return 'Error: failed to create task'
+    await logAgentAction(ctx, 'create_task', task.id, args, task)
     return `Created task "${task.title}" — id=${task.id}, key=${task.key}${note}`
   }
 
@@ -370,6 +404,7 @@ export async function executeTool(name: string, argsJson: string, ctx: AgentTool
     }
 
     await ctx.updateTask(taskId, fields)
+    await logAgentAction(ctx, 'update_task', taskId, args, fields)
     return `Updated task ${taskId}${note}`
   }
 

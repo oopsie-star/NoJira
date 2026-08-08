@@ -6,6 +6,7 @@ import {
   findAiAgentProfile,
   getFillTaskToolDefinition,
   getToolDefinitions,
+  logAgentAction,
   mapWithConcurrency,
   resolveAssignee,
 } from '@/lib/agentTools'
@@ -57,6 +58,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
   const members = useStore((state) => state.members)
   const tasks = useStore((state) => state.tasks)
   const profile = useStore((state) => state.profile)
+  const activeProjectId = useStore((state) => state.activeProjectId)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const createEpic = useStore((state) => state.createEpic)
   const createSprint = useStore((state) => state.createSprint)
@@ -165,7 +167,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     ]
 
     const tools = getToolDefinitions({ canManage })
-    const toolCtx = { members, tasks, epics, aiAgentProfileId, createEpic, createSprint, createTask, updateTask, downloadAttachmentText }
+    const toolCtx = { members, tasks, epics, aiAgentProfileId, activeProjectId, createEpic, createSprint, createTask, updateTask, downloadAttachmentText }
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
       let result = await callLLM(wireMessages, { maxTokens: 3000, tools, signal: controller.signal })
@@ -305,6 +307,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
       }
       epicId = createdEpic.id
       say(`Создан эпик "${createdEpic.title}" (${createdEpic.key})`)
+      await logAgentAction({ aiAgentProfileId, activeProjectId }, 'create_epic', null, { title: createdEpic.title }, createdEpic)
     }
 
     const sprintIdByName = new Map<string, string>()
@@ -314,6 +317,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
         if (createdSprint) {
           sprintIdByName.set(sprint.name, createdSprint.id)
           say(`Создан спринт "${createdSprint.name}"`)
+          await logAgentAction({ aiAgentProfileId, activeProjectId }, 'create_sprint', null, sprint, createdSprint)
         }
       } catch (err) {
         say(`Не удалось создать спринт "${sprint.name}": ${err instanceof Error ? err.message : String(err)}`)
@@ -377,6 +381,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
         if (task) {
           createdCount += 1
           say(`Создана задача "${task.title}" (${task.key})${note}`)
+          await logAgentAction({ aiAgentProfileId, activeProjectId }, 'create_task', task.id, data, task)
         } else {
           say(`Не удалось создать задачу "${data.title}"`)
         }
