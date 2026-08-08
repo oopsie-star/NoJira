@@ -9,6 +9,8 @@ import { EPIC_COLORS } from '@/types'
 import type {
   ActivityEvent,
   ActivityEventType,
+  AgentAuditLogEntry,
+  AgentType,
   AttachmentNote,
   DeletionRequest,
   DeletionRequestEntityType,
@@ -52,6 +54,12 @@ const TASK_SELECT = `
 const ACTIVITY_EVENT_SELECT = `
   id, project_id, profile_id, event_type, task_id, detail, created_at,
   profile:profiles(id, full_name, email),
+  task:tasks(id, key, title)
+`
+
+const AGENT_AUDIT_LOG_SELECT = `
+  id, agent_type, agent_profile_id, project_id, task_id, action_type, payload, result, created_at,
+  agent:profiles!agent_audit_log_agent_profile_id_fkey(id, full_name, email),
   task:tasks(id, key, title)
 `
 
@@ -420,6 +428,7 @@ interface AppState {
   taskLinks: TaskLink[]
   attachmentNotes: Record<string, AttachmentNote>
   activityEvents: ActivityEvent[]
+  agentAuditLog: AgentAuditLogEntry[]
   weeklyDigest: WeeklyDigestEntry | null
   notifications: Notification[]
   taskComments: TaskComment[]
@@ -473,6 +482,7 @@ interface AppState {
   recordAttachmentOriginalName: (projectId: string, path: string, originalName: string, mimeType?: string | null) => Promise<void>
   fetchActivityEvents: () => Promise<void>
   logActivityEvent: (eventType: ActivityEventType, options?: { taskId?: string | null; detail?: string | null }) => Promise<void>
+  fetchAgentAuditLog: (filters?: { agentType?: AgentType; taskId?: string }) => Promise<void>
   fetchWeeklyDigestIfDue: () => Promise<void>
   dismissWeeklyDigest: () => Promise<void>
   generateTelegramLinkCode: (targetProfileId: string) => Promise<string | null>
@@ -653,6 +663,7 @@ export const useStore = create<AppState>((set, get) => {
     taskLinks: [],
     attachmentNotes: {},
     activityEvents: [],
+    agentAuditLog: [],
     weeklyDigest: null,
     notifications: [],
     taskComments: [],
@@ -733,6 +744,7 @@ export const useStore = create<AppState>((set, get) => {
         taskLinks: [],
         attachmentNotes: {},
         activityEvents: [],
+        agentAuditLog: [],
         notifications: [],
         members: [],
         placeholders: [],
@@ -1179,6 +1191,27 @@ export const useStore = create<AppState>((set, get) => {
     set({ activityEvents: (data ?? []) as unknown as ActivityEvent[] })
   },
 
+  fetchAgentAuditLog: async (filters) => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) {
+      set({ agentAuditLog: [] })
+      return
+    }
+
+    let query = supabase
+      .from('agent_audit_log')
+      .select(AGENT_AUDIT_LOG_SELECT)
+      .eq('project_id', activeProjectId)
+      .order('created_at', { ascending: false })
+      .limit(500)
+
+    if (filters?.agentType) query = query.eq('agent_type', filters.agentType)
+    if (filters?.taskId) query = query.eq('task_id', filters.taskId)
+
+    const { data } = await query
+    set({ agentAuditLog: (data ?? []) as unknown as AgentAuditLogEntry[] })
+  },
+
   logActivityEvent: async (eventType, options) => {
     const activeProjectId = get().activeProjectId
     const profile = get().profile
@@ -1429,6 +1462,7 @@ export const useStore = create<AppState>((set, get) => {
       taskLinks: [],
       attachmentNotes: {},
       activityEvents: [],
+      agentAuditLog: [],
       notifications: [],
       members: [profile],
       projectMembers: [optimisticMembership],
@@ -2385,6 +2419,7 @@ export const useStore = create<AppState>((set, get) => {
         taskLinks: [],
         attachmentNotes: {},
         activityEvents: [],
+        agentAuditLog: [],
         notifications: [],
         members: [],
         placeholders: [],

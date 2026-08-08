@@ -274,6 +274,22 @@ export interface ActivityEvent {
   task?:      Pick<Task, 'id' | 'key' | 'title'> | null
 }
 
+export type AgentType = 'mcp' | 'in_app'
+
+export interface AgentAuditLogEntry {
+  id:               string
+  agent_type:       AgentType
+  agent_profile_id: string
+  project_id:       string
+  task_id:          string | null
+  action_type:      string
+  payload:          Record<string, unknown>
+  result:           Record<string, unknown>
+  created_at:       string
+  agent?:           Pick<Profile, 'id' | 'full_name' | 'email'> | null
+  task?:            Pick<Task, 'id' | 'key' | 'title'> | null
+}
+
 export type TaskFieldChangeName = 'title' | 'description'
 
 export interface TaskFieldChange {
