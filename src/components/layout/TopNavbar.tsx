@@ -402,6 +402,7 @@ export function TopNavbar({ onToggleSidebar }: { onToggleSidebar: () => void }) 
     if (section === 'backlog') return t('nav.backlog')
     if (section === 'people') return t('nav.people')
     if (section === 'ops') return t('nav.ops')
+    if (section === 'archive') return t('nav.archive')
     return t('nav.board')
   }, [location.pathname, t])
 

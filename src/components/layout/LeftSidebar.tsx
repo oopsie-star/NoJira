@@ -1,4 +1,4 @@
-import { LayoutDashboard, ListTodo, Users, Workflow, X } from 'lucide-react'
+import { Archive, LayoutDashboard, ListTodo, Users, Workflow, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useI18n } from '@/lib/i18n'
 import { projectPath, type AppSection } from '@/lib/projectRoutes'
@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { section: 'backlog' as AppSection, key: 'nav.backlog', Icon: ListTodo },
   { section: 'people' as AppSection, key: 'nav.people', Icon: Users },
   { section: 'ops' as AppSection, key: 'nav.ops', Icon: Workflow },
+  { section: 'archive' as AppSection, key: 'nav.archive', Icon: Archive },
 ] as const
 
 interface LeftSidebarProps {

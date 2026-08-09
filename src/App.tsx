@@ -9,6 +9,7 @@ const BoardPage = lazy(() => import('@/pages/BoardPage').then((module) => ({ def
 const BacklogPage = lazy(() => import('@/pages/BacklogPage').then((module) => ({ default: module.BacklogPage })))
 const PeoplePage = lazy(() => import('@/pages/PeoplePage').then((module) => ({ default: module.PeoplePage })))
 const OpsPage = lazy(() => import('@/pages/OpsPage').then((module) => ({ default: module.OpsPage })))
+const ArchivePage = lazy(() => import('@/pages/ArchivePage').then((module) => ({ default: module.ArchivePage })))
 const PendingApprovalPage = lazy(() => import('@/pages/PendingApprovalPage').then((module) => ({ default: module.PendingApprovalPage })))
 
 function FullPageSpinner() {
@@ -102,6 +103,10 @@ export function App() {
         <Route
           path="/projects/:projectKey/ops"
           element={<ProtectedRoute><OpsPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/projects/:projectKey/archive"
+          element={<ProtectedRoute><ArchivePage /></ProtectedRoute>}
         />
         <Route path="*" element={<ProtectedRoute><ProjectRedirect /></ProtectedRoute>} />
       </Routes>
