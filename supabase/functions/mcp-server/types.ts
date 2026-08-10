@@ -25,8 +25,16 @@ export interface Task {
   reporter_id: string | null
   assignee_ids: string[]
   due_date: string | null
+  attachments: string[]
   created_at: string
   updated_at: string
+}
+
+export interface AttachmentNote {
+  project_id: string
+  path: string
+  original_name: string | null
+  mime_type: string | null
 }
 
 export interface TaskComment {

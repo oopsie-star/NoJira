@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8'
 
+import { displayFilename } from './attachmentPaths.ts'
 import { ToolError } from './errors.ts'
 import { resolveTaskByKeyOrId } from './resolvers.ts'
 
@@ -19,7 +20,7 @@ export async function getTask(admin: SupabaseClient, args: GetTaskArgs) {
 
   const task = await resolveTaskByKeyOrId(admin, ref)
 
-  const [commentsRes, activitiesRes, fieldChangesRes] = await Promise.all([
+  const [commentsRes, activitiesRes, fieldChangesRes, attachmentNotesRes] = await Promise.all([
     admin
       .from('task_comments')
       .select('id, author_id, body, created_at')
@@ -35,15 +36,28 @@ export async function getTask(admin: SupabaseClient, args: GetTaskArgs) {
       .select('id, field_name, old_value, new_value, changed_by, changed_at')
       .eq('task_id', task.id)
       .order('changed_at'),
+    task.attachments.length
+      ? admin
+          .from('attachment_notes')
+          .select('path, original_name, mime_type')
+          .eq('project_id', task.project_id)
+          .in('path', task.attachments)
+      : Promise.resolve({ data: [], error: null }),
   ])
 
   if (commentsRes.error) throw new ToolError(`Failed to load comments: ${commentsRes.error.message}`)
   if (activitiesRes.error) throw new ToolError(`Failed to load activity: ${activitiesRes.error.message}`)
   if (fieldChangesRes.error) throw new ToolError(`Failed to load field history: ${fieldChangesRes.error.message}`)
+  if (attachmentNotesRes.error) throw new ToolError(`Failed to load attachment names: ${attachmentNotesRes.error.message}`)
 
   const comments = commentsRes.data ?? []
   const activities = activitiesRes.data ?? []
   const fieldChanges = fieldChangesRes.data ?? []
+  const noteByPath = new Map((attachmentNotesRes.data ?? []).map((n) => [n.path, n]))
+  const attachments = task.attachments.map((path) => {
+    const note = noteByPath.get(path)
+    return { path, name: displayFilename(path, note?.original_name), mime_type: note?.mime_type ?? null }
+  })
 
   const profileIds = new Set<string>()
   for (const c of comments) profileIds.add(c.author_id)
@@ -100,6 +114,7 @@ export async function getTask(admin: SupabaseClient, args: GetTaskArgs) {
       body: c.body,
       created_at: c.created_at,
     })),
+    attachments,
     history,
   }
 }

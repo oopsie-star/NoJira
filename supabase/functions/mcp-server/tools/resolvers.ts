@@ -10,7 +10,7 @@ export function isUuid(value: string): boolean {
 }
 
 const TASK_COLUMNS =
-  'id, project_id, key, title, description, status, issue_type, priority, epic_id, sprint_id, assignee_id, reporter_id, assignee_ids, due_date, created_at, updated_at'
+  'id, project_id, key, title, description, status, issue_type, priority, epic_id, sprint_id, assignee_id, reporter_id, assignee_ids, due_date, attachments, created_at, updated_at'
 
 export async function resolveProjectByKey(admin: SupabaseClient, key: string): Promise<Project> {
   const { data, error } = await admin.from('projects').select('id, key, name').eq('key', key).maybeSingle()
@@ -42,10 +42,10 @@ export async function resolveEpicByKeyOrTitle(
   admin: SupabaseClient,
   projectId: string,
   ref: string,
-): Promise<{ id: string }> {
+): Promise<{ id: string; attachments: string[] }> {
   const { data, error } = await admin
     .from('epics')
-    .select('id')
+    .select('id, attachments')
     .eq('project_id', projectId)
     .or(`key.eq.${ref},title.eq.${ref}`)
     .maybeSingle()
@@ -59,8 +59,8 @@ export async function resolveSprintByName(
   projectId: string,
   ref: string,
   epicId?: string,
-): Promise<{ id: string }> {
-  let query = admin.from('sprints').select('id').eq('project_id', projectId).eq('name', ref)
+): Promise<{ id: string; attachments: string[] }> {
+  let query = admin.from('sprints').select('id, attachments').eq('project_id', projectId).eq('name', ref)
   if (epicId) query = query.eq('epic_id', epicId)
   const { data, error } = await query.maybeSingle()
   if (error) throw new ToolError(`Failed to look up sprint "${ref}": ${error.message}`)

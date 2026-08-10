@@ -22,7 +22,7 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
   },
   {
     name: 'get_task',
-    description: 'Get full details of a task: description, status, comments, and change history.',
+    description: 'Get full details of a task: description, status, comments, attachments, and change history.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -83,7 +83,7 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
   },
   {
     name: 'get_project',
-    description: 'Get a project\'s epics, sprints, and members.',
+    description: 'Get a project\'s epics, sprints (each with their attachments), and members.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -117,6 +117,64 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
         epic: { type: 'string', description: 'Epic key or title, resolved within the project.' },
       },
       required: ['project', 'name'],
+    },
+  },
+  {
+    name: 'attach_task_file',
+    description:
+      'Attach a file to a task (max 20MB). content_base64 is the raw file content, base64-encoded. To mark a previous attachment as superseded, call rename_attachment on it with "УСТАРЕЛО " prefixed to its current name.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task: { type: 'string', description: 'Task key or id.' },
+        filename: { type: 'string', description: 'Original filename, e.g. "spec.pdf" — any script, does not need to be ASCII.' },
+        content_base64: { type: 'string', description: 'Raw file bytes, base64-encoded.' },
+        mime_type: { type: 'string', description: 'Optional MIME type, e.g. "application/pdf".' },
+      },
+      required: ['task', 'filename', 'content_base64'],
+    },
+  },
+  {
+    name: 'attach_epic_file',
+    description: 'Attach a file to an epic (max 20MB). See attach_task_file for content_base64 details.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Project key.' },
+        epic: { type: 'string', description: 'Epic key or title.' },
+        filename: { type: 'string' },
+        content_base64: { type: 'string', description: 'Raw file bytes, base64-encoded.' },
+        mime_type: { type: 'string' },
+      },
+      required: ['project', 'epic', 'filename', 'content_base64'],
+    },
+  },
+  {
+    name: 'attach_sprint_file',
+    description: 'Attach a file to a sprint (max 20MB). See attach_task_file for content_base64 details.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Project key.' },
+        sprint: { type: 'string', description: 'Sprint name.' },
+        filename: { type: 'string' },
+        content_base64: { type: 'string', description: 'Raw file bytes, base64-encoded.' },
+        mime_type: { type: 'string' },
+      },
+      required: ['project', 'sprint', 'filename', 'content_base64'],
+    },
+  },
+  {
+    name: 'rename_attachment',
+    description:
+      'Rename an attachment (works for task, epic, or sprint attachments alike — pass the path from get_task/get_project\'s attachments list). To mark it as superseded by a new attachment you just created, set new_name to "УСТАРЕЛО " + its current name.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'The attachment\'s storage path, from get_task/get_project.' },
+        new_name: { type: 'string' },
+      },
+      required: ['path', 'new_name'],
     },
   },
   {
