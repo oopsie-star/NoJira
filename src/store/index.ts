@@ -508,6 +508,7 @@ interface AppState {
   updateSprint: (id: string, fields: Partial<Sprint>) => Promise<void>
   startSprint: (id: string) => Promise<void>
   completeSprint: (id: string) => Promise<void>
+  reopenSprint: (id: string) => Promise<void>
   deleteSprint: (id: string, options?: { withTasks?: boolean }) => Promise<void>
   createEpic: (fields: Partial<Epic>) => Promise<Epic | null>
   updateEpic: (id: string, fields: Partial<Epic>) => Promise<void>
@@ -2067,6 +2068,10 @@ export const useStore = create<AppState>((set, get) => {
   completeSprint: async (id) => {
     await get().updateSprint(id, { status: 'completed' })
     if (get().activeSprintId === id) set({ activeSprintId: null })
+  },
+
+  reopenSprint: async (id) => {
+    await get().updateSprint(id, { status: 'planned' })
   },
 
   deleteSprint: async (id, options) => {

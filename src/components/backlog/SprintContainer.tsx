@@ -46,6 +46,7 @@ export function SprintContainer({
   const epics = useStore((state) => state.epics)
   const startSprint = useStore((state) => state.startSprint)
   const completeSprint = useStore((state) => state.completeSprint)
+  const reopenSprint = useStore((state) => state.reopenSprint)
   const updateSprint = useStore((state) => state.updateSprint)
   const deleteSprint = useStore((state) => state.deleteSprint)
   const convertSprintToEpic = useStore((state) => state.convertSprintToEpic)
@@ -99,6 +100,9 @@ export function SprintContainer({
       : []),
     ...(canManageSprint && sprint.status === 'active'
       ? [{ label: t('backlog.completeSprint'), onSelect: () => completeSprint(sprint.id) }]
+      : []),
+    ...(canManageSprint && sprint.status === 'completed'
+      ? [{ label: t('backlog.reopenSprint'), onSelect: () => reopenSprint(sprint.id) }]
       : []),
     ...(canManageSprint
       ? [{ label: t('backlog.convertToEpic'), onSelect: handleConvertSprintToEpic }]
@@ -173,11 +177,47 @@ export function SprintContainer({
                 <span className="text-xs text-slate-500">{t('backlog.issueCount', { count: tasks.length })}</span>
               </div>
 
-              {(dateLabel || sprint.goal) && (
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                  {dateLabel && <span>{dateLabel}</span>}
-                  {sprint.goal && <span className="line-clamp-1">{sprint.goal}</span>}
+              {canEditName ? (
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                  <input
+                    key={`start-${sprint.start_date ?? ''}`}
+                    type="date"
+                    defaultValue={sprint.start_date ?? ''}
+                    onBlur={(event) => {
+                      const value = event.target.value || null
+                      if (value !== sprint.start_date) void updateSprint(sprint.id, { start_date: value })
+                    }}
+                    className="rounded-md border border-transparent bg-transparent px-1 -mx-1 outline-none transition focus:border-slate-200 focus:bg-white"
+                  />
+                  <span>–</span>
+                  <input
+                    key={`end-${sprint.end_date ?? ''}`}
+                    type="date"
+                    defaultValue={sprint.end_date ?? ''}
+                    onBlur={(event) => {
+                      const value = event.target.value || null
+                      if (value !== sprint.end_date) void updateSprint(sprint.id, { end_date: value })
+                    }}
+                    className="rounded-md border border-transparent bg-transparent px-1 -mx-1 outline-none transition focus:border-slate-200 focus:bg-white"
+                  />
+                  <input
+                    key={`goal-${sprint.goal}`}
+                    defaultValue={sprint.goal}
+                    placeholder={t('backlog.goal')}
+                    onBlur={(event) => {
+                      const value = event.target.value.trim()
+                      if (value !== sprint.goal) void updateSprint(sprint.id, { goal: value })
+                    }}
+                    className="min-w-[8rem] flex-1 truncate rounded-md border border-transparent bg-transparent px-1 -mx-1 outline-none transition focus:border-slate-200 focus:bg-white"
+                  />
                 </div>
+              ) : (
+                (dateLabel || sprint.goal) && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                    {dateLabel && <span>{dateLabel}</span>}
+                    {sprint.goal && <span className="line-clamp-1">{sprint.goal}</span>}
+                  </div>
+                )
               )}
             </div>
 

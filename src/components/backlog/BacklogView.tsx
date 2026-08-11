@@ -745,12 +745,11 @@ export function BacklogView() {
 
   const hasActiveFilters = Boolean(search.trim() || epicFilter || assigneeFilter || quickFilters.length)
 
-  // Jira's backlog only lists active + future sprints — completed sprints live in
-  // reports, not the backlog. Mirror that so old closed sprints from the board's
-  // history (imported when "include completed sprints" was on) don't clutter it.
+  // All sprints (including completed ones) get a section — completed sprints sort
+  // to the bottom via sortedSprints so they don't crowd out active/planned work,
+  // but stay visible and editable instead of disappearing with no way back.
   const allSprintSections = useMemo(
     () => sortedSprints
-      .filter((sprint) => sprint.status !== 'completed')
       .map((sprint) => ({
         sprint,
         tasks: filteredTasks.filter(
@@ -775,15 +774,12 @@ export function BacklogView() {
     [allSprintSections, tasks]
   )
 
-  // Completed sprints are hidden (above); their tasks fall back into the Backlog
-  // so nothing is lost — mirrors Jira moving incomplete issues to the backlog.
-  const completedSprintIds = useMemo(
-    () => new Set(sprints.filter((sprint) => sprint.status === 'completed').map((sprint) => sprint.id)),
-    [sprints]
-  )
+  // A task belongs to the plain Backlog bucket only when it has no sprint at all —
+  // sprinted tasks (including those in completed sprints) live in their sprint's
+  // own section, which is always visible now.
   const inBacklog = useMemo(
-    () => (task: Task) => (!task.sprint_id || completedSprintIds.has(task.sprint_id)) && !task.epic_id,
-    [completedSprintIds]
+    () => (task: Task) => !task.sprint_id && !task.epic_id,
+    []
   )
 
   const backlogTasks = useMemo(
@@ -792,9 +788,9 @@ export function BacklogView() {
   )
 
   // Jira Board/Backlog split is a Kanban concept — show it only when the project
-  // has no (non-completed) sprints. Scrum projects use sprint sections + Backlog,
-  // so they must not get a spurious empty "Board" section.
-  const isKanbanStyle = useMemo(() => !sprints.some((sprint) => sprint.status !== 'completed'), [sprints])
+  // has no sprints at all. Scrum projects use sprint sections + Backlog, so they
+  // must not get a spurious empty "Board" section.
+  const isKanbanStyle = useMemo(() => sprints.length === 0, [sprints])
   const hasBoardPlacement = useMemo(
     () => isKanbanStyle && rootTasks.some((task) => task.jira_board_placement === 'board' || task.jira_board_placement === 'backlog'),
     [isKanbanStyle, rootTasks]
@@ -812,7 +808,7 @@ export function BacklogView() {
     () => sortedEpics
       .map((epic) => {
         const directTasks = rootTasks.filter(
-          (task) => task.epic_id === epic.id && (!task.sprint_id || completedSprintIds.has(task.sprint_id)),
+          (task) => task.epic_id === epic.id && !task.sprint_id,
         )
         const epicSprints = allSprintSections.filter(({ sprint }) => sprint.epic_id === epic.id)
         return {
@@ -837,7 +833,7 @@ export function BacklogView() {
         const rightFresh = fresh(right)
         return leftFresh === rightFresh ? 0 : leftFresh ? -1 : 1
       }),
-    [hasActiveFilters, rootTasks, sortedEpics, allSprintSections, completedSprintIds, tasks]
+    [hasActiveFilters, rootTasks, sortedEpics, allSprintSections, tasks]
   )
 
   const firstExpandedSectionKey = useMemo(() => {
@@ -1247,7 +1243,7 @@ export function BacklogView() {
                             sprint={sprint}
                             tasks={sprintTasks}
                             mobile={isMobile}
-                            defaultCollapsed={isMobile}
+                            defaultCollapsed={isMobile || sprint.status === 'completed'}
                             searchQuery={search}
                           />
                         ))}
@@ -1262,7 +1258,9 @@ export function BacklogView() {
                       tasks={sprintTasks}
                       mobile={isMobile}
                       searchQuery={search}
-                      defaultCollapsed={isMobile && firstExpandedSectionKey !== `sprint-${sprint.id}`}
+                      defaultCollapsed={
+                        sprint.status === 'completed' || (isMobile && firstExpandedSectionKey !== `sprint-${sprint.id}`)
+                      }
                     />
                   ))}
 
