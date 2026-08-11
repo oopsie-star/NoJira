@@ -27,10 +27,21 @@
 
   /* Touch scrolling: momentum + keep nested scroll gestures from leaking to the page */
   .overflow-y-auto,
-  .overflow-x-auto,
   .overflow-auto {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+  }
+
+  /* overflow-x: auto implicitly computes overflow-y to auto too (CSS spec:
+     an axis left at `visible` while the other isn't gets promoted to `auto`)
+     — so every horizontal-scroll strip nested in a taller scrollable page
+     becomes an accidental (empty) vertical scroll container. Containing only
+     the x axis here still stops horizontal swipes from leaking into page
+     navigation, but lets mouse-wheel scrolling chain up to the real
+     vertical scroller instead of dead-ending on that phantom auto. */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
   }
 
 

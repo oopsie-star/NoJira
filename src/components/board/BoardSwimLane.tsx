@@ -149,7 +149,7 @@ export function BoardSwimLane({ lane, showClosed, sprintId }: BoardSwimLaneProps
       </div>
 
       {!collapsed && (
-        <div className="flex snap-x snap-proximity gap-3 overflow-x-auto p-3 sm:snap-none">
+        <div className="flex snap-x snap-proximity gap-3 overflow-x-auto overflow-y-hidden p-3 sm:snap-none">
           {STATUS_COLUMNS.map((status) => (
             <LaneColumn
               key={status}
