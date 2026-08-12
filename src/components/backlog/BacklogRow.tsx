@@ -89,11 +89,13 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
                   ? 'border-qira-pistachio bg-qira-pistachio-lt/50 ring-1 ring-qira-pistachio/40'
                   : snapshot.isDragging
                     ? 'border-slate-200 bg-white shadow-xl ring-2 ring-qira-pistachio/20'
-                    : fresh
-                      ? 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100/70'
-                      : universal
-                        ? 'border-slate-300 bg-slate-100 hover:bg-slate-200/70'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80',
+                    : task.status === 'done'
+                      ? 'border-sky-200 bg-sky-50 hover:bg-sky-100/70'
+                      : fresh
+                        ? 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100/70'
+                        : universal
+                          ? 'border-slate-300 bg-slate-100 hover:bg-slate-200/70'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80',
             ].join(' ')}
           >
           <div className={['flex items-start gap-3 px-3 py-2.5', mobile ? 'min-h-[68px]' : 'min-h-[52px]'].join(' ')}>
