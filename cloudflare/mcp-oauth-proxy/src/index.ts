@@ -76,6 +76,19 @@ export default {
     const responseHeaders = new Headers(upstreamResponse.headers)
     for (const [key, value] of Object.entries(CORS_HEADERS)) responseHeaders.set(key, value)
 
+    // The upstream function's own 401 points clients back at itself
+    // (SUPABASE_URL-based, see mcp-server/oauth.ts) via this header — left
+    // as-is, a client would dutifully follow it straight back to Supabase's
+    // domain root and hit the exact problem this Worker exists to avoid.
+    // Rewrite it to point at this Worker's own root instead.
+    const wwwAuthenticate = responseHeaders.get('www-authenticate')
+    if (wwwAuthenticate?.includes('resource_metadata=')) {
+      responseHeaders.set(
+        'www-authenticate',
+        wwwAuthenticate.replace(/resource_metadata="[^"]*"/, `resource_metadata="${url.origin}/.well-known/oauth-protected-resource"`),
+      )
+    }
+
     return new Response(upstreamResponse.body, {
       status: upstreamResponse.status,
       statusText: upstreamResponse.statusText,
