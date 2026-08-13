@@ -151,6 +151,14 @@ Deno.test('handleOAuthRoute: authorization server metadata is served without tou
   assertEquals(body.authorization_endpoint.endsWith('/functions/v1/mcp-server/authorize'), true)
   assertEquals(body.token_endpoint.endsWith('/functions/v1/mcp-server/token'), true)
   assertEquals(body.code_challenge_methods_supported, ['S256'])
+  assertEquals(body.registration_endpoint.endsWith('/functions/v1/mcp-server/register'), true)
+})
+
+Deno.test('handleOAuthRoute: /register hit with the wrong method returns 405, never falls through', async () => {
+  const request = new Request('https://example.com/functions/v1/mcp-server/register', { method: 'GET' })
+  // deno-lint-ignore no-explicit-any
+  const result = await handleOAuthRoute(request, undefined as any)
+  assertEquals(result?.status, 405)
 })
 
 Deno.test('safeFilename replaces characters Supabase Storage rejects in object keys', () => {

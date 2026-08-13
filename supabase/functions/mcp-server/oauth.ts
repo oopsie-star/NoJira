@@ -74,10 +74,41 @@ function handleAuthorizationServerMetadata(): Response {
     issuer: base,
     authorization_endpoint: `${base}/authorize`,
     token_endpoint: `${base}/token`,
+    registration_endpoint: `${base}/register`,
     response_types_supported: ['code'],
     grant_types_supported: ['authorization_code'],
     code_challenge_methods_supported: ['S256'],
     token_endpoint_auth_methods_supported: ['client_secret_post'],
+  })
+}
+
+// Minimal RFC 7591 Dynamic Client Registration — this server only ever has
+// one real client (the single trusted operator), so every registration
+// request gets back the same static client_id/secret rather than minting a
+// new one. Exists purely so clients that insist on attempting DCR (and treat
+// its absence — or a 401 — as a hard failure instead of falling back to
+// manual client_id/secret entry) get a spec-shaped success response instead
+// of getting stuck before ever reaching /authorize.
+async function handleRegister(request: Request): Promise<Response> {
+  if (!oauthConfigured()) return json(500, { error: 'server_error', error_description: 'OAuth is not configured on this server.' })
+
+  let body: Record<string, unknown> = {}
+  try {
+    body = (await request.json()) as Record<string, unknown>
+  } catch {
+    // Some clients send an empty body — that's fine, redirect_uris just stays [].
+  }
+  const redirectUris = Array.isArray(body.redirect_uris) ? body.redirect_uris.filter((u) => typeof u === 'string') : []
+
+  return json(201, {
+    client_id: clientId,
+    client_secret: clientSecret,
+    client_id_issued_at: Math.floor(Date.now() / 1000),
+    client_secret_expires_at: 0,
+    redirect_uris: redirectUris,
+    token_endpoint_auth_method: 'client_secret_post',
+    grant_types: ['authorization_code'],
+    response_types: ['code'],
   })
 }
 
@@ -213,6 +244,7 @@ const OAUTH_SUFFIXES = [
   '/.well-known/oauth-authorization-server',
   '/authorize',
   '/token',
+  '/register',
 ] as const
 
 // Returns null when the request isn't for any OAuth path at all, so index.ts
@@ -235,6 +267,9 @@ export async function handleOAuthRoute(request: Request, admin: SupabaseClient):
   }
   if (suffix === '/token' && request.method === 'POST') {
     return handleToken(request, admin)
+  }
+  if (suffix === '/register' && request.method === 'POST') {
+    return handleRegister(request)
   }
 
   return json(405, { error: 'method_not_allowed' })
