@@ -7,11 +7,15 @@ import { isUuid } from './tools/resolvers.ts'
 import {
   decodeAttachmentBase64,
   displayFilename,
+  epicIdFromPath,
   getFilename,
   projectIdFromPath,
   safeFilename,
+  sprintIdFromPath,
   taskIdFromPath,
 } from './tools/attachmentPaths.ts'
+import { resolveAgentName } from './tools/agentGate.ts'
+import { ToolError } from './tools/errors.ts'
 import { TASK_STATUSES } from './types.ts'
 
 Deno.test('timingSafeEqual only passes on exact matches', () => {
@@ -188,6 +192,29 @@ Deno.test('projectIdFromPath returns the leading uuid segment', () => {
   const projectId = '11111111-2222-3333-4444-555555555555'
   assertEquals(projectIdFromPath(`${projectId}/epics/e1/author/file.pdf`), projectId)
   assertEquals(projectIdFromPath('not-a-uuid/epics/e1/author/file.pdf'), null)
+})
+
+Deno.test('epicIdFromPath / sprintIdFromPath extract the entity id, null for other shapes', () => {
+  const id = '11111111-2222-3333-4444-555555555555'
+  assertEquals(epicIdFromPath(`proj/epics/${id}/author/file.pdf`), id)
+  assertEquals(epicIdFromPath(`proj/sprints/${id}/author/file.pdf`), null)
+  assertEquals(epicIdFromPath(`proj/${id}/author/file.pdf`), null)
+  assertEquals(sprintIdFromPath(`proj/sprints/${id}/author/file.pdf`), id)
+  assertEquals(sprintIdFromPath(`proj/epics/${id}/author/file.pdf`), null)
+})
+
+Deno.test('resolveAgentName accepts claude/chatgpt and rejects anything else', () => {
+  assertEquals(resolveAgentName({ agent_name: 'claude' }), 'claude')
+  assertEquals(resolveAgentName({ agent_name: 'chatgpt' }), 'chatgpt')
+  for (const bad of [{ agent_name: 'gpt' }, { agent_name: '' }, {}]) {
+    let threw = false
+    try {
+      resolveAgentName(bad)
+    } catch (err) {
+      threw = err instanceof ToolError
+    }
+    assertEquals(threw, true)
+  }
 })
 
 Deno.test('decodeAttachmentBase64 rejects invalid base64 and oversized files', () => {

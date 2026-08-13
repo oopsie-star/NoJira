@@ -268,16 +268,19 @@ export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (i
 export async function logAgentAction(
   identity: Pick<AgentToolsContext, 'aiAgentProfileId' | 'activeProjectId'>,
   actionType: string,
-  taskId: string | null,
+  entity: { taskId?: string | null; epicId?: string | null; sprintId?: string | null },
   payload: unknown,
   result: unknown,
 ): Promise<void> {
   if (!identity.aiAgentProfileId || !identity.activeProjectId) return
   const { error } = await supabase.from('agent_audit_log').insert({
     agent_type: 'in_app',
+    agent_name: 'qira-assistant',
     agent_profile_id: identity.aiAgentProfileId,
     project_id: identity.activeProjectId,
-    task_id: taskId,
+    task_id: entity.taskId ?? null,
+    epic_id: entity.epicId ?? null,
+    sprint_id: entity.sprintId ?? null,
     action_type: actionType,
     payload,
     result,
@@ -343,7 +346,7 @@ export async function executeTool(name: string, argsJson: string, ctx: AgentTool
       created_by: ctx.aiAgentProfileId ?? undefined,
     })
     if (!epic) return 'Error: failed to create epic'
-    await logAgentAction(ctx, 'create_epic', null, args, epic)
+    await logAgentAction(ctx, 'create_epic', { epicId: epic.id }, args, epic)
     return `Created epic "${epic.title}" — id=${epic.id}, key=${epic.key}`
   }
 
@@ -355,7 +358,7 @@ export async function executeTool(name: string, argsJson: string, ctx: AgentTool
       created_by: ctx.aiAgentProfileId ?? undefined,
     })
     if (!sprint) return 'Error: failed to create sprint'
-    await logAgentAction(ctx, 'create_sprint', null, args, sprint)
+    await logAgentAction(ctx, 'create_sprint', { sprintId: sprint.id }, args, sprint)
     return `Created sprint "${sprint.name}" — id=${sprint.id}`
   }
 
@@ -378,7 +381,7 @@ export async function executeTool(name: string, argsJson: string, ctx: AgentTool
       ...reporterFields,
     })
     if (!task) return 'Error: failed to create task'
-    await logAgentAction(ctx, 'create_task', task.id, args, task)
+    await logAgentAction(ctx, 'create_task', { taskId: task.id }, args, task)
     return `Created task "${task.title}" — id=${task.id}, key=${task.key}${note}`
   }
 
@@ -404,7 +407,7 @@ export async function executeTool(name: string, argsJson: string, ctx: AgentTool
     }
 
     await ctx.updateTask(taskId, fields)
-    await logAgentAction(ctx, 'update_task', taskId, args, fields)
+    await logAgentAction(ctx, 'update_task', { taskId }, args, fields)
     return `Updated task ${taskId}${note}`
   }
 

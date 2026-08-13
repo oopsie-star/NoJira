@@ -36,6 +36,19 @@ export function projectIdFromPath(path: string): string | null {
   return projectId && UUID_RE.test(projectId) ? projectId : null
 }
 
+// Epic/sprint attachment paths put a literal 'epics'/'sprints' token at
+// position 1 and the entity id at position 2 (see attachEpicFile.ts /
+// attachSprintFile.ts for the path shape these mirror).
+export function epicIdFromPath(path: string): string | null {
+  const parts = path.split('/')
+  return parts[1] === 'epics' && parts[2] && UUID_RE.test(parts[2]) ? parts[2] : null
+}
+
+export function sprintIdFromPath(path: string): string | null {
+  const parts = path.split('/')
+  return parts[1] === 'sprints' && parts[2] && UUID_RE.test(parts[2]) ? parts[2] : null
+}
+
 // Supabase Edge Functions cap memory at 256MB per invocation; base64 adds
 // ~33% on top of the original file size before it's even decoded, plus JSON
 // parse overhead for the surrounding tool-call payload. 20MB keeps a wide

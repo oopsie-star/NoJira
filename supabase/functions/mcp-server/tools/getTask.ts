@@ -20,7 +20,7 @@ export async function getTask(admin: SupabaseClient, args: GetTaskArgs) {
 
   const task = await resolveTaskByKeyOrId(admin, ref)
 
-  const [commentsRes, activitiesRes, fieldChangesRes, attachmentNotesRes] = await Promise.all([
+  const [commentsRes, activitiesRes, fieldChangesRes, attachmentNotesRes, lastAgentRes] = await Promise.all([
     admin
       .from('task_comments')
       .select('id, author_id, body, created_at')
@@ -43,12 +43,21 @@ export async function getTask(admin: SupabaseClient, args: GetTaskArgs) {
           .eq('project_id', task.project_id)
           .in('path', task.attachments)
       : Promise.resolve({ data: [], error: null }),
+    admin
+      .from('agent_audit_log')
+      .select('agent_name, action_type, created_at')
+      .eq('task_id', task.id)
+      .not('agent_name', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   if (commentsRes.error) throw new ToolError(`Failed to load comments: ${commentsRes.error.message}`)
   if (activitiesRes.error) throw new ToolError(`Failed to load activity: ${activitiesRes.error.message}`)
   if (fieldChangesRes.error) throw new ToolError(`Failed to load field history: ${fieldChangesRes.error.message}`)
   if (attachmentNotesRes.error) throw new ToolError(`Failed to load attachment names: ${attachmentNotesRes.error.message}`)
+  if (lastAgentRes.error) throw new ToolError(`Failed to load last agent: ${lastAgentRes.error.message}`)
 
   const comments = commentsRes.data ?? []
   const activities = activitiesRes.data ?? []
@@ -115,6 +124,9 @@ export async function getTask(admin: SupabaseClient, args: GetTaskArgs) {
       created_at: c.created_at,
     })),
     attachments,
+    last_ai_agent: lastAgentRes.data
+      ? { agent_name: lastAgentRes.data.agent_name, action_type: lastAgentRes.data.action_type, at: lastAgentRes.data.created_at }
+      : null,
     history,
   }
 }

@@ -1,20 +1,26 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8'
 
+import { checkCrossAgentConflict, resolveAgentName } from './agentGate.ts'
 import { ToolError } from './errors.ts'
 import { resolveMcpAgentProfileId, resolveTaskByKeyOrId } from './resolvers.ts'
 
 interface AddCommentArgs {
   task?: string
   body?: string
+  agent_name?: string
+  confirmed_cross_agent?: boolean
 }
 
 export async function addComment(admin: SupabaseClient, args: AddCommentArgs) {
   const ref = args.task?.trim()
   const body = args.body?.trim()
+  const agentName = resolveAgentName(args)
   if (!ref) throw new ToolError('"task" is required.')
   if (!body) throw new ToolError('"body" is required.')
 
   const task = await resolveTaskByKeyOrId(admin, ref)
+  await checkCrossAgentConflict(admin, { type: 'task', id: task.id, label: task.key }, agentName, Boolean(args.confirmed_cross_agent))
+
   const authorId = await resolveMcpAgentProfileId(admin)
 
   const { data, error } = await admin
@@ -40,6 +46,7 @@ export async function addComment(admin: SupabaseClient, args: AddCommentArgs) {
 
   const { error: auditError } = await admin.from('agent_audit_log').insert({
     agent_type: 'mcp',
+    agent_name: agentName,
     agent_profile_id: authorId,
     project_id: task.project_id,
     task_id: task.id,

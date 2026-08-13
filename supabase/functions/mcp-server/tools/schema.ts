@@ -6,6 +6,24 @@ export interface McpToolSchema {
   inputSchema: Record<string, unknown>
 }
 
+// Claude and ChatGPT both reach this server through the same static
+// credential — there is no transport-level way to tell them apart, so every
+// write tool requires this self-declared field instead.
+const AGENT_NAME_PROPERTY = {
+  type: 'string',
+  enum: ['claude', 'chatgpt'],
+  description: 'Identify yourself: "claude" if you are Claude, "chatgpt" if you are ChatGPT.',
+}
+
+const CONFIRMED_CROSS_AGENT_PROPERTY = {
+  type: 'boolean',
+  description:
+    'Only set this to true after the human operator has explicitly confirmed the change, in response to this same call being rejected for a cross-agent conflict. Omit otherwise.',
+}
+
+const CROSS_AGENT_NOTE =
+  ' If this item was last modified by a different AI (Claude vs ChatGPT vs the in-app assistant), this call is rejected until the human operator confirms — then retry with confirmed_cross_agent: true.'
+
 export const TOOL_SCHEMAS: McpToolSchema[] = [
   {
     name: 'list_tasks',
@@ -22,7 +40,8 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
   },
   {
     name: 'get_task',
-    description: 'Get full details of a task: description, status, comments, attachments, and change history.',
+    description:
+      'Get full details of a task: description, status, comments, attachments, change history, and last_ai_agent (which AI — claude/chatgpt/qira-assistant — last modified it, and when).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -45,26 +64,29 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
         assignee_email: { type: 'string' },
         epic: { type: 'string', description: 'Epic key or title, resolved within the project.' },
         sprint: { type: 'string', description: 'Sprint name, resolved within the project.' },
+        agent_name: AGENT_NAME_PROPERTY,
       },
-      required: ['project', 'title'],
+      required: ['project', 'title', 'agent_name'],
     },
   },
   {
     name: 'update_task_status',
-    description: 'Change a task\'s status. For any other field, use update_task instead.',
+    description: `Change a task's status. For any other field, use update_task instead.${CROSS_AGENT_NOTE}`,
     inputSchema: {
       type: 'object',
       properties: {
         task: { type: 'string', description: 'Task key or id.' },
         status: { type: 'string', enum: TASK_STATUSES },
+        agent_name: AGENT_NAME_PROPERTY,
+        confirmed_cross_agent: CONFIRMED_CROSS_AGENT_PROPERTY,
       },
-      required: ['task', 'status'],
+      required: ['task', 'status', 'agent_name'],
     },
   },
   {
     name: 'update_task',
     description:
-      'Update a task\'s title, description, priority, due date, assignee, epic, sprint, or labels. For status changes, use update_task_status instead.',
+      `Update a task's title, description, priority, due date, assignee, epic, sprint, or labels. For status changes, use update_task_status instead.${CROSS_AGENT_NOTE}`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -77,13 +99,16 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
         epic: { type: 'string', description: 'Epic key or title, resolved within the project. Empty string clears it.' },
         sprint: { type: 'string', description: 'Sprint name, resolved within the project. Empty string clears it.' },
         labels: { type: 'array', items: { type: 'string' } },
+        agent_name: AGENT_NAME_PROPERTY,
+        confirmed_cross_agent: CONFIRMED_CROSS_AGENT_PROPERTY,
       },
-      required: ['task'],
+      required: ['task', 'agent_name'],
     },
   },
   {
     name: 'get_project',
-    description: 'Get a project\'s epics, sprints (each with their attachments), and members.',
+    description:
+      'Get a project\'s epics, sprints (each with their attachments and last_ai_agent), and members.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -101,8 +126,9 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
         project: { type: 'string', description: 'Project key.' },
         title: { type: 'string' },
         description: { type: 'string' },
+        agent_name: AGENT_NAME_PROPERTY,
       },
-      required: ['project', 'title'],
+      required: ['project', 'title', 'agent_name'],
     },
   },
   {
@@ -115,14 +141,15 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
         name: { type: 'string' },
         goal: { type: 'string' },
         epic: { type: 'string', description: 'Epic key or title, resolved within the project.' },
+        agent_name: AGENT_NAME_PROPERTY,
       },
-      required: ['project', 'name'],
+      required: ['project', 'name', 'agent_name'],
     },
   },
   {
     name: 'attach_task_file',
     description:
-      'Attach a file to a task (max 20MB). content_base64 is the raw file content, base64-encoded. To mark a previous attachment as superseded, call rename_attachment on it with "УСТАРЕЛО " prefixed to its current name.',
+      `Attach a file to a task (max 20MB). content_base64 is the raw file content, base64-encoded. To mark a previous attachment as superseded, call rename_attachment on it with "УСТАРЕЛО " prefixed to its current name.${CROSS_AGENT_NOTE}`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -130,13 +157,15 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
         filename: { type: 'string', description: 'Original filename, e.g. "spec.pdf" — any script, does not need to be ASCII.' },
         content_base64: { type: 'string', description: 'Raw file bytes, base64-encoded.' },
         mime_type: { type: 'string', description: 'Optional MIME type, e.g. "application/pdf".' },
+        agent_name: AGENT_NAME_PROPERTY,
+        confirmed_cross_agent: CONFIRMED_CROSS_AGENT_PROPERTY,
       },
-      required: ['task', 'filename', 'content_base64'],
+      required: ['task', 'filename', 'content_base64', 'agent_name'],
     },
   },
   {
     name: 'attach_epic_file',
-    description: 'Attach a file to an epic (max 20MB). See attach_task_file for content_base64 details.',
+    description: `Attach a file to an epic (max 20MB). See attach_task_file for content_base64 details.${CROSS_AGENT_NOTE}`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -145,13 +174,15 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
         filename: { type: 'string' },
         content_base64: { type: 'string', description: 'Raw file bytes, base64-encoded.' },
         mime_type: { type: 'string' },
+        agent_name: AGENT_NAME_PROPERTY,
+        confirmed_cross_agent: CONFIRMED_CROSS_AGENT_PROPERTY,
       },
-      required: ['project', 'epic', 'filename', 'content_base64'],
+      required: ['project', 'epic', 'filename', 'content_base64', 'agent_name'],
     },
   },
   {
     name: 'attach_sprint_file',
-    description: 'Attach a file to a sprint (max 20MB). See attach_task_file for content_base64 details.',
+    description: `Attach a file to a sprint (max 20MB). See attach_task_file for content_base64 details.${CROSS_AGENT_NOTE}`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -160,33 +191,39 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
         filename: { type: 'string' },
         content_base64: { type: 'string', description: 'Raw file bytes, base64-encoded.' },
         mime_type: { type: 'string' },
+        agent_name: AGENT_NAME_PROPERTY,
+        confirmed_cross_agent: CONFIRMED_CROSS_AGENT_PROPERTY,
       },
-      required: ['project', 'sprint', 'filename', 'content_base64'],
+      required: ['project', 'sprint', 'filename', 'content_base64', 'agent_name'],
     },
   },
   {
     name: 'rename_attachment',
     description:
-      'Rename an attachment (works for task, epic, or sprint attachments alike — pass the path from get_task/get_project\'s attachments list). To mark it as superseded by a new attachment you just created, set new_name to "УСТАРЕЛО " + its current name.',
+      `Rename an attachment (works for task, epic, or sprint attachments alike — pass the path from get_task/get_project's attachments list). To mark it as superseded by a new attachment you just created, set new_name to "УСТАРЕЛО " + its current name.${CROSS_AGENT_NOTE}`,
     inputSchema: {
       type: 'object',
       properties: {
         path: { type: 'string', description: 'The attachment\'s storage path, from get_task/get_project.' },
         new_name: { type: 'string' },
+        agent_name: AGENT_NAME_PROPERTY,
+        confirmed_cross_agent: CONFIRMED_CROSS_AGENT_PROPERTY,
       },
-      required: ['path', 'new_name'],
+      required: ['path', 'new_name', 'agent_name'],
     },
   },
   {
     name: 'add_comment',
-    description: 'Add a comment to a task.',
+    description: `Add a comment to a task.${CROSS_AGENT_NOTE}`,
     inputSchema: {
       type: 'object',
       properties: {
         task: { type: 'string', description: 'Task key or id.' },
         body: { type: 'string' },
+        agent_name: AGENT_NAME_PROPERTY,
+        confirmed_cross_agent: CONFIRMED_CROSS_AGENT_PROPERTY,
       },
-      required: ['task', 'body'],
+      required: ['task', 'body', 'agent_name'],
     },
   },
   {

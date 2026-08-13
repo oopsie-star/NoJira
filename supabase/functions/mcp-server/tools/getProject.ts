@@ -8,6 +8,12 @@ interface GetProjectArgs {
   project?: string
 }
 
+interface LastAgent {
+  agent_name: string
+  action_type: string
+  at: string
+}
+
 export async function getProject(admin: SupabaseClient, args: GetProjectArgs) {
   const projectKey = args.project?.trim()
   if (!projectKey) throw new ToolError('"project" is required.')
@@ -37,24 +43,59 @@ export async function getProject(admin: SupabaseClient, args: GetProjectArgs) {
 
   const epics = epicsRes.data ?? []
   const sprints = sprintsRes.data ?? []
+  const epicIds = epics.map((e) => e.id)
+  const sprintIds = sprints.map((s) => s.id)
 
-  const allPaths = [...epics.flatMap((e) => e.attachments ?? []), ...sprints.flatMap((s) => s.attachments ?? [])]
+  const [allPathsNotesRes, epicAgentRes, sprintAgentRes] = await Promise.all([
+    (async () => {
+      const allPaths = [...epics.flatMap((e) => e.attachments ?? []), ...sprints.flatMap((s) => s.attachments ?? [])]
+      if (!allPaths.length) return { data: [], error: null }
+      return admin.from('attachment_notes').select('path, original_name, mime_type').eq('project_id', project.id).in('path', allPaths)
+    })(),
+    epicIds.length
+      ? admin
+          .from('agent_audit_log')
+          .select('epic_id, agent_name, action_type, created_at')
+          .in('epic_id', epicIds)
+          .not('agent_name', 'is', null)
+          .order('created_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    sprintIds.length
+      ? admin
+          .from('agent_audit_log')
+          .select('sprint_id, agent_name, action_type, created_at')
+          .in('sprint_id', sprintIds)
+          .not('agent_name', 'is', null)
+          .order('created_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+  ])
+
+  if (allPathsNotesRes.error) throw new ToolError(`Failed to load attachment names: ${allPathsNotesRes.error.message}`)
+  if (epicAgentRes.error) throw new ToolError(`Failed to load epic agent history: ${epicAgentRes.error.message}`)
+  if (sprintAgentRes.error) throw new ToolError(`Failed to load sprint agent history: ${sprintAgentRes.error.message}`)
+
   const noteByPath = new Map<string, { path: string; original_name: string | null; mime_type: string | null }>()
-  if (allPaths.length) {
-    const { data: notes, error: notesError } = await admin
-      .from('attachment_notes')
-      .select('path, original_name, mime_type')
-      .eq('project_id', project.id)
-      .in('path', allPaths)
-    if (notesError) throw new ToolError(`Failed to load attachment names: ${notesError.message}`)
-    for (const n of notes ?? []) noteByPath.set(n.path, n)
-  }
+  for (const n of allPathsNotesRes.data ?? []) noteByPath.set(n.path, n)
 
   function withAttachmentNames(paths: string[]) {
     return paths.map((path) => {
       const note = noteByPath.get(path)
       return { path, name: displayFilename(path, note?.original_name), mime_type: note?.mime_type ?? null }
     })
+  }
+
+  // Rows arrive newest-first, so the first row seen per id is the latest.
+  const lastAgentByEpic = new Map<string, LastAgent>()
+  for (const row of epicAgentRes.data ?? []) {
+    if (!lastAgentByEpic.has(row.epic_id)) {
+      lastAgentByEpic.set(row.epic_id, { agent_name: row.agent_name, action_type: row.action_type, at: row.created_at })
+    }
+  }
+  const lastAgentBySprint = new Map<string, LastAgent>()
+  for (const row of sprintAgentRes.data ?? []) {
+    if (!lastAgentBySprint.has(row.sprint_id)) {
+      lastAgentBySprint.set(row.sprint_id, { agent_name: row.agent_name, action_type: row.action_type, at: row.created_at })
+    }
   }
 
   const members = (membersRes.data ?? []).map((m) => {
@@ -65,8 +106,16 @@ export async function getProject(admin: SupabaseClient, args: GetProjectArgs) {
   return {
     key: project.key,
     name: project.name,
-    epics: epics.map((e) => ({ ...e, attachments: withAttachmentNames(e.attachments ?? []) })),
-    sprints: sprints.map((s) => ({ ...s, attachments: withAttachmentNames(s.attachments ?? []) })),
+    epics: epics.map((e) => ({
+      ...e,
+      attachments: withAttachmentNames(e.attachments ?? []),
+      last_ai_agent: lastAgentByEpic.get(e.id) ?? null,
+    })),
+    sprints: sprints.map((s) => ({
+      ...s,
+      attachments: withAttachmentNames(s.attachments ?? []),
+      last_ai_agent: lastAgentBySprint.get(s.id) ?? null,
+    })),
     members,
   }
 }

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8'
 
+import { checkCrossAgentConflict, resolveAgentName } from './agentGate.ts'
 import { ToolError } from './errors.ts'
 import {
   resolveEpicByKeyOrTitle,
@@ -20,10 +21,13 @@ interface UpdateTaskArgs {
   epic?: string
   sprint?: string
   labels?: string[]
+  agent_name?: string
+  confirmed_cross_agent?: boolean
 }
 
 export async function updateTask(admin: SupabaseClient, args: UpdateTaskArgs) {
   const ref = args.task?.trim()
+  const agentName = resolveAgentName(args)
   if (!ref) throw new ToolError('"task" is required.')
 
   if (args.priority && !ISSUE_PRIORITIES.includes(args.priority as IssuePriority)) {
@@ -31,6 +35,7 @@ export async function updateTask(admin: SupabaseClient, args: UpdateTaskArgs) {
   }
 
   const task = await resolveTaskByKeyOrId(admin, ref)
+  await checkCrossAgentConflict(admin, { type: 'task', id: task.id, label: task.key }, agentName, Boolean(args.confirmed_cross_agent))
 
   const fields: Record<string, unknown> = {}
   if (args.title !== undefined) fields.title = args.title
@@ -75,6 +80,7 @@ export async function updateTask(admin: SupabaseClient, args: UpdateTaskArgs) {
 
   const { error: auditError } = await admin.from('agent_audit_log').insert({
     agent_type: 'mcp',
+    agent_name: agentName,
     agent_profile_id: reporterId,
     project_id: task.project_id,
     task_id: task.id,

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8'
 
+import { checkCrossAgentConflict, resolveAgentName } from './agentGate.ts'
 import { decodeAttachmentBase64, safeFilename } from './attachmentPaths.ts'
 import { ToolError } from './errors.ts'
 import { resolveMcpAgentProfileId, resolveTaskByKeyOrId } from './resolvers.ts'
@@ -9,16 +10,21 @@ interface AttachTaskFileArgs {
   filename?: string
   content_base64?: string
   mime_type?: string
+  agent_name?: string
+  confirmed_cross_agent?: boolean
 }
 
 export async function attachTaskFile(admin: SupabaseClient, args: AttachTaskFileArgs) {
   const ref = args.task?.trim()
   const filename = args.filename?.trim()
+  const agentName = resolveAgentName(args)
   if (!ref) throw new ToolError('"task" is required.')
   if (!filename) throw new ToolError('"filename" is required.')
   if (!args.content_base64) throw new ToolError('"content_base64" is required.')
 
   const task = await resolveTaskByKeyOrId(admin, ref)
+  await checkCrossAgentConflict(admin, { type: 'task', id: task.id, label: task.key }, agentName, Boolean(args.confirmed_cross_agent))
+
   const reporterId = await resolveMcpAgentProfileId(admin)
   const bytes = decodeAttachmentBase64(args.content_base64)
 
@@ -57,6 +63,7 @@ export async function attachTaskFile(admin: SupabaseClient, args: AttachTaskFile
 
   const { error: auditError } = await admin.from('agent_audit_log').insert({
     agent_type: 'mcp',
+    agent_name: agentName,
     agent_profile_id: reporterId,
     project_id: task.project_id,
     task_id: task.id,

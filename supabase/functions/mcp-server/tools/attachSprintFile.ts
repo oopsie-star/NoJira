@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8'
 
+import { checkCrossAgentConflict, resolveAgentName } from './agentGate.ts'
 import { decodeAttachmentBase64, safeFilename } from './attachmentPaths.ts'
 import { ToolError } from './errors.ts'
 import { resolveMcpAgentProfileId, resolveProjectByKey, resolveSprintByName } from './resolvers.ts'
@@ -10,12 +11,15 @@ interface AttachSprintFileArgs {
   filename?: string
   content_base64?: string
   mime_type?: string
+  agent_name?: string
+  confirmed_cross_agent?: boolean
 }
 
 export async function attachSprintFile(admin: SupabaseClient, args: AttachSprintFileArgs) {
   const projectKey = args.project?.trim()
   const sprintRef = args.sprint?.trim()
   const filename = args.filename?.trim()
+  const agentName = resolveAgentName(args)
   if (!projectKey) throw new ToolError('"project" is required.')
   if (!sprintRef) throw new ToolError('"sprint" is required.')
   if (!filename) throw new ToolError('"filename" is required.')
@@ -23,6 +27,8 @@ export async function attachSprintFile(admin: SupabaseClient, args: AttachSprint
 
   const project = await resolveProjectByKey(admin, projectKey)
   const sprint = await resolveSprintByName(admin, project.id, sprintRef)
+  await checkCrossAgentConflict(admin, { type: 'sprint', id: sprint.id, label: sprintRef }, agentName, Boolean(args.confirmed_cross_agent))
+
   const reporterId = await resolveMcpAgentProfileId(admin)
   const bytes = decodeAttachmentBase64(args.content_base64)
 
@@ -50,9 +56,11 @@ export async function attachSprintFile(admin: SupabaseClient, args: AttachSprint
 
   const { error: auditError } = await admin.from('agent_audit_log').insert({
     agent_type: 'mcp',
+    agent_name: agentName,
     agent_profile_id: reporterId,
     project_id: project.id,
     task_id: null,
+    sprint_id: sprint.id,
     action_type: 'attach_sprint_file',
     payload: args,
     result,

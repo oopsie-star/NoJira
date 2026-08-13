@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8'
 
+import { checkCrossAgentConflict, resolveAgentName } from './agentGate.ts'
 import { ToolError } from './errors.ts'
 import { resolveMcpAgentProfileId, resolveTaskByKeyOrId } from './resolvers.ts'
 import { TASK_STATUSES, type TaskStatus } from '../types.ts'
@@ -7,16 +8,20 @@ import { TASK_STATUSES, type TaskStatus } from '../types.ts'
 interface UpdateTaskStatusArgs {
   task?: string
   status?: string
+  agent_name?: string
+  confirmed_cross_agent?: boolean
 }
 
 export async function updateTaskStatus(admin: SupabaseClient, args: UpdateTaskStatusArgs) {
   const ref = args.task?.trim()
+  const agentName = resolveAgentName(args)
   if (!ref) throw new ToolError('"task" is required.')
   if (!args.status || !TASK_STATUSES.includes(args.status as TaskStatus)) {
     throw new ToolError(`Invalid status "${args.status}" — must be one of: ${TASK_STATUSES.join(', ')}`)
   }
 
   const task = await resolveTaskByKeyOrId(admin, ref)
+  await checkCrossAgentConflict(admin, { type: 'task', id: task.id, label: task.key }, agentName, Boolean(args.confirmed_cross_agent))
 
   const { data, error } = await admin
     .from('tasks')
@@ -53,6 +58,7 @@ export async function updateTaskStatus(admin: SupabaseClient, args: UpdateTaskSt
 
   const { error: auditError } = await admin.from('agent_audit_log').insert({
     agent_type: 'mcp',
+    agent_name: agentName,
     agent_profile_id: actorId,
     project_id: task.project_id,
     task_id: task.id,
