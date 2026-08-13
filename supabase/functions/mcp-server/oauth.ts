@@ -12,6 +12,16 @@ import { json, timingSafeEqual } from './shared.ts'
 const FUNCTION_BASE_PATH = '/functions/v1/mcp-server'
 const CODE_TTL_MS = 5 * 60 * 1000
 const NO_STORE_HEADERS = { 'Cache-Control': 'no-store', Pragma: 'no-cache' }
+// The "access token" IS the static MCP_API_KEY — it has no server-side TTL
+// of its own (it's a config value, not an issued/rotated token), so there's
+// nothing real to expire on our end. Max int32 seconds (~68 years) tells OAuth
+// clients that check expires_in not to bother proactively refreshing. A
+// short-lived value here was the original bug: ChatGPT's client does honor
+// expires_in and tried to refresh — which /token rejected outright, since it
+// only handled grant_type=authorization_code — silently cutting ChatGPT off
+// every hour while Claude Code's separate static-header path (no OAuth,
+// nothing to expire) kept working.
+const ACCESS_TOKEN_TTL_SECONDS = 2147483647
 
 const clientId = Deno.env.get('MCP_OAUTH_CLIENT_ID')?.trim() ?? ''
 const clientSecret = Deno.env.get('MCP_OAUTH_CLIENT_SECRET')?.trim() ?? ''
@@ -76,7 +86,7 @@ function handleAuthorizationServerMetadata(): Response {
     token_endpoint: `${base}/token`,
     registration_endpoint: `${base}/register`,
     response_types_supported: ['code'],
-    grant_types_supported: ['authorization_code'],
+    grant_types_supported: ['authorization_code', 'refresh_token'],
     code_challenge_methods_supported: ['S256'],
     token_endpoint_auth_methods_supported: ['client_secret_post'],
   })
@@ -107,7 +117,7 @@ async function handleRegister(request: Request): Promise<Response> {
     client_secret_expires_at: 0,
     redirect_uris: redirectUris,
     token_endpoint_auth_method: 'client_secret_post',
-    grant_types: ['authorization_code'],
+    grant_types: ['authorization_code', 'refresh_token'],
     response_types: ['code'],
   })
 }
@@ -182,18 +192,34 @@ async function handleToken(request: Request, admin: SupabaseClient): Promise<Res
   }
 
   const grantType = form.get('grant_type')
-  const code = form.get('code') ?? ''
-  const redirectUri = form.get('redirect_uri') ?? ''
-  const codeVerifier = form.get('code_verifier') ?? ''
   const requestClientId = form.get('client_id') ?? ''
   const requestClientSecret = form.get('client_secret') ?? ''
 
-  if (grantType !== 'authorization_code') {
+  if (grantType !== 'authorization_code' && grantType !== 'refresh_token') {
     return json(400, { error: 'unsupported_grant_type' }, NO_STORE_HEADERS)
   }
   if (!timingSafeEqual(requestClientId, clientId) || !timingSafeEqual(requestClientSecret, clientSecret)) {
     return json(401, { error: 'invalid_client' }, NO_STORE_HEADERS)
   }
+
+  // The "refresh token" is the same static credential as the access token —
+  // there's only one real secret here, so refreshing just re-proves
+  // client_id/client_secret and hands the same key back again. No need to
+  // track refresh tokens separately; a valid client_id/secret pair already
+  // is the only thing that ever authorized issuing this key in the first place.
+  if (grantType === 'refresh_token') {
+    if (!form.get('refresh_token')) return json(400, { error: 'invalid_request' }, NO_STORE_HEADERS)
+    return json(
+      200,
+      { access_token: mcpApiKey, token_type: 'bearer', expires_in: ACCESS_TOKEN_TTL_SECONDS, refresh_token: mcpApiKey },
+      NO_STORE_HEADERS,
+    )
+  }
+
+  const code = form.get('code') ?? ''
+  const redirectUri = form.get('redirect_uri') ?? ''
+  const codeVerifier = form.get('code_verifier') ?? ''
+
   if (!code || !redirectUri || !codeVerifier) {
     return json(400, { error: 'invalid_request' }, NO_STORE_HEADERS)
   }
@@ -236,7 +262,11 @@ async function handleToken(request: Request, admin: SupabaseClient): Promise<Res
     return json(400, { error: 'invalid_grant', error_description: 'Authorization code already used.' }, NO_STORE_HEADERS)
   }
 
-  return json(200, { access_token: mcpApiKey, token_type: 'bearer', expires_in: 3600 }, NO_STORE_HEADERS)
+  return json(
+    200,
+    { access_token: mcpApiKey, token_type: 'bearer', expires_in: ACCESS_TOKEN_TTL_SECONDS, refresh_token: mcpApiKey },
+    NO_STORE_HEADERS,
+  )
 }
 
 const OAUTH_SUFFIXES = [
