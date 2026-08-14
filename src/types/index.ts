@@ -93,7 +93,7 @@ export interface PortfolioItem {
   created_at: string
 }
 
-export type EpicStatus = 'planned' | 'in_progress' | 'done'
+export type EpicStatus = 'planned' | 'in_progress' | 'done' | 'archived'
 
 export interface Epic {
   id:                       string

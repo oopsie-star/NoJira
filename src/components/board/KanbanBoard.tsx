@@ -105,7 +105,7 @@ export function KanbanBoard() {
     // Every epic gets a lane — even an empty one, so it's visible and can be
     // dropped into. Empty lanes render collapsed. The pinned "Product
     // Vision" epic is a description card, not a work container — no lane.
-    const epicLanes: BoardLane[] = epics.filter((epic) => !epic.is_vision).map((epic) => ({
+    const epicLanes: BoardLane[] = epics.filter((epic) => !epic.is_vision && epic.status !== 'archived').map((epic) => ({
       id: epic.id,
       epic,
       tasks: byEpic.get(epic.id) ?? [],

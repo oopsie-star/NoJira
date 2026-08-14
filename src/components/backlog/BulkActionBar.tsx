@@ -12,7 +12,7 @@ export function BulkActionBar() {
   const sprints = useStore((s) => s.sprints)
   // The pinned "Product Vision" epic is a description card, not a valid
   // bulk-move target.
-  const epics = useStore((s) => s.epics).filter((epic) => !epic.is_vision)
+  const epics = useStore((s) => s.epics).filter((epic) => !epic.is_vision && epic.status !== 'archived')
   const members = useStore((s) => s.members)
   const placeholders = useStore((s) => s.placeholders)
   const bulkUpdateTasks = useStore((s) => s.bulkUpdateTasks)

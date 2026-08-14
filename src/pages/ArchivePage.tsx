@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Undo2 } from 'lucide-react'
+import { Flag, Undo2 } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { TaskDrawer } from '@/components/task/TaskDrawer'
 import { PriorityBadge, StatusBadge } from '@/components/common/IssueBadges'
@@ -7,7 +7,42 @@ import { AssigneeAvatars } from '@/components/common/AssigneeAvatars'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
 import { useStore } from '@/store'
-import type { Task } from '@/types'
+import type { Epic, Task } from '@/types'
+
+function ArchivedEpicRow({ epic, onRestore }: { epic: Epic; onRestore: () => void }) {
+  const { t } = useI18n()
+  const tasks = useStore((state) => state.tasks)
+  const taskCount = tasks.filter((task) => task.epic_id === epic.id).length
+
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+      <span
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+        style={{ backgroundColor: `${epic.color}20`, color: epic.color }}
+        aria-hidden
+      >
+        <Flag size={14} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-slate-500">{epic.key}</span>
+        </div>
+        <p className="mt-0.5 truncate text-sm font-medium text-slate-900">{epic.title}</p>
+        {taskCount > 0 && (
+          <p className="mt-1 text-xs text-slate-400">{t('backlog.deleteEntityTaskCount', { count: taskCount })}</p>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onRestore}
+        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+      >
+        <Undo2 size={15} />
+        {t('archive.restoreEpic')}
+      </button>
+    </div>
+  )
+}
 
 function ArchiveRow({ task, onOpen, onRepublish }: { task: Task; onOpen: () => void; onRepublish: () => void }) {
   const { t, locale } = useI18n()
@@ -52,7 +87,9 @@ export function ArchivePage() {
   const fetchPlaceholders = useStore((state) => state.fetchPlaceholders)
   const activeProjectId = useStore((state) => state.activeProjectId)
   const tasks = useStore((state) => state.tasks)
+  const epics = useStore((state) => state.epics)
   const updateTask = useStore((state) => state.updateTask)
+  const restoreEpic = useStore((state) => state.restoreEpic)
   const setOpenTaskId = useStore((state) => state.setOpenTaskId)
   const notify = useStore((state) => state.notify)
 
@@ -67,10 +104,16 @@ export function ArchivePage() {
   }, [activeProjectId, fetchBacklog, fetchMembers, fetchEpics, fetchPlaceholders])
 
   const archivedTasks = tasks.filter((task) => task.status === 'archived')
+  const archivedEpics = epics.filter((epic) => epic.status === 'archived')
 
   async function handleRepublish(taskId: string) {
     await updateTask(taskId, { status: 'todo' })
     notify(t('archive.republished'), 'success')
+  }
+
+  async function handleRestoreEpic(epicId: string) {
+    await restoreEpic(epicId)
+    notify(t('archive.epicRestored'), 'success')
   }
 
   return (
@@ -81,6 +124,19 @@ export function ArchivePage() {
             <h1 className="text-base font-semibold text-slate-900">{t('archive.title')}</h1>
             <span className="text-slate-300">·</span>
             <span className="text-sm text-slate-500">{t('archive.subtitle')}</span>
+          </div>
+        </section>
+
+        <section className="rounded-[28px] bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold text-slate-900">{t('archive.epicsTitle')}</h2>
+          <div className="space-y-2">
+            {archivedEpics.length === 0 ? (
+              <p className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">{t('archive.epicsEmpty')}</p>
+            ) : (
+              archivedEpics.map((epic) => (
+                <ArchivedEpicRow key={epic.id} epic={epic} onRestore={() => void handleRestoreEpic(epic.id)} />
+              ))
+            )}
           </div>
         </section>
 

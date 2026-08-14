@@ -522,6 +522,9 @@ interface AppState {
   ) => Promise<void>
   reassignAuthor: (epicId: string, toProfileId: string) => Promise<void>
   deleteEpic: (id: string, options?: { withTasks?: boolean }) => Promise<void>
+  /** Reversible alternative to deleteEpic: with withTasks, its tasks move to status 'archived' (restorable from the Archive page); without, they're detached back to the plain backlog. The epic itself hides from the backlog until restoreEpic. */
+  archiveEpic: (id: string, options?: { withTasks?: boolean }) => Promise<void>
+  restoreEpic: (id: string) => Promise<void>
   convertSprintToEpic: (sprintId: string) => Promise<Epic | null>
   convertEpicToSprint: (epicId: string) => Promise<Sprint | null>
   /** Bulk-reassigns every task in the active project from one assignee to another (e.g. an employee leaving) — covers both the single assignee_id and multi-assignee assignee_ids. Returns how many tasks changed. */
@@ -2211,6 +2214,31 @@ export const useStore = create<AppState>((set, get) => {
     await supabase.from('epics').delete().eq('id', id)
   },
 
+  archiveEpic: async (id, options) => {
+    if (options?.withTasks) {
+      await supabase.from('tasks').update({ status: 'archived' }).eq('epic_id', id)
+      set((state) => ({
+        tasks: state.tasks.filter((task) => task.epic_id !== id),
+      }))
+    } else {
+      await supabase.from('tasks').update({ epic_id: null }).eq('epic_id', id)
+      set((state) => ({
+        tasks: state.tasks.map((task) => (task.epic_id === id ? { ...task, epic_id: null } : task)),
+      }))
+    }
+    await supabase.from('epics').update({ status: 'archived' }).eq('id', id)
+    set((state) => ({
+      epics: state.epics.map((epic) => (epic.id === id ? { ...epic, status: 'archived' } : epic)),
+    }))
+  },
+
+  restoreEpic: async (id) => {
+    await supabase.from('epics').update({ status: 'planned' }).eq('id', id)
+    set((state) => ({
+      epics: state.epics.map((epic) => (epic.id === id ? { ...epic, status: 'planned' } : epic)),
+    }))
+  },
+
   // Jira imports don't always draw the epic/sprint line consistently (a "sprint"
   // that's really a feature grouping, or vice versa) — these let a project admin
   // fix that after the fact without re-importing.
@@ -2269,6 +2297,7 @@ export const useStore = create<AppState>((set, get) => {
       planned: 'planned',
       in_progress: 'active',
       done: 'completed',
+      archived: 'completed',
     }
 
     const sprint = await get().createSprint({

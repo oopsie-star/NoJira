@@ -594,6 +594,7 @@ export function BacklogView() {
   const proposeEpicFieldChange = useStore((state) => state.proposeEpicFieldChange)
   const reassignAuthor = useStore((state) => state.reassignAuthor)
   const deleteEpic = useStore((state) => state.deleteEpic)
+  const archiveEpic = useStore((state) => state.archiveEpic)
   const convertEpicToSprint = useStore((state) => state.convertEpicToSprint)
   const requestEntityDeletion = useStore((state) => state.requestEntityDeletion)
   const activeProjectId = useStore((state) => state.activeProjectId)
@@ -621,6 +622,7 @@ export function BacklogView() {
   useEffect(() => () => clearTaskSelection(), [clearTaskSelection])
 
   const [deleteEpicTarget, setDeleteEpicTarget] = useState<Epic | null>(null)
+  const [archiveEpicTarget, setArchiveEpicTarget] = useState<Epic | null>(null)
   const [search, setSearch] = useState('')
   const [searchParams] = useSearchParams()
   const [epicFilter, setEpicFilter] = useState(() => searchParams.get('epicFilter') ?? '')
@@ -736,7 +738,7 @@ export function BacklogView() {
   )
 
   const sortedEpics = useMemo(
-    () => epics.slice().sort((left, right) => left.created_at.localeCompare(right.created_at)),
+    () => epics.filter((epic) => epic.status !== 'archived').sort((left, right) => left.created_at.localeCompare(right.created_at)),
     [epics]
   )
 
@@ -942,6 +944,17 @@ export function BacklogView() {
     setDeleteEpicTarget(epic)
   }
 
+  function handleArchiveEpic(epic: Epic) {
+    setArchiveEpicTarget(epic)
+  }
+
+  // Dissolves the legacy Jira "On the board" grouping by dropping every task
+  // in it back into the plain backlog — the section itself has no delete
+  // action because it isn't a real entity, just a placement flag on tasks.
+  async function handleClearBoardPlacement() {
+    await Promise.all(boardPlacementTasks.map((task) => updateTask(task.id, { jira_board_placement: 'backlog' })))
+  }
+
   async function handleRequestDeleteEpic(epic: Epic) {
     await requestEntityDeletion('epic', epic.id, `${epic.key} — ${epic.title}`)
   }
@@ -1131,6 +1144,13 @@ export function BacklogView() {
                         })
                       }
 
+                      if (canManageProject(activeProjectRole)) {
+                        actions.push({
+                          label: t('backlog.archiveEpic'),
+                          onSelect: () => handleArchiveEpic(epic),
+                        })
+                      }
+
                       if (isSuperAdmin) {
                         actions.push({
                           label: t('backlog.deleteEpic'),
@@ -1283,10 +1303,11 @@ export function BacklogView() {
                     />
                   ))}
 
-                  {hasBoardPlacement && (
+                  {boardPlacementTasks.length > 0 && (
                     <TaskListSection
                       sectionKey="board-placement"
                       title={t('backlog.boardSection')}
+                      description={t('backlog.boardSectionHint')}
                       searchQuery={search}
                       itemCount={boardPlacementTasks.length}
                       statusCounts={getStatusCounts(boardPlacementTasks)}
@@ -1295,7 +1316,10 @@ export function BacklogView() {
                       emptyLabel={t('backlog.noBoardTasks')}
                       createLabel={t('backlog.createIssue')}
                       onCreate={() => openTaskModal({ jira_board_placement: 'board' })}
-                      actions={[{ label: t('backlog.createIssue'), onSelect: () => openTaskModal({ jira_board_placement: 'board' }) }]}
+                      actions={[
+                        { label: t('backlog.createIssue'), onSelect: () => openTaskModal({ jira_board_placement: 'board' }) },
+                        { label: t('backlog.moveBoardSectionToBacklog'), onSelect: () => void handleClearBoardPlacement() },
+                      ]}
                       mobile={isMobile}
                     />
                   )}
@@ -1350,6 +1374,25 @@ export function BacklogView() {
           onConfirm={async (withTasks) => {
             await deleteEpic(deleteEpicTarget.id, { withTasks })
             setDeleteEpicTarget(null)
+          }}
+        />
+      )}
+
+      {archiveEpicTarget && (
+        <DeleteEntityModal
+          message={t('backlog.archiveEpicConfirm', { name: archiveEpicTarget.title })}
+          taskCount={tasks.filter((task) => task.epic_id === archiveEpicTarget.id).length}
+          onCancel={() => setArchiveEpicTarget(null)}
+          onConfirm={async (withTasks) => {
+            await archiveEpic(archiveEpicTarget.id, { withTasks })
+            setArchiveEpicTarget(null)
+          }}
+          labels={{
+            keep: t('backlog.archiveKeepTasks'),
+            keepHint: t('backlog.archiveKeepTasksHint'),
+            with: t('backlog.archiveWithTasks'),
+            withHint: t('backlog.archiveWithTasksHint'),
+            withDanger: false,
           }}
         />
       )}

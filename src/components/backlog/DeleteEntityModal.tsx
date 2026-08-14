@@ -7,11 +7,25 @@ interface DeleteEntityModalProps {
   taskCount: number
   onCancel: () => void
   onConfirm: (withTasks: boolean) => Promise<void>
+  /** Overrides the default "Delete, keep tasks" / "Delete with tasks" wording — used for the reversible archive flow. */
+  labels?: {
+    keep: string
+    keepHint: string
+    with: string
+    withHint: string
+    /** Archiving isn't destructive, so its "with tasks" option shouldn't be styled red. */
+    withDanger?: boolean
+  }
 }
 
-export function DeleteEntityModal({ message, taskCount, onCancel, onConfirm }: DeleteEntityModalProps) {
+export function DeleteEntityModal({ message, taskCount, onCancel, onConfirm, labels }: DeleteEntityModalProps) {
   const { t } = useI18n()
   const [pending, setPending] = useState<'with' | 'without' | null>(null)
+  const keepLabel = labels?.keep ?? t('backlog.deleteKeepTasks')
+  const keepHint = labels?.keepHint ?? t('backlog.deleteKeepTasksHint')
+  const withLabel = labels?.with ?? t('backlog.deleteWithTasks')
+  const withHint = labels?.withHint ?? t('backlog.deleteWithTasksHint')
+  const withDanger = labels?.withDanger ?? true
 
   async function handle(withTasks: boolean) {
     setPending(withTasks ? 'with' : 'without')
@@ -38,21 +52,25 @@ export function DeleteEntityModal({ message, taskCount, onCancel, onConfirm }: D
             className="rounded-2xl border border-slate-200 px-4 py-3 text-left transition hover:bg-slate-100 disabled:opacity-60"
           >
             <span className="block text-sm font-semibold text-slate-900">
-              {pending === 'without' ? '…' : t('backlog.deleteKeepTasks')}
+              {pending === 'without' ? '…' : keepLabel}
             </span>
-            <span className="block text-xs text-slate-500">{t('backlog.deleteKeepTasksHint')}</span>
+            <span className="block text-xs text-slate-500">{keepHint}</span>
           </button>
 
           <button
             type="button"
             disabled={pending !== null}
             onClick={() => handle(true)}
-            className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-left transition hover:bg-rose-100 disabled:opacity-60"
+            className={
+              withDanger
+                ? 'rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-left transition hover:bg-rose-100 disabled:opacity-60'
+                : 'rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:bg-slate-100 disabled:opacity-60'
+            }
           >
-            <span className="block text-sm font-semibold text-rose-700">
-              {pending === 'with' ? '…' : t('backlog.deleteWithTasks')}
+            <span className={`block text-sm font-semibold ${withDanger ? 'text-rose-700' : 'text-slate-900'}`}>
+              {pending === 'with' ? '…' : withLabel}
             </span>
-            <span className="block text-xs text-rose-600">{t('backlog.deleteWithTasksHint')}</span>
+            <span className={`block text-xs ${withDanger ? 'text-rose-600' : 'text-slate-500'}`}>{withHint}</span>
           </button>
 
           <button
