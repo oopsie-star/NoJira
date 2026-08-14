@@ -23,6 +23,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
   const fetchPlaceholders = useStore((state) => state.fetchPlaceholders)
   const fetchProjectWebhooks = useStore((state) => state.fetchProjectWebhooks)
   const fetchTaskLinks = useStore((state) => state.fetchTaskLinks)
+  const fetchTaskLastAiAgent = useStore((state) => state.fetchTaskLastAiAgent)
   const fetchAttachmentNotes = useStore((state) => state.fetchAttachmentNotes)
   const logActivityEvent = useStore((state) => state.logActivityEvent)
   const fetchWeeklyDigestIfDue = useStore((state) => state.fetchWeeklyDigestIfDue)
@@ -65,6 +66,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
         fetchPlaceholders(),
         fetchProjectWebhooks(),
         fetchTaskLinks(),
+        fetchTaskLastAiAgent(),
         fetchAttachmentNotes(),
         fetchProjectTaskCount(),
       ])
@@ -75,6 +77,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
     fetchPlaceholders,
     fetchProjectWebhooks,
     fetchTaskLinks,
+    fetchTaskLastAiAgent,
     fetchAttachmentNotes,
     fetchProjectTaskCount,
   ])

@@ -91,3 +91,12 @@ export function getActiveBlockers(taskId: string, taskLinks: TaskLink[], tasks: 
 export function isTaskBlocked(taskId: string, taskLinks: TaskLink[], tasks: Pick<Task, 'id' | 'status'>[]) {
   return getActiveBlockers(taskId, taskLinks, tasks).length > 0
 }
+
+/** The 'supersedes' link (if any) where `taskId` is the obsolete target being replaced. */
+export function getSupersededByLink(taskId: string, taskLinks: TaskLink[]) {
+  return taskLinks.find((link) => link.link_type === 'supersedes' && link.target_task_id === taskId) ?? null
+}
+
+export function isSuperseded(taskId: string, taskLinks: TaskLink[]) {
+  return getSupersededByLink(taskId, taskLinks) !== null
+}

@@ -17,7 +17,7 @@ import { MarkdownRenderer } from '@/lib/markdown'
 import { useAuthContext } from '@/auth/AuthContext'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
-import { isFreshTask, isTaskBlocked } from '@/lib/ops'
+import { isFreshTask, isSuperseded, isTaskBlocked } from '@/lib/ops'
 import { canDeleteAttachment, canEditAuthoredContent, canExportEpic, canManageProject } from '@/lib/permissions'
 import { exportEpicToZip } from '@/lib/epicExport'
 import { useCurrentProjectKey } from '@/lib/projectRoutes'
@@ -705,15 +705,19 @@ export function BacklogView() {
         return matchesQuery && matchesEpic && matchesAssignee && matchesQuickFilters
       })
       // Freshly added "To do" work floats to the top of every list for a week,
-      // newest first; everything else keeps its manual order.
+      // newest first; obsolete (superseded) work sinks to the bottom; everything
+      // else in between keeps its manual order.
       .sort((left, right) => {
         const leftFresh = isFreshTask(left, tasks)
         const rightFresh = isFreshTask(right, tasks)
         if (leftFresh !== rightFresh) return leftFresh ? -1 : 1
         if (leftFresh) return right.status_changed_at.localeCompare(left.status_changed_at)
+        const leftSuperseded = isSuperseded(left.id, taskLinks)
+        const rightSuperseded = isSuperseded(right.id, taskLinks)
+        if (leftSuperseded !== rightSuperseded) return leftSuperseded ? 1 : -1
         return left.position - right.position
       })
-  }, [assigneeFilter, epicFilter, quickFilterMap, quickFilters, search, tasks])
+  }, [assigneeFilter, epicFilter, quickFilterMap, quickFilters, search, taskLinks, tasks])
 
   const rootTasks = useMemo(() => filteredTasks.filter((task) => !task.parent_task_id), [filteredTasks])
 

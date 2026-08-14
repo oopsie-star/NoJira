@@ -15,6 +15,7 @@ import {
   taskIdFromPath,
 } from './tools/attachmentPaths.ts'
 import { resolveAgentName } from './tools/agentGate.ts'
+import { buildProjectKey } from './tools/createProject.ts'
 import { ToolError } from './tools/errors.ts'
 import { TASK_STATUSES } from './types.ts'
 
@@ -34,19 +35,20 @@ Deno.test('TASK_STATUSES enum matches the tasks.status CHECK constraint', () => 
   assertEquals(TASK_STATUSES, ['todo', 'in_progress', 'done', 'cancelled', 'archived', 'deleted'])
 })
 
-Deno.test('handleRequest: initialize returns protocol/server info without touching the DB', async () => {
+Deno.test('handleRequest: initialize returns protocol/server info and instructions without touching the DB', async () => {
   // deno-lint-ignore no-explicit-any
   const result = await handleRequest(undefined as any, { jsonrpc: '2.0', id: 1, method: 'initialize' })
   assertEquals(result.status, 200)
-  const body = result.body as { result: { protocolVersion: string; serverInfo: { name: string } } }
+  const body = result.body as { result: { protocolVersion: string; serverInfo: { name: string }; instructions: string } }
   assertEquals(body.result.serverInfo.name, 'qira-mcp-server')
+  assertEquals(typeof body.result.instructions, 'string')
 })
 
-Deno.test('handleRequest: tools/list returns all 14 tool schemas without touching the DB', async () => {
+Deno.test('handleRequest: tools/list returns all 18 tool schemas without touching the DB', async () => {
   // deno-lint-ignore no-explicit-any
   const result = await handleRequest(undefined as any, { jsonrpc: '2.0', id: 2, method: 'tools/list' })
   const body = result.body as { result: { tools: { name: string }[] } }
-  assertEquals(body.result.tools.length, 14)
+  assertEquals(body.result.tools.length, 18)
   assertEquals(
     body.result.tools.map((t) => t.name).sort(),
     [
@@ -55,11 +57,15 @@ Deno.test('handleRequest: tools/list returns all 14 tool schemas without touchin
       'attach_sprint_file',
       'attach_task_file',
       'create_epic',
+      'create_project',
       'create_sprint',
       'create_task',
       'get_project',
       'get_task',
+      'list_projects',
       'list_tasks',
+      'mark_task_superseded',
+      'read_attachment',
       'rename_attachment',
       'search_tasks',
       'update_task',
@@ -215,6 +221,13 @@ Deno.test('resolveAgentName accepts claude/chatgpt and rejects anything else', (
     }
     assertEquals(threw, true)
   }
+})
+
+Deno.test('buildProjectKey sanitizes, uppercases, truncates to 6 chars, and dedupes against existing keys', () => {
+  assertEquals(buildProjectKey('My Food Killer', new Set()), 'MYFOOD')
+  assertEquals(buildProjectKey('!!!', new Set()), 'PRJ')
+  assertEquals(buildProjectKey('Momna', new Set(['MOMNA'])), 'MOMNA2')
+  assertEquals(buildProjectKey('Momna', new Set(['MOMNA', 'MOMNA2'])), 'MOMNA3')
 })
 
 Deno.test('decodeAttachmentBase64 rejects invalid base64 and oversized files', () => {

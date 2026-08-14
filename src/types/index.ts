@@ -226,7 +226,7 @@ export interface ProjectWebhook {
 
 export type WebhookType = 'generic' | 'discord' | 'slack'
 
-export type TaskLinkType = 'blocks' | 'relates_to' | 'duplicates'
+export type TaskLinkType = 'blocks' | 'relates_to' | 'duplicates' | 'supersedes'
 
 export interface LinkedTaskSummary {
   id:          string
@@ -368,7 +368,7 @@ export const ROLE_OPTIONS: UserRole[] = ['admin', 'manager', 'member', 'viewer']
 export const PROJECT_ROLE_OPTIONS: ProjectRole[] = ['owner', 'admin', 'founder', 'ceo', 'member', 'viewer']
 export const PORTFOLIO_ITEM_OPTIONS: PortfolioItemType[] = ['initiative', 'milestone']
 export const EPIC_STATUS_OPTIONS: EpicStatus[] = ['planned', 'in_progress', 'done']
-export const TASK_LINK_OPTIONS: TaskLinkType[] = ['blocks', 'relates_to', 'duplicates']
+export const TASK_LINK_OPTIONS: TaskLinkType[] = ['blocks', 'relates_to', 'duplicates', 'supersedes']
 export const WEBHOOK_EVENT_OPTIONS: WebhookEvent[] = ['task.created', 'task.updated', 'task.completed', 'task.unblocked']
 
 export const EPIC_COLORS = [

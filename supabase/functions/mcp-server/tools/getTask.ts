@@ -20,7 +20,7 @@ export async function getTask(admin: SupabaseClient, args: GetTaskArgs) {
 
   const task = await resolveTaskByKeyOrId(admin, ref)
 
-  const [commentsRes, activitiesRes, fieldChangesRes, attachmentNotesRes, lastAgentRes] = await Promise.all([
+  const [commentsRes, activitiesRes, fieldChangesRes, attachmentNotesRes, lastAgentRes, linksRes] = await Promise.all([
     admin
       .from('task_comments')
       .select('id, author_id, body, created_at')
@@ -51,6 +51,11 @@ export async function getTask(admin: SupabaseClient, args: GetTaskArgs) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    admin
+      .from('task_links')
+      .select('source_task_id, target_task_id, source_task:tasks!task_links_source_task_id_fkey(key, title), target_task:tasks!task_links_target_task_id_fkey(key, title)')
+      .eq('link_type', 'supersedes')
+      .or(`source_task_id.eq.${task.id},target_task_id.eq.${task.id}`),
   ])
 
   if (commentsRes.error) throw new ToolError(`Failed to load comments: ${commentsRes.error.message}`)
@@ -58,6 +63,14 @@ export async function getTask(admin: SupabaseClient, args: GetTaskArgs) {
   if (fieldChangesRes.error) throw new ToolError(`Failed to load field history: ${fieldChangesRes.error.message}`)
   if (attachmentNotesRes.error) throw new ToolError(`Failed to load attachment names: ${attachmentNotesRes.error.message}`)
   if (lastAgentRes.error) throw new ToolError(`Failed to load last agent: ${lastAgentRes.error.message}`)
+  if (linksRes.error) throw new ToolError(`Failed to load supersede links: ${linksRes.error.message}`)
+
+  const supersededByLink = (linksRes.data ?? []).find((l) => l.target_task_id === task.id)
+  const supersedesLinks = (linksRes.data ?? []).filter((l) => l.source_task_id === task.id)
+  const supersededBy = supersededByLink
+    ? (supersededByLink.source_task as unknown as { key: string; title: string })
+    : null
+  const supersedes = supersedesLinks.map((l) => l.target_task as unknown as { key: string; title: string })
 
   const comments = commentsRes.data ?? []
   const activities = activitiesRes.data ?? []
@@ -127,6 +140,8 @@ export async function getTask(admin: SupabaseClient, args: GetTaskArgs) {
     last_ai_agent: lastAgentRes.data
       ? { agent_name: lastAgentRes.data.agent_name, action_type: lastAgentRes.data.action_type, at: lastAgentRes.data.created_at }
       : null,
+    superseded_by: supersededBy,
+    supersedes,
     history,
   }
 }

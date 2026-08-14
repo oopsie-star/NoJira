@@ -12,6 +12,7 @@ export function BacklogPage() {
   const fetchMembers = useStore((state) => state.fetchMembers)
   const fetchPortfolioItems = useStore((state) => state.fetchPortfolioItems)
   const fetchTaskLinks = useStore((state) => state.fetchTaskLinks)
+  const fetchTaskLastAiAgent = useStore((state) => state.fetchTaskLastAiAgent)
   const activeProjectId = useStore((state) => state.activeProjectId)
   const loadingBacklog = useStore((state) => state.loadingBacklog)
 
@@ -21,9 +22,26 @@ export function BacklogPage() {
 
   useEffect(() => {
     if (activeProjectId) {
-      Promise.all([fetchBacklog(), fetchSprints(), fetchEpics(), fetchMembers(), fetchPortfolioItems(), fetchTaskLinks()])
+      Promise.all([
+        fetchBacklog(),
+        fetchSprints(),
+        fetchEpics(),
+        fetchMembers(),
+        fetchPortfolioItems(),
+        fetchTaskLinks(),
+        fetchTaskLastAiAgent(),
+      ])
     }
-  }, [activeProjectId, fetchBacklog, fetchSprints, fetchEpics, fetchMembers, fetchPortfolioItems, fetchTaskLinks])
+  }, [
+    activeProjectId,
+    fetchBacklog,
+    fetchSprints,
+    fetchEpics,
+    fetchMembers,
+    fetchPortfolioItems,
+    fetchTaskLinks,
+    fetchTaskLastAiAgent,
+  ])
 
   return (
     <GlobalLayout>

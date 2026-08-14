@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Draggable } from '@hello-pangea/dnd'
-import { AlertTriangle, BookOpenText, Calendar, CheckSquare, ChevronDown, ChevronRight, CircleAlert, GripVertical, ListTree, MoreHorizontal, Music, Paperclip } from 'lucide-react'
+import { AlertTriangle, BookOpenText, Calendar, CheckSquare, ChevronDown, ChevronRight, CircleAlert, GripVertical, History, ListTree, MoreHorizontal, Music, Paperclip, Sparkles } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/common/IssueBadges'
 import { AssigneeAvatars } from '@/components/common/AssigneeAvatars'
 import { previewKind } from '@/lib/attachments'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
-import { isFreshTask, isTaskBlocked } from '@/lib/ops'
+import { getSupersededByLink, isFreshTask, isTaskBlocked } from '@/lib/ops'
 import { useStore } from '@/store'
 import { isUniversalTask, type IssueType, type Task } from '@/types'
 
@@ -29,6 +29,12 @@ const issueTypeClasses: Record<IssueType, string> = {
   bug: 'bg-rose-100 text-rose-700',
 }
 
+const agentBadgeClasses: Record<string, string> = {
+  claude: 'bg-indigo-100 text-indigo-700',
+  chatgpt: 'bg-emerald-100 text-emerald-700',
+  'qira-assistant': 'bg-qira-pistachio-lt text-qira-pistachio-dk',
+}
+
 function IssueTypeIcon({ type }: { type: IssueType }) {
   if (type === 'story') return <BookOpenText size={14} />
   if (type === 'bug') return <AlertTriangle size={14} />
@@ -46,6 +52,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
   const toggleTaskSelection = useStore((state) => state.toggleTaskSelection)
   const members = useStore((state) => state.members)
   const attachmentNotes = useStore((state) => state.attachmentNotes)
+  const taskLastAiAgent = useStore((state) => state.taskLastAiAgent)
   const universal = isUniversalTask(task)
   const audioAttachmentCount = useMemo(
     () => task.attachments.filter((path) => previewKind(path, attachmentNotes[path]?.mime_type) === 'audio').length,
@@ -56,6 +63,8 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
   // a task also counts as fresh while it has a subtask created within that window.
   const fresh = isFreshTask(task, tasks)
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
+  const supersededByLink = getSupersededByLink(task.id, taskLinks)
+  const lastAgent = taskLastAiAgent[task.id]
   const isOpen = task.id === openTaskId
   const isSelected = selectedTaskIds.includes(task.id)
   const bulkActive = selectedTaskIds.length > 0
@@ -185,6 +194,28 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
                       <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700">
                         <CircleAlert size={11} />
                         {t('board.blocked')}
+                      </span>
+                    )}
+                    {supersededByLink && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setOpenTaskId(supersededByLink.source_task_id)
+                        }}
+                        className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700 transition hover:bg-amber-200"
+                      >
+                        <History size={11} />
+                        {t('board.superseded')}
+                        {supersededByLink.source_task && ` → ${supersededByLink.source_task.key}`}
+                      </button>
+                    )}
+                    {lastAgent && (
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ${agentBadgeClasses[lastAgent.agent_name] ?? 'bg-slate-100 text-slate-600'}`}
+                      >
+                        <Sparkles size={11} />
+                        {t(`ai.agent.${lastAgent.agent_name}`)}
                       </span>
                     )}
                   </div>

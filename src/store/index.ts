@@ -426,6 +426,7 @@ interface AppState {
   automationSettings: ProjectAutomationSettings | null
   projectWebhooks: ProjectWebhook[]
   taskLinks: TaskLink[]
+  taskLastAiAgent: Record<string, { agent_name: string; action_type: string; created_at: string }>
   attachmentNotes: Record<string, AttachmentNote>
   activityEvents: ActivityEvent[]
   agentAuditLog: AgentAuditLogEntry[]
@@ -477,6 +478,7 @@ interface AppState {
   fetchAutomationSettings: () => Promise<void>
   fetchProjectWebhooks: () => Promise<void>
   fetchTaskLinks: () => Promise<void>
+  fetchTaskLastAiAgent: () => Promise<void>
   fetchAttachmentNotes: () => Promise<void>
   updateAttachmentNote: (path: string, body: string) => Promise<void>
   recordAttachmentOriginalName: (projectId: string, path: string, originalName: string, mimeType?: string | null) => Promise<void>
@@ -662,6 +664,7 @@ export const useStore = create<AppState>((set, get) => {
     automationSettings: null,
     projectWebhooks: [],
     taskLinks: [],
+    taskLastAiAgent: {},
     attachmentNotes: {},
     activityEvents: [],
     agentAuditLog: [],
@@ -743,6 +746,7 @@ export const useStore = create<AppState>((set, get) => {
         automationSettings: null,
         projectWebhooks: [],
         taskLinks: [],
+        taskLastAiAgent: {},
         attachmentNotes: {},
         activityEvents: [],
         agentAuditLog: [],
@@ -1104,6 +1108,23 @@ export const useStore = create<AppState>((set, get) => {
     set({ taskLinks: normalizeTaskLinks((data ?? []) as unknown[]) })
   },
 
+  fetchTaskLastAiAgent: async () => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) {
+      set({ taskLastAiAgent: {} })
+      return
+    }
+
+    const { data, error } = await supabase.rpc('get_task_last_ai_agent', { p_project_id: activeProjectId })
+    if (error) return
+
+    const byTaskId: Record<string, { agent_name: string; action_type: string; created_at: string }> = {}
+    for (const row of (data ?? []) as { task_id: string; agent_name: string; action_type: string; created_at: string }[]) {
+      byTaskId[row.task_id] = { agent_name: row.agent_name, action_type: row.action_type, created_at: row.created_at }
+    }
+    set({ taskLastAiAgent: byTaskId })
+  },
+
   fetchAttachmentNotes: async () => {
     const activeProjectId = get().activeProjectId
     if (!activeProjectId) {
@@ -1461,6 +1482,7 @@ export const useStore = create<AppState>((set, get) => {
       automationSettings: null,
       projectWebhooks: [],
       taskLinks: [],
+      taskLastAiAgent: {},
       attachmentNotes: {},
       activityEvents: [],
       agentAuditLog: [],
@@ -2422,6 +2444,7 @@ export const useStore = create<AppState>((set, get) => {
         automationSettings: null,
         projectWebhooks: [],
         taskLinks: [],
+        taskLastAiAgent: {},
         attachmentNotes: {},
         activityEvents: [],
         agentAuditLog: [],

@@ -50,6 +50,8 @@ export async function handleRequest(admin: SupabaseClient, body: unknown): Promi
       protocolVersion: PROTOCOL_VERSION,
       capabilities: { tools: {} },
       serverInfo: SERVER_INFO,
+      instructions:
+        'Qira tracks multiple projects. Before creating or modifying anything, confirm with the human operator which project (key) you are acting in — call list_projects if you are not sure what projects exist. Do not silently guess a project.',
     })
   }
 

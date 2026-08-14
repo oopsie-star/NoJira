@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Calendar, ChevronLeft, ChevronRight, Link2, MessageSquare, Paperclip, Plus, Send, ShieldAlert, Timer, Trash2, X } from 'lucide-react'
+import { Calendar, ChevronLeft, ChevronRight, Link2, MessageSquare, Paperclip, Plus, Send, ShieldAlert, Sparkles, Timer, Trash2, X } from 'lucide-react'
 import { callLLM, getLLMConfig } from '@/lib/ai'
 import type { LLMMessage } from '@/lib/ai'
 import { supabase } from '@/lib/supabase'
@@ -27,6 +27,12 @@ import { useCurrentProjectKey } from '@/lib/projectRoutes'
 import { useStore } from '@/store'
 import { isUniversalTask, type IssuePriority, type IssueType, type Profile, type Task, type TaskLinkType, type TaskStatus } from '@/types'
 
+const agentBadgeClasses: Record<string, string> = {
+  claude: 'bg-indigo-100 text-indigo-700',
+  chatgpt: 'bg-emerald-100 text-emerald-700',
+  'qira-assistant': 'bg-qira-pistachio-lt text-qira-pistachio-dk',
+}
+
 function MetaSection({
   title,
   children,
@@ -50,6 +56,7 @@ export function TaskDrawer() {
   const members = useStore((state) => state.members)
   const placeholders = useStore((state) => state.placeholders)
   const taskLinks = useStore((state) => state.taskLinks)
+  const taskLastAiAgent = useStore((state) => state.taskLastAiAgent)
   const taskComments = useStore((state) => state.taskComments)
   const taskActivities = useStore((state) => state.taskActivities)
   const taskFieldChanges = useStore((state) => state.taskFieldChanges)
@@ -359,6 +366,7 @@ export function TaskDrawer() {
   function getLinkText(type: TaskLinkType, isIncoming: boolean) {
     if (type === 'blocks') return t(isIncoming ? 'task.link.blockedBy' : 'task.link.blocks')
     if (type === 'duplicates') return t(isIncoming ? 'task.link.duplicatedBy' : 'task.link.duplicates')
+    if (type === 'supersedes') return t(isIncoming ? 'task.link.supersededBy' : 'task.link.supersedes')
     return t('task.link.relates_to')
   }
 
@@ -918,6 +926,7 @@ export function TaskDrawer() {
                      <option value="blocks">{t('task.link.blocks')}</option>
                      <option value="relates_to">{t('task.link.relates_to')}</option>
                      <option value="duplicates">{t('task.link.duplicates')}</option>
+                     <option value="supersedes">{t('task.link.supersedes')}</option>
                    </select>
 
                    <select
@@ -984,6 +993,19 @@ export function TaskDrawer() {
                    </div>
                  </div>
                </MetaSection>
+
+               {taskLastAiAgent[currentTask.id] && (
+                 <MetaSection title={t('task.lastAiAgent')}>
+                   <span
+                     className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
+                       agentBadgeClasses[taskLastAiAgent[currentTask.id].agent_name] ?? 'bg-slate-100 text-slate-600'
+                     }`}
+                   >
+                     <Sparkles size={13} />
+                     {t(`ai.agent.${taskLastAiAgent[currentTask.id].agent_name}`)}
+                   </span>
+                 </MetaSection>
+               )}
 
                <MetaSection title={t('task.labels')}>
                  <input

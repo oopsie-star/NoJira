@@ -227,6 +227,32 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
     },
   },
   {
+    name: 'read_attachment',
+    description:
+      'Download an existing attachment\'s raw content as base64 — works for any file type, including archives, but returns raw bytes only (you cannot browse/unzip an archive through this — just fetch it). Use the path from get_task/get_project\'s attachments list.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'The attachment\'s storage path, from get_task/get_project.' },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'mark_task_superseded',
+    description:
+      'Mark a task as obsolete, replaced by a newer task — links them and sinks the old task toward the bottom of the backlog, instead of manually prefixing its title with "[устарело]".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task: { type: 'string', description: 'The OLD task (key or id) that is now obsolete.' },
+        superseded_by: { type: 'string', description: 'The NEW task (key or id) that replaces it.' },
+        agent_name: AGENT_NAME_PROPERTY,
+      },
+      required: ['task', 'superseded_by', 'agent_name'],
+    },
+  },
+  {
     name: 'search_tasks',
     description: 'Search tasks by a substring match on title and description.',
     inputSchema: {
@@ -236,6 +262,31 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
         project: { type: 'string', description: 'Optional — restrict to one project by key.' },
       },
       required: ['query'],
+    },
+  },
+  {
+    name: 'list_projects',
+    description:
+      'List every project in Qira, including empty ones with no tasks yet. Call this whenever you are unsure what projects exist, or before guessing a project key.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'create_project',
+    description:
+      'Create a new project. State the project name and key back to the human operator and get their go-ahead before calling this — creating the wrong project is hard to undo cleanly.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        key: { type: 'string', description: 'Short uppercase key, e.g. "PROJ". Auto-generated from name if omitted.' },
+        description: { type: 'string' },
+        owner_email: { type: 'string', description: 'Email of the profile who should own this project.' },
+        agent_name: AGENT_NAME_PROPERTY,
+      },
+      required: ['name', 'owner_email', 'agent_name'],
     },
   },
 ]
