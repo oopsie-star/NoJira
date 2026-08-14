@@ -112,10 +112,11 @@ function disciplineRank(
  * existing relative order. Superseded work still sinks to the bottom.
  *
  * Freshly added work normally floats above the hierarchy for its first week,
- * newest first — that's meant to spotlight new work against an otherwise
+ * oldest-of-the-batch first (so a run of tasks added together reads in
+ * creation order) — that's meant to spotlight new work against an otherwise
  * settled list. When the *entire* list is fresh (a whole new epic/sprint
  * created at once, spanning every discipline), that contrast doesn't exist —
- * so the hierarchy applies immediately instead of an arbitrary recency order.
+ * so the hierarchy applies immediately instead.
  */
 export function sortTasksByDiscipline(
   tasks: Task[],
@@ -134,7 +135,7 @@ export function sortTasksByDiscipline(
         const leftFresh = isFreshTask(left.task, allTasks)
         const rightFresh = isFreshTask(right.task, allTasks)
         if (leftFresh !== rightFresh) return leftFresh ? -1 : 1
-        if (leftFresh) return right.task.status_changed_at.localeCompare(left.task.status_changed_at)
+        if (leftFresh) return left.task.position - right.task.position
       }
 
       const leftSuperseded = isSuperseded(left.task.id, taskLinks)

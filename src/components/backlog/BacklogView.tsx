@@ -707,13 +707,14 @@ export function BacklogView() {
         return matchesQuery && matchesEpic && matchesAssignee && matchesQuickFilters
       })
       // Freshly added "To do" work floats to the top of every list for a week,
-      // newest first; obsolete (superseded) work sinks to the bottom; everything
-      // else in between keeps its manual order.
+      // oldest-of-the-fresh-batch first (so a run of tasks added together reads
+      // in creation order, first to last); obsolete (superseded) work sinks to
+      // the bottom; everything else in between keeps its manual order.
       .sort((left, right) => {
         const leftFresh = isFreshTask(left, tasks)
         const rightFresh = isFreshTask(right, tasks)
         if (leftFresh !== rightFresh) return leftFresh ? -1 : 1
-        if (leftFresh) return right.status_changed_at.localeCompare(left.status_changed_at)
+        if (leftFresh) return left.position - right.position
         const leftSuperseded = isSuperseded(left.id, taskLinks)
         const rightSuperseded = isSuperseded(right.id, taskLinks)
         if (leftSuperseded !== rightSuperseded) return leftSuperseded ? 1 : -1
