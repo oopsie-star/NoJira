@@ -80,6 +80,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
   const selectedTaskIds = useStore((state) => state.selectedTaskIds)
   const toggleTaskSelection = useStore((state) => state.toggleTaskSelection)
   const members = useStore((state) => state.members)
+  const projectMembers = useStore((state) => state.projectMembers)
   const attachmentNotes = useStore((state) => state.attachmentNotes)
   const taskLastAiAgent = useStore((state) => state.taskLastAiAgent)
   const universal = isUniversalTask(task)
@@ -92,7 +93,10 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
   // a task also counts as fresh while it has a subtask created within that window.
   const fresh = isFreshTask(task, tasks)
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
-  const disciplines = useMemo(() => taskDisciplines(task, members, placeholders), [task, members, placeholders])
+  const disciplines = useMemo(
+    () => taskDisciplines(task, members, placeholders, projectMembers),
+    [task, members, placeholders, projectMembers]
+  )
   const supersededByLink = getSupersededByLink(task.id, taskLinks)
   const lastAgent = taskLastAiAgent[task.id]
   const isOpen = task.id === openTaskId

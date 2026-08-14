@@ -587,6 +587,7 @@ export function BacklogView() {
   const sprints = useStore((state) => state.sprints)
   const epics = useStore((state) => state.epics)
   const members = useStore((state) => state.members)
+  const projectMembers = useStore((state) => state.projectMembers)
   const taskLinks = useStore((state) => state.taskLinks)
   const updateTask = useStore((state) => state.updateTask)
   const updateEpic = useStore((state) => state.updateEpic)
@@ -765,10 +766,11 @@ export function BacklogView() {
           taskLinks,
           members,
           placeholders,
+          projectMembers,
         ),
       }))
       .filter(({ tasks }) => !hasActiveFilters || tasks.length > 0),
-    [filteredTasks, orphanInSection, hasActiveFilters, sortedSprints, tasks, taskLinks, members, placeholders]
+    [filteredTasks, orphanInSection, hasActiveFilters, sortedSprints, tasks, taskLinks, members, placeholders, projectMembers]
   )
 
   // Sprints that belong to an epic are nested inside it (epics are the top-level
@@ -824,6 +826,7 @@ export function BacklogView() {
           taskLinks,
           members,
           placeholders,
+          projectMembers,
         )
         const epicSprints = allSprintSections.filter(({ sprint }) => sprint.epic_id === epic.id)
         return {
@@ -848,7 +851,7 @@ export function BacklogView() {
         const rightFresh = fresh(right)
         return leftFresh === rightFresh ? 0 : leftFresh ? -1 : 1
       }),
-    [hasActiveFilters, rootTasks, sortedEpics, allSprintSections, tasks, taskLinks, members, placeholders]
+    [hasActiveFilters, rootTasks, sortedEpics, allSprintSections, tasks, taskLinks, members, placeholders, projectMembers]
   )
 
   const firstExpandedSectionKey = useMemo(() => {

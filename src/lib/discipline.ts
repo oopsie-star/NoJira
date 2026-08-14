@@ -1,10 +1,14 @@
 import { isFreshTask, isSuperseded } from './ops'
-import type { JiraUserPlaceholder, Profile, Task, TaskLink } from '@/types'
+import type { JiraUserPlaceholder, Profile, ProjectMember, Task, TaskLink } from '@/types'
 
 export type Discipline = 'product' | 'design' | 'backend' | 'frontend' | 'qa'
 
-/** Product frames the work, then it flows design → backend → frontend → QA. */
-export const DISCIPLINE_ORDER: Discipline[] = ['product', 'design', 'backend', 'frontend', 'qa']
+/** Product frames the work, then it flows design → backend → frontend. QA is
+ *  deliberately excluded here — see `disciplinesOf` for why. */
+export const DISCIPLINE_ORDER: Discipline[] = ['product', 'design', 'backend', 'frontend']
+
+/** Display order for badges — QA still gets shown, just never ranked. */
+const DISCIPLINE_BADGE_ORDER: Discipline[] = [...DISCIPLINE_ORDER, 'qa']
 
 export const DISCIPLINE_LABELS: Record<Discipline, string> = {
   product: 'Product',
@@ -36,50 +40,82 @@ function departmentOf(id: string, members: Profile[], placeholders: JiraUserPlac
     || null
 }
 
-/** Every discipline represented among a task's assignees, highest-ranked first. */
+/** CEO, founder, and (global) super admin are always Product, regardless of their `department`. */
+function isProductByRole(id: string, members: Profile[], projectMembers: ProjectMember[]): boolean {
+  if (members.find((m) => m.id === id)?.role === 'admin') return true
+  const membership = projectMembers.find((pm) => pm.profile_id === id)
+  return membership?.project_role === 'ceo' || membership?.project_role === 'founder'
+}
+
+function disciplinesOf(
+  task: Pick<Task, 'assignee_ids' | 'assignee_id' | 'assignee_placeholder_id'>,
+  members: Profile[],
+  placeholders: JiraUserPlaceholder[],
+  projectMembers: ProjectMember[],
+): Set<Discipline> {
+  const found = new Set<Discipline>()
+  for (const id of taskAssigneeIds(task)) {
+    if (isProductByRole(id, members, projectMembers)) {
+      found.add('product')
+      continue
+    }
+    const discipline = DEPARTMENT_TO_DISCIPLINE[departmentOf(id, members, placeholders) ?? '']
+    if (discipline) found.add(discipline)
+  }
+  return found
+}
+
+/** Every discipline represented among a task's assignees, for badges — includes QA. */
 export function taskDisciplines(
   task: Pick<Task, 'assignee_ids' | 'assignee_id' | 'assignee_placeholder_id'>,
   members: Profile[],
   placeholders: JiraUserPlaceholder[],
+  projectMembers: ProjectMember[],
 ): Discipline[] {
-  const found = new Set<Discipline>()
-  for (const id of taskAssigneeIds(task)) {
-    const discipline = DEPARTMENT_TO_DISCIPLINE[departmentOf(id, members, placeholders) ?? '']
-    if (discipline) found.add(discipline)
-  }
-  return DISCIPLINE_ORDER.filter((discipline) => found.has(discipline))
+  const found = disciplinesOf(task, members, placeholders, projectMembers)
+  return DISCIPLINE_BADGE_ORDER.filter((discipline) => found.has(discipline))
 }
 
 /**
  * The section a task groups into — its highest-ranked discipline (a task with
  * both a designer and a frontend dev sits with Design, since Design outranks
- * Frontend), or null when no assignee maps to a recognized discipline. Tasks
- * with no match sort after every named discipline.
+ * Frontend), or null when no assignee maps to a ranked discipline.
+ *
+ * QA never wins placement on its own — a QA task is testing someone else's
+ * work, so it belongs with whichever discipline that is (a QA+Backend task
+ * places under Backend). A QA-only task has no such signal yet, so — for now
+ * — it falls after every named discipline, same as unassigned work.
  */
 export function primaryDiscipline(
   task: Pick<Task, 'assignee_ids' | 'assignee_id' | 'assignee_placeholder_id'>,
   members: Profile[],
   placeholders: JiraUserPlaceholder[],
+  projectMembers: ProjectMember[],
 ): Discipline | null {
-  return taskDisciplines(task, members, placeholders)[0] ?? null
+  const found = disciplinesOf(task, members, placeholders, projectMembers)
+  return DISCIPLINE_ORDER.find((discipline) => found.has(discipline)) ?? null
 }
 
 function disciplineRank(
   task: Pick<Task, 'assignee_ids' | 'assignee_id' | 'assignee_placeholder_id'>,
   members: Profile[],
   placeholders: JiraUserPlaceholder[],
+  projectMembers: ProjectMember[],
 ): number {
-  const discipline = primaryDiscipline(task, members, placeholders)
+  const discipline = primaryDiscipline(task, members, placeholders, projectMembers)
   return discipline ? DISCIPLINE_ORDER.indexOf(discipline) : DISCIPLINE_ORDER.length
 }
 
 /**
  * Orders a sprint's or epic's task list into the discipline hierarchy: Product
- * first, then Design → Backend → Frontend → QA, each group keeping the tasks'
- * existing relative order. Freshly added work still floats to the top for its
- * first week (unaffected by discipline) and superseded work still sinks to the
- * bottom — the hierarchy only governs the settled work in between, mirroring
- * the same three-tier priority `filteredTasks` already sorts by.
+ * first, then Design → Backend → Frontend, each group keeping the tasks'
+ * existing relative order. Superseded work still sinks to the bottom.
+ *
+ * Freshly added work normally floats above the hierarchy for its first week,
+ * newest first — that's meant to spotlight new work against an otherwise
+ * settled list. When the *entire* list is fresh (a whole new epic/sprint
+ * created at once, spanning every discipline), that contrast doesn't exist —
+ * so the hierarchy applies immediately instead of an arbitrary recency order.
  */
 export function sortTasksByDiscipline(
   tasks: Task[],
@@ -87,21 +123,26 @@ export function sortTasksByDiscipline(
   taskLinks: TaskLink[],
   members: Profile[],
   placeholders: JiraUserPlaceholder[],
+  projectMembers: ProjectMember[],
 ): Task[] {
+  const allFresh = tasks.length > 0 && tasks.every((task) => isFreshTask(task, allTasks))
+
   return tasks
     .map((task, index) => ({ task, index }))
     .sort((left, right) => {
-      const leftFresh = isFreshTask(left.task, allTasks)
-      const rightFresh = isFreshTask(right.task, allTasks)
-      if (leftFresh !== rightFresh) return leftFresh ? -1 : 1
-      if (leftFresh) return right.task.status_changed_at.localeCompare(left.task.status_changed_at)
+      if (!allFresh) {
+        const leftFresh = isFreshTask(left.task, allTasks)
+        const rightFresh = isFreshTask(right.task, allTasks)
+        if (leftFresh !== rightFresh) return leftFresh ? -1 : 1
+        if (leftFresh) return right.task.status_changed_at.localeCompare(left.task.status_changed_at)
+      }
 
       const leftSuperseded = isSuperseded(left.task.id, taskLinks)
       const rightSuperseded = isSuperseded(right.task.id, taskLinks)
       if (leftSuperseded !== rightSuperseded) return leftSuperseded ? 1 : -1
 
-      const leftRank = disciplineRank(left.task, members, placeholders)
-      const rightRank = disciplineRank(right.task, members, placeholders)
+      const leftRank = disciplineRank(left.task, members, placeholders, projectMembers)
+      const rightRank = disciplineRank(right.task, members, placeholders, projectMembers)
       if (leftRank !== rightRank) return leftRank - rightRank
 
       return left.task.position - right.task.position || left.index - right.index
