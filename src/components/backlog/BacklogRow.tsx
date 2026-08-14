@@ -1,14 +1,43 @@
 import { useMemo, useState } from 'react'
 import { Draggable } from '@hello-pangea/dnd'
-import { AlertTriangle, BookOpenText, Calendar, CheckSquare, ChevronDown, ChevronRight, CircleAlert, GripVertical, History, ListTree, MoreHorizontal, Music, Paperclip, Sparkles } from 'lucide-react'
+import { AlertTriangle, BookOpenText, Calendar, CheckSquare, ChevronDown, ChevronRight, CircleAlert, Code2, FlaskConical, GripVertical, History, ListTree, MoreHorizontal, Music, Paperclip, Palette, Server, Sparkles, Target } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/common/IssueBadges'
 import { AssigneeAvatars } from '@/components/common/AssigneeAvatars'
 import { previewKind } from '@/lib/attachments'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
+import { DISCIPLINE_LABELS, taskDisciplines, type Discipline } from '@/lib/discipline'
 import { getSupersededByLink, isFreshTask, isSuperseded, isTaskBlocked } from '@/lib/ops'
 import { useStore } from '@/store'
 import { isUniversalTask, type IssueType, type Task } from '@/types'
+
+const disciplineIconAndClasses: Record<Discipline, { icon: typeof Target; className: string }> = {
+  product: { icon: Target, className: 'bg-violet-100 text-violet-700' },
+  design: { icon: Palette, className: 'bg-pink-100 text-pink-700' },
+  backend: { icon: Server, className: 'bg-amber-100 text-amber-700' },
+  frontend: { icon: Code2, className: 'bg-blue-100 text-blue-700' },
+  qa: { icon: FlaskConical, className: 'bg-emerald-100 text-emerald-700' },
+}
+
+function DisciplineBadges({ disciplines }: { disciplines: Discipline[] }) {
+  if (disciplines.length === 0) return null
+  return (
+    <>
+      {disciplines.map((discipline) => {
+        const { icon: Icon, className } = disciplineIconAndClasses[discipline]
+        return (
+          <span
+            key={discipline}
+            title={DISCIPLINE_LABELS[discipline]}
+            className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${className}`}
+          >
+            <Icon size={11} />
+          </span>
+        )
+      })}
+    </>
+  )
+}
 
 interface BacklogRowProps {
   task: Task
@@ -63,6 +92,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
   // a task also counts as fresh while it has a subtask created within that window.
   const fresh = isFreshTask(task, tasks)
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
+  const disciplines = useMemo(() => taskDisciplines(task, members, placeholders), [task, members, placeholders])
   const supersededByLink = getSupersededByLink(task.id, taskLinks)
   const lastAgent = taskLastAiAgent[task.id]
   const isOpen = task.id === openTaskId
@@ -139,6 +169,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
                     <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                       {task.key}
                     </span>
+                    <DisciplineBadges disciplines={disciplines} />
                     {!mobile && task.epic && (
                       <span
                         className="truncate rounded-full px-2 py-0.5 text-[11px] font-semibold"

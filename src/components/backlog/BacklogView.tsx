@@ -15,6 +15,7 @@ import { CreateTaskModal } from '@/components/task/CreateTaskModal'
 import { MarkdownEditor } from '@/components/common/MarkdownEditor'
 import { MarkdownRenderer } from '@/lib/markdown'
 import { useAuthContext } from '@/auth/AuthContext'
+import { sortTasksByDiscipline } from '@/lib/discipline'
 import { getErrorMessage } from '@/lib/errors'
 import { useI18n } from '@/lib/i18n'
 import { isFreshTask, isSuperseded, isTaskBlocked } from '@/lib/ops'
@@ -756,12 +757,18 @@ export function BacklogView() {
     () => sortedSprints
       .map((sprint) => ({
         sprint,
-        tasks: filteredTasks.filter(
-          (task) => task.sprint_id === sprint.id && orphanInSection(task, (parent) => parent.sprint_id === sprint.id),
+        tasks: sortTasksByDiscipline(
+          filteredTasks.filter(
+            (task) => task.sprint_id === sprint.id && orphanInSection(task, (parent) => parent.sprint_id === sprint.id),
+          ),
+          tasks,
+          taskLinks,
+          members,
+          placeholders,
         ),
       }))
       .filter(({ tasks }) => !hasActiveFilters || tasks.length > 0),
-    [filteredTasks, orphanInSection, hasActiveFilters, sortedSprints]
+    [filteredTasks, orphanInSection, hasActiveFilters, sortedSprints, tasks, taskLinks, members, placeholders]
   )
 
   // Sprints that belong to an epic are nested inside it (epics are the top-level
@@ -811,8 +818,12 @@ export function BacklogView() {
   const epicSections = useMemo(
     () => sortedEpics
       .map((epic) => {
-        const directTasks = rootTasks.filter(
-          (task) => task.epic_id === epic.id && !task.sprint_id,
+        const directTasks = sortTasksByDiscipline(
+          rootTasks.filter((task) => task.epic_id === epic.id && !task.sprint_id),
+          tasks,
+          taskLinks,
+          members,
+          placeholders,
         )
         const epicSprints = allSprintSections.filter(({ sprint }) => sprint.epic_id === epic.id)
         return {
@@ -837,7 +848,7 @@ export function BacklogView() {
         const rightFresh = fresh(right)
         return leftFresh === rightFresh ? 0 : leftFresh ? -1 : 1
       }),
-    [hasActiveFilters, rootTasks, sortedEpics, allSprintSections, tasks]
+    [hasActiveFilters, rootTasks, sortedEpics, allSprintSections, tasks, taskLinks, members, placeholders]
   )
 
   const firstExpandedSectionKey = useMemo(() => {
