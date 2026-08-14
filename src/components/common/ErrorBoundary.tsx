@@ -43,7 +43,13 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBound
 
     if (isChunkLoadError(error) && canAttemptReload()) {
       sessionStorage.setItem(RELOAD_TIMESTAMP_KEY, String(Date.now()))
-      window.location.reload()
+      // index.html is served with Cache-Control: max-age=600, so a plain
+      // reload() can just re-serve the same stale pre-deploy HTML from the
+      // browser's HTTP cache — same missing chunk, same error, reload again
+      // 30s later, forever. A cache-busting query param forces a real fetch.
+      const url = new URL(window.location.href)
+      url.searchParams.set('_r', String(Date.now()))
+      window.location.replace(url.toString())
       return (
         <div className="flex h-screen items-center justify-center bg-white">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-qira-pistachio border-t-transparent" />
