@@ -6,7 +6,7 @@ import { AssigneeAvatars } from '@/components/common/AssigneeAvatars'
 import { previewKind } from '@/lib/attachments'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
-import { getSupersededByLink, isFreshTask, isTaskBlocked } from '@/lib/ops'
+import { getSupersededByLink, isFreshTask, isSuperseded, isTaskBlocked } from '@/lib/ops'
 import { useStore } from '@/store'
 import { isUniversalTask, type IssueType, type Task } from '@/types'
 
@@ -72,12 +72,17 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
   const subtasks = useMemo(() => {
     const all = tasks
       .filter((t) => t.parent_task_id === task.id)
-      .sort((left, right) => left.position - right.position)
+      .sort((left, right) => {
+        const leftSuperseded = isSuperseded(left.id, taskLinks)
+        const rightSuperseded = isSuperseded(right.id, taskLinks)
+        if (leftSuperseded !== rightSuperseded) return leftSuperseded ? 1 : -1
+        return left.position - right.position
+      })
     // A subtask that matched the query is what pulled this parent row into
     // view in the first place — only show the ones that actually match
     // instead of dumping every sibling subtask alongside it.
     return searchText ? all.filter((t) => matchesSearchText(t, searchText)) : all
-  }, [tasks, task.id, searchText])
+  }, [tasks, task.id, searchText, taskLinks])
   const subtaskCount = subtasks.length
   const [subtasksExpanded, setSubtasksExpanded] = useState(true)
 
@@ -252,26 +257,44 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
 
           {subtaskCount > 0 && subtasksExpanded && (
             <div className="space-y-1.5 border-t border-slate-100 px-3 py-2 pl-11">
-              {subtasks.map((subtask) => (
-                <button
-                  key={subtask.id}
-                  type="button"
-                  onClick={() => setOpenTaskId(subtask.id)}
-                  className={[
-                    'flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-slate-100',
-                    subtask.id === openTaskId ? 'bg-qira-pistachio-lt/50' : '',
-                  ].join(' ')}
-                >
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500">
-                    <IssueTypeIcon type={subtask.issue_type} />
-                  </span>
-                  <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                    {subtask.key}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{subtask.title}</span>
-                  <StatusBadge status={subtask.status} />
-                </button>
-              ))}
+              {subtasks.map((subtask) => {
+                const subtaskSupersededByLink = getSupersededByLink(subtask.id, taskLinks)
+                const subtaskLastAgent = taskLastAiAgent[subtask.id]
+                return (
+                  <button
+                    key={subtask.id}
+                    type="button"
+                    onClick={() => setOpenTaskId(subtask.id)}
+                    className={[
+                      'flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-slate-100',
+                      subtask.id === openTaskId ? 'bg-qira-pistachio-lt/50' : '',
+                    ].join(' ')}
+                  >
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500">
+                      <IssueTypeIcon type={subtask.issue_type} />
+                    </span>
+                    <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                      {subtask.key}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{subtask.title}</span>
+                    {subtaskSupersededByLink && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                        <History size={10} />
+                        {t('board.superseded')}
+                      </span>
+                    )}
+                    {subtaskLastAgent && (
+                      <span
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${agentBadgeClasses[subtaskLastAgent.agent_name] ?? 'bg-slate-100 text-slate-600'}`}
+                      >
+                        <Sparkles size={10} />
+                        {t(`ai.agent.${subtaskLastAgent.agent_name}`)}
+                      </span>
+                    )}
+                    <StatusBadge status={subtask.status} />
+                  </button>
+                )
+              })}
             </div>
           )}
           </div>
