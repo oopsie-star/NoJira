@@ -30,9 +30,9 @@ export function BulkActionBar() {
   const apply = (fields: Partial<Task>) => void bulkUpdateTasks(fields)
 
   function assigneeFields(value: string): Partial<Task> {
-    if (!value) return { assignee_id: null, assignee_placeholder_id: null }
-    if (value.startsWith('placeholder:')) return { assignee_id: null, assignee_placeholder_id: value.slice('placeholder:'.length) }
-    return { assignee_id: value, assignee_placeholder_id: null }
+    if (!value) return { assignee_id: null, assignee_placeholder_id: null, assignee_ids: [] }
+    if (value.startsWith('placeholder:')) return { assignee_id: null, assignee_placeholder_id: value.slice('placeholder:'.length), assignee_ids: [] }
+    return { assignee_id: value, assignee_placeholder_id: null, assignee_ids: [] }
   }
 
   const selectClass =
