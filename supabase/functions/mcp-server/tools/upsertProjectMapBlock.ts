@@ -2,6 +2,7 @@ import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8
 
 import { resolveAgentName } from './agentGate.ts'
 import { ToolError } from './errors.ts'
+import { notifyProjectMapBlock } from './notifyProjectMap.ts'
 import { isUuid, resolveMcpAgentProfileId, resolveProjectByKey } from './resolvers.ts'
 
 interface UpsertProjectMapBlockArgs {
@@ -138,6 +139,14 @@ export async function upsertProjectMapBlock(admin: SupabaseClient, args: UpsertP
     result: data,
   })
   if (auditError) console.error('[mcp-server] Failed to record agent_audit_log', auditError.message)
+
+  await notifyProjectMapBlock({
+    projectId: project.id,
+    discipline,
+    title,
+    agentName,
+    isNew: !existing,
+  })
 
   return data
 }

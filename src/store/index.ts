@@ -626,9 +626,11 @@ export const useStore = create<AppState>((set, get) => {
       title: string
       body: string
       telegramRecipientIds?: string[]
+      /** Project-relative deep link (e.g. 'map') when the notification isn't about a task. */
+      linkPath?: string
     },
   ) => {
-    const { projectId, taskId, notificationType, title, body, telegramRecipientIds } = opts
+    const { projectId, taskId, notificationType, title, body, telegramRecipientIds, linkPath } = opts
     const telegramIds = telegramRecipientIds ?? recipientIds
     if (!recipientIds.length && !telegramIds.length) return
 
@@ -654,11 +656,69 @@ export const useStore = create<AppState>((set, get) => {
           task_id: taskId,
           subject: title,
           body_text: body,
+          ...(linkPath ? { link_path: linkPath } : {}),
         },
       })
     } catch {
       // Best-effort: the in-app notification already landed above.
     }
+  }
+
+  // Project Map fan-out. Unlike task notifications, the audience is resolved
+  // by the edge function from a named group rather than listed here: a browser
+  // can't enumerate global super admins, and the MCP server (where AI-written
+  // content arrives) has to reach the same audiences without a session at all.
+  // Best-effort throughout — a failed notification never fails the write.
+  const DISCIPLINE_LABELS: Record<string, string> = {
+    backend: 'Бекенд',
+    frontend: 'Фронтенд',
+    design: 'Дизайн',
+    qa: 'QA',
+  }
+
+  const notifyProjectMapGroup = async (payload: Record<string, unknown>) => {
+    try {
+      await supabase.functions.invoke('send-task-notification', {
+        body: { ...payload, task_id: null, link_path: 'map' },
+      })
+    } catch {
+      // Best-effort.
+    }
+  }
+
+  const notifyProjectMapMaterial = async (opts: {
+    projectId: string
+    discipline: string
+    title: string
+    actorId: string | null
+    detail: string
+  }) => {
+    const section = DISCIPLINE_LABELS[opts.discipline] ?? opts.discipline
+    await notifyProjectMapGroup({
+      recipient_group: 'project_members',
+      exclude_profile_id: opts.actorId,
+      project_id: opts.projectId,
+      subject: `Карта проекта · ${section}: ${opts.title}`,
+      body_text: `${opts.detail} Раздел «${section}» карты проекта.`,
+    })
+  }
+
+  const notifyProjectMapQuestion = async (opts: {
+    projectId: string
+    discipline: string
+    blockTitle: string
+    body: string
+    askedBy: string
+    actorId: string | null
+  }) => {
+    const section = DISCIPLINE_LABELS[opts.discipline] ?? opts.discipline
+    await notifyProjectMapGroup({
+      recipient_group: 'super_admins',
+      exclude_profile_id: opts.actorId,
+      project_id: opts.projectId,
+      subject: `Вопрос по карте проекта · ${section}: ${opts.blockTitle}`,
+      body_text: `${opts.askedBy} спрашивает: ${opts.body}`,
+    })
   }
 
   // Everyone on the active project except the actor — the wide audience
@@ -1060,6 +1120,7 @@ export const useStore = create<AppState>((set, get) => {
   updateProjectMapBlock: async (id, fields) => {
     const profile = get().profile
     const previous = get().projectMapBlocks
+    const before = previous.find((block) => block.id === id) ?? null
 
     set((state) => ({
       projectMapBlocks: state.projectMapBlocks.map((block) => (block.id === id ? { ...block, ...fields } : block)),
@@ -1073,6 +1134,21 @@ export const useStore = create<AppState>((set, get) => {
     if (error) {
       set({ projectMapBlocks: previous })
       get().notify(getErrorMessage(error), 'error')
+      return
+    }
+
+    // Files landing on a block are "material added" for the whole team. A bare
+    // rename isn't, and a removal isn't either — only announce a net addition,
+    // so curating a block doesn't spam everyone.
+    const addedFiles = (fields.attachments?.length ?? 0) - (before?.attachments.length ?? 0)
+    if (before && addedFiles > 0) {
+      await notifyProjectMapMaterial({
+        projectId: before.project_id,
+        discipline: before.discipline,
+        title: fields.title ?? before.title,
+        actorId: profile?.id ?? null,
+        detail: `Добавлено файлов: ${addedFiles}.`,
+      })
     }
   },
 
@@ -1113,6 +1189,20 @@ export const useStore = create<AppState>((set, get) => {
     }
 
     set((state) => ({ projectMapQa: [...state.projectMapQa, data as ProjectMapQaEntry] }))
+
+    // Only questions are escalated to the super admins who field them — an
+    // answer is the resolution, not a new ask.
+    if (!parentId) {
+      const block = get().projectMapBlocks.find((item) => item.id === blockId) ?? null
+      await notifyProjectMapQuestion({
+        projectId: activeProjectId,
+        discipline: block?.discipline ?? '',
+        blockTitle: block?.title ?? '',
+        body: body.trim(),
+        askedBy: profile.full_name || profile.email,
+        actorId: profile.id,
+      })
+    }
   },
 
   deleteProjectMapQa: async (id) => {

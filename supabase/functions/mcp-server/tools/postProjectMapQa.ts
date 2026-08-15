@@ -2,6 +2,7 @@ import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8
 
 import { resolveAgentName } from './agentGate.ts'
 import { ToolError } from './errors.ts'
+import { notifyProjectMapQuestion } from './notifyProjectMap.ts'
 import { resolveMcpAgentProfileId } from './resolvers.ts'
 
 interface PostProjectMapQaArgs {
@@ -42,7 +43,7 @@ export async function postProjectMapQa(admin: SupabaseClient, args: PostProjectM
 
   const { data: block, error: blockError } = await admin
     .from('project_map_blocks')
-    .select('id, project_id, title')
+    .select('id, project_id, title, discipline')
     .eq('id', blockId)
     .maybeSingle()
   if (blockError) throw new ToolError(`Failed to look up block "${blockId}": ${blockError.message}`)
@@ -76,6 +77,17 @@ export async function postProjectMapQa(admin: SupabaseClient, args: PostProjectM
     result: data,
   })
   if (auditError) console.error('[mcp-server] Failed to record agent_audit_log', auditError.message)
+
+  // Only questions are escalated — an answer is the resolution, not new work.
+  if (!answerTo) {
+    await notifyProjectMapQuestion({
+      projectId: block.project_id,
+      discipline: block.discipline,
+      blockTitle: block.title,
+      body,
+      askedBy: agentName,
+    })
+  }
 
   return data
 }
