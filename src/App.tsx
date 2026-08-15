@@ -7,6 +7,7 @@ import { projectPath, sectionFromPathname } from '@/lib/projectRoutes'
 const AuthPage = lazy(() => import('@/components/auth/AuthPage').then((module) => ({ default: module.AuthPage })))
 const BoardPage = lazy(() => import('@/pages/BoardPage').then((module) => ({ default: module.BoardPage })))
 const BacklogPage = lazy(() => import('@/pages/BacklogPage').then((module) => ({ default: module.BacklogPage })))
+const ProjectMapPage = lazy(() => import('@/pages/ProjectMapPage').then((module) => ({ default: module.ProjectMapPage })))
 const PeoplePage = lazy(() => import('@/pages/PeoplePage').then((module) => ({ default: module.PeoplePage })))
 const OpsPage = lazy(() => import('@/pages/OpsPage').then((module) => ({ default: module.OpsPage })))
 const ArchivePage = lazy(() => import('@/pages/ArchivePage').then((module) => ({ default: module.ArchivePage })))
@@ -95,6 +96,10 @@ export function App() {
         <Route
           path="/projects/:projectKey/backlog"
           element={<ProtectedRoute><BacklogPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/projects/:projectKey/map"
+          element={<ProtectedRoute><ProjectMapPage /></ProtectedRoute>}
         />
         <Route
           path="/projects/:projectKey/people"

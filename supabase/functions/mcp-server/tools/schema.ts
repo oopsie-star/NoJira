@@ -21,6 +21,8 @@ const CONFIRMED_CROSS_AGENT_PROPERTY = {
     'Only set this to true after the human operator has explicitly confirmed the change, in response to this same call being rejected for a cross-agent conflict. Omit otherwise.',
 }
 
+const MAP_DISCIPLINES = ['backend', 'frontend', 'design', 'qa']
+
 const CROSS_AGENT_NOTE =
   ' If this item was last modified by a different AI (Claude vs ChatGPT vs the in-app assistant), this call is rejected until the human operator confirms — then retry with confirmed_cross_agent: true.'
 
@@ -287,6 +289,78 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
         agent_name: AGENT_NAME_PROPERTY,
       },
       required: ['name', 'owner_email', 'agent_name'],
+    },
+  },
+  {
+    name: 'get_project_map',
+    description:
+      'Read the Project Map: per-discipline (backend/frontend/design/qa) blocks of structured project knowledge, each with its linked tasks/epics and the questions and answers attached to it. Call this before writing to the map so you update existing blocks instead of duplicating them.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Project key.' },
+        discipline: {
+          type: 'string',
+          enum: MAP_DISCIPLINES,
+          description: 'Optional — restrict to one discipline.',
+        },
+      },
+      required: ['project'],
+    },
+  },
+  {
+    name: 'upsert_project_map_block',
+    description:
+      'Create or replace one Project Map block — a titled piece of structured knowledge (markdown body) for one discipline, optionally linked to the tasks and epics it derives from. Identified by block_id when given, otherwise by (project, discipline, title): re-running with the same title updates that block rather than adding a second one. Derive the content from the project\'s tasks, epics and canon — never invent architecture or rules that are not in the project data.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Project key.' },
+        discipline: { type: 'string', enum: MAP_DISCIPLINES },
+        title: { type: 'string', description: 'Block heading — also its identity within the discipline when block_id is omitted.' },
+        body: { type: 'string', description: 'Markdown body of the block.' },
+        block_id: { type: 'string', description: 'Update this exact block (from get_project_map). Omit to match on title.' },
+        linked_tasks: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Task keys (e.g. "PROJ-42") or ids this block derives from. Replaces the existing set.',
+        },
+        linked_epics: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Epic keys, titles, or ids this block derives from. Replaces the existing set.',
+        },
+        position: { type: 'number', description: 'Sort order within the discipline (ascending).' },
+        agent_name: AGENT_NAME_PROPERTY,
+      },
+      required: ['project', 'discipline', 'title', 'agent_name'],
+    },
+  },
+  {
+    name: 'delete_project_map_block',
+    description: 'Delete a Project Map block and the questions and answers attached to it. Confirm with the human operator first.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        block_id: { type: 'string', description: 'Block id from get_project_map.' },
+        agent_name: AGENT_NAME_PROPERTY,
+      },
+      required: ['block_id', 'agent_name'],
+    },
+  },
+  {
+    name: 'post_project_map_qa',
+    description:
+      'Post a question on a Project Map block, or answer an existing question by passing answer_to. Q&A is always bound to one block, so answer the question in terms of that block\'s content and the project data behind it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        block_id: { type: 'string', description: 'Block to ask about. Ignored (inherited from the question) when answer_to is set.' },
+        answer_to: { type: 'string', description: 'Question id being answered — omit to post a new question.' },
+        body: { type: 'string' },
+        agent_name: AGENT_NAME_PROPERTY,
+      },
+      required: ['body', 'agent_name'],
     },
   },
 ]

@@ -1,4 +1,4 @@
-import { Archive, LayoutDashboard, ListTodo, Users, Workflow } from 'lucide-react'
+import { Archive, LayoutDashboard, ListTodo, Map, Users, Workflow } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useI18n } from '@/lib/i18n'
 import { projectPath, useCurrentProjectKey, type AppSection } from '@/lib/projectRoutes'
@@ -6,6 +6,7 @@ import { projectPath, useCurrentProjectKey, type AppSection } from '@/lib/projec
 const MOBILE_NAV_ITEMS = [
   { section: 'board' as AppSection, key: 'nav.board', Icon: LayoutDashboard },
   { section: 'backlog' as AppSection, key: 'nav.backlog', Icon: ListTodo },
+  { section: 'map' as AppSection, key: 'nav.map', Icon: Map },
   { section: 'people' as AppSection, key: 'nav.people', Icon: Users },
   { section: 'ops' as AppSection, key: 'nav.ops', Icon: Workflow },
   { section: 'archive' as AppSection, key: 'nav.archive', Icon: Archive },

@@ -276,6 +276,48 @@ export interface ActivityEvent {
 
 export type AgentType = 'mcp' | 'in_app'
 
+/** Which AI wrote something — matches agent_audit_log.agent_name. */
+export type AiAgentName = 'claude' | 'chatgpt' | 'qira-assistant'
+
+// ─── Project Map ──────────────────────────────────────────────────────────────
+export type MapDiscipline = 'backend' | 'frontend' | 'design' | 'qa'
+export const MAP_DISCIPLINES: MapDiscipline[] = ['backend', 'frontend', 'design', 'qa']
+
+/** One unit of structured project knowledge, written by AI agents over MCP. */
+export interface ProjectMapBlock {
+  id:              string
+  project_id:      string
+  discipline:      MapDiscipline
+  title:           string
+  body:            string
+  attachments:     string[]
+  linked_task_ids: string[]
+  linked_epic_ids: string[]
+  position:        number
+  created_by:      string | null
+  updated_by:      string | null
+  last_ai_agent:   AiAgentName | null
+  created_at:      string
+  updated_at:      string
+}
+
+/**
+ * A question (parent_id === null) or an answer to one (parent_id set), always
+ * bound to the block it's about. Authored either by a human (author_id) or an
+ * AI agent (author_agent).
+ */
+export interface ProjectMapQaEntry {
+  id:           string
+  block_id:     string
+  project_id:   string
+  parent_id:    string | null
+  body:         string
+  author_id:    string | null
+  author_agent: AiAgentName | null
+  created_at:   string
+  author?:      Pick<Profile, 'id' | 'full_name' | 'email' | 'avatar_url'> | null
+}
+
 export interface AgentAuditLogEntry {
   id:               string
   agent_type:       AgentType

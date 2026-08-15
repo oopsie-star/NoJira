@@ -23,6 +23,8 @@ import type {
   Project,
   ProjectAutomationSettings,
   ProjectInvite,
+  ProjectMapBlock,
+  ProjectMapQaEntry,
   ProjectMember,
   ProjectRole,
   ProjectWebhook,
@@ -438,6 +440,11 @@ interface AppState {
   tasks: Task[]
   sprints: Sprint[]
   epics: Epic[]
+  projectMapBlocks: ProjectMapBlock[]
+  projectMapQa: ProjectMapQaEntry[]
+  loadingProjectMap: boolean
+  /** Non-null when the last Project Map load failed — the page renders this as its error state. */
+  projectMapError: string | null
   members: Profile[]
   placeholders: JiraUserPlaceholder[]
   pendingMembers: Profile[]
@@ -469,6 +476,12 @@ interface AppState {
   fetchBacklog: () => Promise<void>
   fetchSprints: () => Promise<void>
   fetchEpics: () => Promise<void>
+  fetchProjectMap: () => Promise<void>
+  createProjectMapBlock: (fields: Pick<ProjectMapBlock, 'discipline'> & Partial<ProjectMapBlock>) => Promise<ProjectMapBlock | null>
+  updateProjectMapBlock: (id: string, fields: Partial<ProjectMapBlock>) => Promise<void>
+  deleteProjectMapBlock: (id: string) => Promise<void>
+  addProjectMapQa: (blockId: string, body: string, parentId?: string | null) => Promise<void>
+  deleteProjectMapQa: (id: string) => Promise<void>
   fetchMembers: () => Promise<void>
   fetchProjectTaskCount: () => Promise<void>
   fetchPlaceholders: () => Promise<void>
@@ -679,6 +692,10 @@ export const useStore = create<AppState>((set, get) => {
     tasks: [],
     sprints: [],
     epics: [],
+    projectMapBlocks: [],
+    projectMapQa: [],
+    loadingProjectMap: false,
+    projectMapError: null,
     members: [],
     placeholders: [],
     selectedTaskIds: [],
@@ -745,6 +762,10 @@ export const useStore = create<AppState>((set, get) => {
         tasks: [],
         sprints: [],
         epics: [],
+        projectMapBlocks: [],
+        projectMapQa: [],
+        loadingProjectMap: false,
+        projectMapError: null,
         portfolioItems: [],
         automationSettings: null,
         projectWebhooks: [],
@@ -962,6 +983,151 @@ export const useStore = create<AppState>((set, get) => {
       .order('created_at')
 
     if (data) set({ epics: data as Epic[] })
+  },
+
+  // Project Map content is written by AI agents over MCP; the app only reads it
+  // (plus the Q&A humans add). Blocks and their Q&A load together so a block
+  // always renders with the discussion attached to it.
+  fetchProjectMap: async () => {
+    const activeProjectId = get().activeProjectId
+    if (!activeProjectId) {
+      set({ projectMapBlocks: [], projectMapQa: [], loadingProjectMap: false, projectMapError: null })
+      return
+    }
+
+    set({ loadingProjectMap: true, projectMapError: null })
+
+    const [blocksResult, qaResult] = await Promise.all([
+      supabase
+        .from('project_map_blocks')
+        .select('*')
+        .eq('project_id', activeProjectId)
+        .order('position')
+        .order('created_at'),
+      supabase
+        .from('project_map_qa')
+        .select('*, author:profiles!project_map_qa_author_id_fkey(id, full_name, email, avatar_url)')
+        .eq('project_id', activeProjectId)
+        .order('created_at'),
+    ])
+
+    const error = blocksResult.error ?? qaResult.error
+    if (error) {
+      set({ loadingProjectMap: false, projectMapError: getErrorMessage(error) })
+      return
+    }
+
+    set({
+      projectMapBlocks: (blocksResult.data ?? []) as ProjectMapBlock[],
+      projectMapQa: (qaResult.data ?? []) as ProjectMapQaEntry[],
+      loadingProjectMap: false,
+      projectMapError: null,
+    })
+  },
+
+  createProjectMapBlock: async (fields) => {
+    const activeProjectId = get().activeProjectId
+    const profile = get().profile
+    if (!activeProjectId) return null
+
+    const maxPosition = get().projectMapBlocks
+      .filter((block) => block.discipline === fields.discipline)
+      .reduce((max, block) => Math.max(max, block.position), -1)
+
+    const { data, error } = await supabase
+      .from('project_map_blocks')
+      .insert({
+        project_id: activeProjectId,
+        discipline: fields.discipline,
+        title: fields.title ?? '',
+        body: fields.body ?? '',
+        position: fields.position ?? maxPosition + 1,
+        created_by: profile?.id ?? null,
+        updated_by: profile?.id ?? null,
+      })
+      .select('*')
+      .single()
+
+    if (error) {
+      get().notify(getErrorMessage(error), 'error')
+      return null
+    }
+
+    set((state) => ({ projectMapBlocks: [...state.projectMapBlocks, data as ProjectMapBlock] }))
+    return data as ProjectMapBlock
+  },
+
+  updateProjectMapBlock: async (id, fields) => {
+    const profile = get().profile
+    const previous = get().projectMapBlocks
+
+    set((state) => ({
+      projectMapBlocks: state.projectMapBlocks.map((block) => (block.id === id ? { ...block, ...fields } : block)),
+    }))
+
+    const { error } = await supabase
+      .from('project_map_blocks')
+      .update({ ...fields, updated_by: profile?.id ?? null })
+      .eq('id', id)
+
+    if (error) {
+      set({ projectMapBlocks: previous })
+      get().notify(getErrorMessage(error), 'error')
+    }
+  },
+
+  deleteProjectMapBlock: async (id) => {
+    const previous = get().projectMapBlocks
+    set((state) => ({
+      projectMapBlocks: state.projectMapBlocks.filter((block) => block.id !== id),
+      projectMapQa: state.projectMapQa.filter((entry) => entry.block_id !== id),
+    }))
+
+    const { error } = await supabase.from('project_map_blocks').delete().eq('id', id)
+    if (error) {
+      set({ projectMapBlocks: previous })
+      get().notify(getErrorMessage(error), 'error')
+    }
+  },
+
+  addProjectMapQa: async (blockId, body, parentId = null) => {
+    const activeProjectId = get().activeProjectId
+    const profile = get().profile
+    if (!activeProjectId || !profile || !body.trim()) return
+
+    const { data, error } = await supabase
+      .from('project_map_qa')
+      .insert({
+        block_id: blockId,
+        project_id: activeProjectId,
+        parent_id: parentId,
+        body: body.trim(),
+        author_id: profile.id,
+      })
+      .select('*, author:profiles!project_map_qa_author_id_fkey(id, full_name, email, avatar_url)')
+      .single()
+
+    if (error) {
+      get().notify(getErrorMessage(error), 'error')
+      return
+    }
+
+    set((state) => ({ projectMapQa: [...state.projectMapQa, data as ProjectMapQaEntry] }))
+  },
+
+  deleteProjectMapQa: async (id) => {
+    const previous = get().projectMapQa
+    // Answers cascade in the DB; mirror that locally so the thread doesn't
+    // leave orphaned replies behind until the next fetch.
+    set((state) => ({
+      projectMapQa: state.projectMapQa.filter((entry) => entry.id !== id && entry.parent_id !== id),
+    }))
+
+    const { error } = await supabase.from('project_map_qa').delete().eq('id', id)
+    if (error) {
+      set({ projectMapQa: previous })
+      get().notify(getErrorMessage(error), 'error')
+    }
   },
 
   fetchProjectTaskCount: async () => {

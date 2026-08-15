@@ -8,16 +8,20 @@ import { createEpic } from './createEpic.ts'
 import { createProject } from './createProject.ts'
 import { createSprint } from './createSprint.ts'
 import { createTask } from './createTask.ts'
+import { deleteProjectMapBlock } from './deleteProjectMapBlock.ts'
 import { getProject } from './getProject.ts'
+import { getProjectMap } from './getProjectMap.ts'
 import { getTask } from './getTask.ts'
 import { listProjects } from './listProjects.ts'
 import { listTasks } from './listTasks.ts'
 import { markTaskSuperseded } from './markTaskSuperseded.ts'
+import { postProjectMapQa } from './postProjectMapQa.ts'
 import { readAttachment } from './readAttachment.ts'
 import { renameAttachment } from './renameAttachment.ts'
 import { searchTasks } from './searchTasks.ts'
 import { updateTask } from './updateTask.ts'
 import { updateTaskStatus } from './updateTaskStatus.ts'
+import { upsertProjectMapBlock } from './upsertProjectMapBlock.ts'
 
 export { TOOL_SCHEMAS } from './schema.ts'
 export { ToolError } from './errors.ts'
@@ -43,4 +47,8 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   create_project: createProject,
   read_attachment: readAttachment,
   mark_task_superseded: markTaskSuperseded,
+  get_project_map: getProjectMap,
+  upsert_project_map_block: upsertProjectMapBlock,
+  delete_project_map_block: deleteProjectMapBlock,
+  post_project_map_qa: postProjectMapQa,
 }
