@@ -38,6 +38,17 @@ export function canUseAiManagementTools(role: ProjectRole | null, isSuperAdmin: 
   return isSuperAdmin || Boolean(role && ACTIVITY_LOG_ROLES.includes(role))
 }
 
+/**
+ * Who can generate a UI prototype from a task (see PrototypeModal): the global
+ * super admin only, on purpose — the feature is being trialled before it opens
+ * up. To widen it to founder/ceo, mirror canExportEpic:
+ *   return isSuperAdmin || Boolean(role && ACTIVITY_LOG_ROLES.includes(role))
+ */
+export function canCreatePrototype(role: ProjectRole | null, isSuperAdmin: boolean) {
+  void role
+  return isSuperAdmin
+}
+
 /** Who can disconnect someone's (including their own) Telegram link: super admin, founder, ceo.
  * Mirrors the DB trigger (enforce_telegram_disconnect_permission) — this is only the UI-gating
  * mirror; the real enforcement lives at the database layer. */

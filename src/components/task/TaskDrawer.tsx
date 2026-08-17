@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Calendar, ChevronLeft, ChevronRight, Link2, MessageSquare, Paperclip, Plus, Send, ShieldAlert, Sparkles, Timer, Trash2, X } from 'lucide-react'
+import { Calendar, ChevronLeft, ChevronRight, Link2, MessageSquare, Paperclip, Plus, Send, ShieldAlert, Sparkles, Timer, Trash2, Wand2, X } from 'lucide-react'
 import { callLLM, getLLMConfig } from '@/lib/ai'
 import type { LLMMessage } from '@/lib/ai'
 import { supabase } from '@/lib/supabase'
@@ -16,12 +16,13 @@ import { useI18n } from '@/lib/i18n'
 import { formatDate, formatPerson, parseLabels } from '@/lib/format'
 import { calculateAverageCycleTimeHours, formatCycleTime, formatStatusAge } from '@/lib/ops'
 import { safeFilename } from '@/lib/attachments'
-import { canDeleteAuthoredContent, canEditAuthoredContent, canManageProject } from '@/lib/permissions'
+import { canCreatePrototype, canDeleteAuthoredContent, canEditAuthoredContent, canManageProject } from '@/lib/permissions'
 import { activeMentionQuery, extractMentionedIds, mentionLabel } from '@/lib/mentions'
 import { MarkdownRenderer } from '@/lib/markdown'
 import { MarkdownEditor } from '@/components/common/MarkdownEditor'
 import { MultiAssigneePicker } from '@/components/common/MultiAssigneePicker'
 import { ShareTaskMenu } from './ShareTaskMenu'
+import { PrototypeModal } from './PrototypeModal'
 import { placeholderAsPerson, resolveAssigneeFields, taskAssigneeDisplay, taskReporterDisplay } from '@/lib/people'
 import { useCurrentProjectKey } from '@/lib/projectRoutes'
 import { useStore } from '@/store'
@@ -145,6 +146,7 @@ export function TaskDrawer() {
   const [linkType, setLinkType] = useState<TaskLinkType>('blocks')
   const [linkedTaskId, setLinkedTaskId] = useState('')
   const [saving, setSaving] = useState(false)
+  const [prototypeOpen, setPrototypeOpen] = useState(false)
 
   const relatedLinks = useMemo(
     () => taskLinks.filter((link) => link.source_task_id === openTaskId || link.target_task_id === openTaskId),
@@ -185,6 +187,7 @@ export function TaskDrawer() {
     setCommentFiles([])
     setLinkType('blocks')
     setLinkedTaskId('')
+    setPrototypeOpen(false)
     void fetchTaskContext(task.id)
 
     if (lastViewedTaskIdRef.current !== task.id) {
@@ -371,6 +374,7 @@ export function TaskDrawer() {
   }
 
   const canDelete = profile?.role === 'admin'
+  const canPrototype = canCreatePrototype(activeProjectRole, profile?.role === 'admin')
   // Universal tasks (2+ assignees): only admins/managers may change the status.
   const canManage = profile?.role === 'admin' || canManageProject(activeProjectRole)
   const statusLocked = isUniversalTask(currentTask) && !canManage
@@ -436,6 +440,18 @@ export function TaskDrawer() {
                 className="inline-flex items-center gap-1.5 rounded-xl bg-qira-pistachio px-3 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
               >
                 {saving ? '…' : t('common.save')}
+              </button>
+            )}
+            {canPrototype && (
+              <button
+                type="button"
+                onClick={() => setPrototypeOpen(true)}
+                title={t('prototype.button')}
+                aria-label={t('prototype.button')}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-qira-pistachio px-2.5 py-2 text-sm font-semibold text-qira-pistachio-dk transition hover:bg-qira-pistachio-lt"
+              >
+                <Wand2 size={15} />
+                <span className="hidden sm:inline">{t('prototype.button')}</span>
               </button>
             )}
             <ShareTaskMenu task={currentTask} projectKey={currentProjectKey} />
@@ -1042,6 +1058,10 @@ export function TaskDrawer() {
            </div>
         </div>
       </aside>
+
+      {prototypeOpen && canPrototype && (
+        <PrototypeModal task={currentTask} onClose={() => setPrototypeOpen(false)} />
+      )}
     </>
   )
 }
