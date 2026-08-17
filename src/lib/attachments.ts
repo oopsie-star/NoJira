@@ -63,10 +63,14 @@ export function isImage(nameOrPath: string): boolean {
 
 // ── In-browser preview classification ──────────────────────────────────────────
 
-export type PreviewKind = 'image' | 'pdf' | 'office' | 'markdown' | 'text' | 'video' | 'audio' | 'none'
+export type PreviewKind = 'image' | 'pdf' | 'office' | 'markdown' | 'html' | 'text' | 'video' | 'audio' | 'none'
 
 const OFFICE_RE = /\.(docx?|xlsx?|pptx?)$/i
 const MARKDOWN_RE = /\.(md|markdown)$/i
+// Checked before TEXT_RE, which also matches .html — an HTML attachment (a
+// generated prototype, an exported report) is worth rendering, not just dumping
+// as source. See AttachmentPreview for the sandbox it renders in.
+const HTML_RE = /\.html?$/i
 const TEXT_RE = /\.(txt|json|csv|tsv|log|ya?ml|xml|ini|conf|env|js|ts|tsx|jsx|py|rb|go|rs|java|c|cpp|h|hpp|css|scss|html?|sh|sql|php|toml)$/i
 const VIDEO_RE = /\.(mp4|webm|ogv|mov|m4v)$/i
 // Extensions vary a lot by recording device/app (iPhone Voice Memos can export
@@ -83,6 +87,7 @@ export function previewKind(nameOrPath: string, mime?: string | null): PreviewKi
   if (mime) {
     if (mime.startsWith('image/')) return 'image'
     if (mime === 'application/pdf') return 'pdf'
+    if (mime === 'text/html') return 'html'
     if (mime.startsWith('video/')) return 'video'
     if (mime.startsWith('audio/')) return 'audio'
   }
@@ -90,6 +95,7 @@ export function previewKind(nameOrPath: string, mime?: string | null): PreviewKi
   if (PDF_RE.test(nameOrPath)) return 'pdf'
   if (OFFICE_RE.test(nameOrPath)) return 'office'
   if (MARKDOWN_RE.test(nameOrPath)) return 'markdown'
+  if (HTML_RE.test(nameOrPath)) return 'html'
   if (TEXT_RE.test(nameOrPath)) return 'text'
   if (VIDEO_RE.test(nameOrPath)) return 'video'
   if (AUDIO_RE.test(nameOrPath)) return 'audio'

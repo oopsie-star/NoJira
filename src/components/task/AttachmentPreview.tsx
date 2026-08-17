@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Download, ExternalLink, Loader2, X } from 'lucide-react'
+import { Code2, Download, ExternalLink, Eye, Loader2, X } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import { displayFilename, officeViewerUrl, previewKind, taskIdFromPath } from '@/lib/attachments'
 import { MarkdownRenderer } from '@/lib/markdown'
@@ -24,6 +24,8 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
   const taskId = taskIdFromPath(path)
   const [text, setText] = useState<string | null>(null)
   const [textLoading, setTextLoading] = useState(false)
+  // HTML renders by default; the toggle is for reading the markup behind it.
+  const [showSource, setShowSource] = useState(false)
 
   function logDownload() {
     void logActivityEvent('download_attachment', { taskId, detail: filename })
@@ -35,7 +37,7 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
 
   // Fetch textual bodies directly (kept private — no external service).
   useEffect(() => {
-    if ((kind === 'text' || kind === 'markdown') && signedUrl) {
+    if ((kind === 'text' || kind === 'markdown' || kind === 'html') && signedUrl) {
       setTextLoading(true)
       fetch(signedUrl)
         .then((response) => response.text())
@@ -60,6 +62,17 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <p className="min-w-0 truncate text-sm font-semibold text-slate-900">{filename}</p>
           <div className="flex shrink-0 items-center gap-1">
+            {kind === 'html' && (
+              <button
+                type="button"
+                onClick={() => setShowSource((value) => !value)}
+                title={t(showSource ? 'preview.showRendered' : 'preview.showSource')}
+                aria-label={t(showSource ? 'preview.showRendered' : 'preview.showSource')}
+                className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                {showSource ? <Eye size={16} /> : <Code2 size={16} />}
+              </button>
+            )}
             {signedUrl && (
               <>
                 <a href={signedUrl} target="_blank" rel="noreferrer" title={t('preview.openTab')} aria-label={t('preview.openTab')} className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
@@ -98,6 +111,22 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
           ) : kind === 'markdown' ? (
             textLoading ? <Centered><Loader2 size={20} className="animate-spin" /></Centered> : (
               <div className="mx-auto max-w-3xl p-6"><MarkdownRenderer source={text ?? ''} /></div>
+            )
+          ) : kind === 'html' ? (
+            textLoading ? <Centered><Loader2 size={20} className="animate-spin" /></Centered> : (
+              showSource ? (
+                <pre className="min-h-full whitespace-pre-wrap break-words p-4 text-xs leading-relaxed text-slate-800">{text}</pre>
+              ) : (
+                /* Rendered without allow-same-origin, so the document sits in an
+                   opaque origin: it cannot touch this app's session, storage, or
+                   cookies, only draw itself. */
+                <iframe
+                  title={filename}
+                  srcDoc={text ?? ''}
+                  sandbox="allow-scripts"
+                  className="h-full w-full border-0 bg-white"
+                />
+              )
             )
           ) : kind === 'text' ? (
             textLoading ? <Centered><Loader2 size={20} className="animate-spin" /></Centered> : (
