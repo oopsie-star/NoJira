@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store'
+import type { Task } from '@/types'
 
 /**
  * Live "multiplayer" updates via Supabase Realtime. Subscribes to postgres_changes
@@ -11,6 +12,14 @@ import { useStore } from '@/store'
  * Refetch (rather than applying the raw payload) keeps joined data correct and
  * respects the active view: the board loads only its sprint's tasks, the backlog
  * loads all of them. Changes are debounced to coalesce bursts (e.g. drag-reorder).
+ *
+ * UPDATE events are patched into the existing tasks array in place instead
+ * (same approach BoardPage's own channel already uses) rather than refetched:
+ * every drag-and-drop move writes an UPDATE, and a full-array refetch landing
+ * mid-drag races @hello-pangea/dnd's own DOM bookkeeping for the drop
+ * animation — on mobile (slower touch drags, more WS jitter) that race lost
+ * often enough to throw "NotFoundError: insertBefore" and crash the view.
+ * Only INSERT/DELETE (list membership actually changed) still refetch.
  */
 export function RealtimeSync() {
   const activeProjectId = useStore((s) => s.activeProjectId)
@@ -46,7 +55,13 @@ export function RealtimeSync() {
       const filter = `project_id=eq.${activeProjectId}`
       const channel = supabase
         .channel(`project-${activeProjectId}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter }, refetchTasks)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter }, (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            useStore.getState().patchTask((payload.new as { id: string }).id, payload.new as Partial<Task>)
+            return
+          }
+          refetchTasks()
+        })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'sprints', filter }, () =>
           debounce('sprints', () => void useStore.getState().fetchSprints()),
         )
