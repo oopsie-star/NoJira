@@ -15,8 +15,23 @@ function Centered({ children }: { children: ReactNode }) {
   return <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center text-slate-500">{children}</div>
 }
 
+// Big enough for reading, small enough that the <pre> text node stays cheap.
+const SOURCE_LIMIT = 500_000
+
+function SourceView({ text, error, truncated, errorLabel, truncatedLabel }: { text: string | null; error: boolean; truncated: boolean; errorLabel: string; truncatedLabel: string }) {
+  if (error) return <Centered>{errorLabel}</Centered>
+  return (
+    <>
+      {truncated && (
+        <p className="sticky top-0 bg-amber-50 px-4 py-2 text-xs text-amber-700">{truncatedLabel}</p>
+      )}
+      <pre className="min-h-full whitespace-pre-wrap break-words p-4 text-xs leading-relaxed text-slate-800">{text}</pre>
+    </>
+  )
+}
+
 export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPreviewProps) {
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
   const note = useStore((state) => state.attachmentNotes[path])
   const logActivityEvent = useStore((state) => state.logActivityEvent)
   const kind = previewKind(path, note?.mime_type)
@@ -26,6 +41,8 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
   const [textLoading, setTextLoading] = useState(false)
   // HTML renders by default; the toggle is for reading the markup behind it.
   const [showSource, setShowSource] = useState(false)
+  const [textTruncated, setTextTruncated] = useState(false)
+  const [textError, setTextError] = useState(false)
 
   function logDownload() {
     void logActivityEvent('download_attachment', { taskId, detail: filename })
@@ -35,17 +52,40 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
     void logActivityEvent('play_audio', { taskId, detail: filename })
   }
 
-  // Fetch textual bodies directly (kept private — no external service).
+  // Fetch textual bodies directly (kept private — no external service). HTML is
+  // excluded on purpose: it renders straight from the signed URL, so a large
+  // document (a 2 MB generated page is normal) is never pulled into memory or
+  // clipped by SOURCE_LIMIT. Only the opt-in source view fetches it.
+  const needsBody = kind === 'text' || kind === 'markdown' || (kind === 'html' && showSource)
+
   useEffect(() => {
-    if ((kind === 'text' || kind === 'markdown' || kind === 'html') && signedUrl) {
-      setTextLoading(true)
-      fetch(signedUrl)
-        .then((response) => response.text())
-        .then((body) => setText(body.slice(0, 500_000)))
-        .catch(() => setText(null))
-        .finally(() => setTextLoading(false))
-    }
-  }, [kind, signedUrl])
+    if (!needsBody || !signedUrl) return
+
+    let active = true
+    setTextLoading(true)
+    setTextError(false)
+
+    fetch(signedUrl)
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        return response.text()
+      })
+      .then((body) => {
+        if (!active) return
+        setTextTruncated(body.length > SOURCE_LIMIT)
+        setText(body.slice(0, SOURCE_LIMIT))
+      })
+      .catch(() => {
+        if (!active) return
+        setText(null)
+        setTextError(true)
+      })
+      .finally(() => {
+        if (active) setTextLoading(false)
+      })
+
+    return () => { active = false }
+  }, [needsBody, signedUrl])
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) { if (event.key === 'Escape') onClose() }
@@ -113,25 +153,22 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
               <div className="mx-auto max-w-3xl p-6"><MarkdownRenderer source={text ?? ''} /></div>
             )
           ) : kind === 'html' ? (
-            textLoading ? <Centered><Loader2 size={20} className="animate-spin" /></Centered> : (
-              showSource ? (
-                <pre className="min-h-full whitespace-pre-wrap break-words p-4 text-xs leading-relaxed text-slate-800">{text}</pre>
-              ) : (
-                /* Rendered without allow-same-origin, so the document sits in an
-                   opaque origin: it cannot touch this app's session, storage, or
-                   cookies, only draw itself. */
-                <iframe
-                  title={filename}
-                  srcDoc={text ?? ''}
-                  sandbox="allow-scripts"
-                  className="h-full w-full border-0 bg-white"
-                />
-              )
+            showSource ? (
+              textLoading ? <Centered><Loader2 size={20} className="animate-spin" /></Centered> : <SourceView text={text} error={textError} truncated={textTruncated} errorLabel={t('preview.unavailable')} truncatedLabel={t('preview.sourceTruncated', { limit: SOURCE_LIMIT.toLocaleString(locale === 'ru' ? 'ru-RU' : 'en-US') })} />
+            ) : (
+              /* Loaded by URL, not srcDoc, so document size is the browser's
+                 problem rather than ours. Sandboxed without allow-same-origin:
+                 the page sits in an opaque origin and cannot touch this app's
+                 session, storage, or cookies — it can only draw itself. */
+              <iframe
+                title={filename}
+                src={signedUrl}
+                sandbox="allow-scripts"
+                className="h-full w-full border-0 bg-white"
+              />
             )
           ) : kind === 'text' ? (
-            textLoading ? <Centered><Loader2 size={20} className="animate-spin" /></Centered> : (
-              <pre className="min-h-full whitespace-pre-wrap break-words p-4 text-xs leading-relaxed text-slate-800">{text}</pre>
-            )
+            textLoading ? <Centered><Loader2 size={20} className="animate-spin" /></Centered> : <SourceView text={text} error={textError} truncated={textTruncated} errorLabel={t('preview.unavailable')} truncatedLabel={t('preview.sourceTruncated', { limit: SOURCE_LIMIT.toLocaleString(locale === 'ru' ? 'ru-RU' : 'en-US') })} />
           ) : (
             <Centered>
               <p className="text-sm">{t('preview.noInline')}</p>
