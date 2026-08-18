@@ -115,7 +115,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
           />
         )}
         <LeftSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#F7F8F9] pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0">
+        <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#F7F8F9] pb-[var(--qira-mobile-nav-h)] lg:pb-0">
           {children}
         </main>
       </div>

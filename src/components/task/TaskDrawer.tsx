@@ -415,7 +415,10 @@ export function TaskDrawer() {
           switching between issues (Jira-style). */}
       <div className="fixed inset-0 z-[60] bg-slate-950/25 lg:hidden" onClick={handleClose} />
 
-      <aside className="fixed bottom-0 right-0 top-0 z-[70] flex w-full flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl lg:max-w-[760px]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      {/* Stops above the mobile tab bar (which sits at z-[75]) so the bar stays
+          visible and usable while a task is open; full height from lg up, where
+          there is no tab bar. */}
+      <aside className="fixed bottom-[var(--qira-mobile-nav-h)] right-0 top-0 z-[70] flex w-full flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl lg:bottom-0 lg:max-w-[760px]">
         <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-3 sm:px-6 sm:py-4">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             {/* The drawer covers the whole screen on mobile, hiding the bottom

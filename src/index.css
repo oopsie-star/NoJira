@@ -11,6 +11,14 @@
     min-height: 100%;
   }
 
+  :root {
+    /* Height the fixed mobile tab bar occupies, safe-area inset included.
+       Single source of truth: the bar sizes itself with it, and everything
+       that must sit clear of it (page content, the task drawer, the AI
+       button) offsets by the same value so they can't drift apart. */
+    --qira-mobile-nav-h: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
   html {
     font-family: 'Inter', system-ui, sans-serif;
     /* Prevent iOS from auto-inflating text in landscape, keep our sizes intentional */

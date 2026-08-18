@@ -31,8 +31,9 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
     <>
     <aside className={[
       'flex w-[228px] flex-shrink-0 flex-col border-r border-slate-200 bg-white xl:w-[236px]',
-      // Mobile: fixed slide-in overlay
-      'fixed inset-y-0 left-0 z-40 transition-transform duration-300 ease-out',
+      // Mobile: fixed slide-in overlay. Above the tab bar (z-[75]) — it's the
+      // wider navigation surface, so it has to cover it rather than sit under.
+      'fixed inset-y-0 left-0 z-[85] transition-transform duration-300 ease-out',
       open ? 'translate-x-0' : '-translate-x-full',
       // Desktop: static, always visible, no animation
       'lg:static lg:z-auto lg:translate-x-0 lg:transition-none',
