@@ -154,7 +154,10 @@ export function PeoplePage() {
   const linkPlaceholder = useStore((state) => state.linkPlaceholder)
   const acceptPlaceholder = useStore((state) => state.acceptPlaceholder)
   const updatePlaceholder = useStore((state) => state.updatePlaceholder)
-  const deleteProject = useStore((state) => state.deleteProject)
+  const requestProjectDeletion = useStore((state) => state.requestProjectDeletion)
+  const approveProjectDeletion = useStore((state) => state.approveProjectDeletion)
+  const cancelProjectDeletion = useStore((state) => state.cancelProjectDeletion)
+  const fetchProjectDeletionRequests = useStore((state) => state.fetchProjectDeletionRequests)
   const addProfileToProject = useStore((state) => state.addProfileToProject)
   const resolveDeletionRequest = useStore((state) => state.resolveDeletionRequest)
   const triggerApprovalNotification = useStore((state) => state.triggerApprovalNotification)
@@ -164,6 +167,7 @@ export function PeoplePage() {
   const workspaceProjects = useStore((state) => state.workspaceProjects)
   const assignableProfiles = useStore((state) => state.assignableProfiles)
   const deletionRequests = useStore((state) => state.deletionRequests)
+  const projectDeletionRequests = useStore((state) => state.projectDeletionRequests)
   const projectMembers = useStore((state) => state.projectMembers)
   const projectInvites = useStore((state) => state.projectInvites)
   const pendingMembers = useStore((state) => state.pendingMembers)
@@ -193,6 +197,8 @@ export function PeoplePage() {
   const [telegramLinks, setTelegramLinks] = useState<Record<string, string>>({})
   const [retryingProfileId, setRetryingProfileId] = useState<string | null>(null)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
+  const [approvingProjectDeletionId, setApprovingProjectDeletionId] = useState<string | null>(null)
+  const [cancelingProjectDeletionId, setCancelingProjectDeletionId] = useState<string | null>(null)
   const [addingProfileId, setAddingProfileId] = useState<string | null>(null)
   const [resolvingRequestId, setResolvingRequestId] = useState<string | null>(null)
   const [projectActionError, setProjectActionError] = useState<string | null>(null)
@@ -432,8 +438,8 @@ export function PeoplePage() {
 
   useEffect(() => {
     if (!isAdmin) return
-    void Promise.all([fetchPendingMembers(), fetchWorkspaceProjects(), fetchDeletionRequests()])
-  }, [isAdmin, fetchDeletionRequests, fetchPendingMembers, fetchWorkspaceProjects])
+    void Promise.all([fetchPendingMembers(), fetchWorkspaceProjects(), fetchDeletionRequests(), fetchProjectDeletionRequests()])
+  }, [isAdmin, fetchDeletionRequests, fetchProjectDeletionRequests, fetchPendingMembers, fetchWorkspaceProjects])
 
   async function handleApprovalEmailRetry(profileId: string) {
     setRetryingProfileId(profileId)
@@ -450,11 +456,35 @@ export function PeoplePage() {
     setDeletingProjectId(projectId)
     setProjectActionError(null)
     try {
-      await deleteProject(projectId)
+      await requestProjectDeletion(projectId)
     } catch (err) {
       setProjectActionError(getErrorMessage(err))
     } finally {
       setDeletingProjectId(null)
+    }
+  }
+
+  async function handleApproveProjectDeletion(requestId: string) {
+    setApprovingProjectDeletionId(requestId)
+    setProjectActionError(null)
+    try {
+      await approveProjectDeletion(requestId)
+    } catch (err) {
+      setProjectActionError(getErrorMessage(err))
+    } finally {
+      setApprovingProjectDeletionId(null)
+    }
+  }
+
+  async function handleCancelProjectDeletion(requestId: string) {
+    setCancelingProjectDeletionId(requestId)
+    setProjectActionError(null)
+    try {
+      await cancelProjectDeletion(requestId)
+    } catch (err) {
+      setProjectActionError(getErrorMessage(err))
+    } finally {
+      setCancelingProjectDeletionId(null)
     }
   }
 
@@ -671,36 +701,76 @@ export function PeoplePage() {
               <p className="mt-4 text-sm text-slate-500">{t('people.noWorkspaceProjects')}</p>
             ) : (
               <div className="mt-4 space-y-3">
-                {workspaceProjects.map((project) => (
-                  <div key={project.id} className="flex flex-col gap-4 rounded-2xl border border-slate-200 px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-900">{project.name}</p>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{project.key}</span>
-                        {project.id === activeProjectId && (
-                          <span className="rounded-full bg-qira-pistachio-lt px-2.5 py-1 text-xs font-semibold text-qira-pistachio">
-                            {t('project.activeBadge')}
-                          </span>
+                {workspaceProjects.map((project) => {
+                  const pendingDeletion = projectDeletionRequests.find(
+                    (request) => request.project_id === project.id && request.status === 'pending'
+                  )
+                  const approvalCount = pendingDeletion?.approvals?.length ?? 0
+                  const hasOwnApproval = Boolean(
+                    pendingDeletion?.approvals?.some((approval) => approval.admin_id === profile?.id)
+                  )
+
+                  return (
+                    <div key={project.id} className="flex flex-col gap-4 rounded-2xl border border-slate-200 px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-900">{project.name}</p>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{project.key}</span>
+                          {project.id === activeProjectId && (
+                            <span className="rounded-full bg-qira-pistachio-lt px-2.5 py-1 text-xs font-semibold text-qira-pistachio">
+                              {t('project.activeBadge')}
+                            </span>
+                          )}
+                          {pendingDeletion && (
+                            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                              {t('project.deletePendingBadge', { count: String(approvalCount) })}
+                            </span>
+                          )}
+                        </div>
+                        {project.description && (
+                          <p className="mt-2 break-words text-sm text-slate-600">{project.description}</p>
                         )}
+                        <p className="mt-2 text-xs text-slate-400">
+                          {new Date(project.created_at).toLocaleString()}
+                        </p>
                       </div>
-                      {project.description && (
-                        <p className="mt-2 break-words text-sm text-slate-600">{project.description}</p>
+
+                      {pendingDeletion ? (
+                        <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+                          {!hasOwnApproval && (
+                            <button
+                              type="button"
+                              onClick={() => void handleApproveProjectDeletion(pendingDeletion.id)}
+                              disabled={approvingProjectDeletionId === pendingDeletion.id}
+                              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <ShieldCheck size={16} />
+                              {approvingProjectDeletionId === pendingDeletion.id ? t('project.deleteApproving') : t('project.deleteApprove')}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => void handleCancelProjectDeletion(pendingDeletion.id)}
+                            disabled={cancelingProjectDeletionId === pendingDeletion.id}
+                            className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {t('project.deleteCancel')}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteProject(project.id, project.name)}
+                          disabled={deletingProjectId === project.id}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 lg:w-auto"
+                        >
+                          <Trash2 size={16} />
+                          {deletingProjectId === project.id ? t('project.deleteDeleting') : t('project.delete')}
+                        </button>
                       )}
-                      <p className="mt-2 text-xs text-slate-400">
-                        {new Date(project.created_at).toLocaleString()}
-                      </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleDeleteProject(project.id, project.name)}
-                      disabled={deletingProjectId === project.id}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 lg:w-auto"
-                    >
-                      <Trash2 size={16} />
-                      {deletingProjectId === project.id ? t('project.deleteDeleting') : t('project.delete')}
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </section>

@@ -78,6 +78,26 @@ export interface DeletionRequest {
   project?:    Pick<Project, 'id' | 'key' | 'name'> | null
 }
 
+export type ProjectDeletionRequestStatus = 'pending' | 'approved' | 'cancelled'
+
+export interface ProjectDeletionApproval {
+  admin_id:    string
+  approved_at: string
+}
+
+export interface ProjectDeletionRequest {
+  id:               string
+  project_id:       string
+  project_name:     string
+  requested_by:     string
+  status:           ProjectDeletionRequestStatus
+  attachment_paths: string[]
+  created_at:       string
+  resolved_at:      string | null
+  requester?:       Profile | null
+  approvals?:       ProjectDeletionApproval[]
+}
+
 export type PortfolioItemType = 'initiative' | 'milestone'
 
 export interface PortfolioItem {
