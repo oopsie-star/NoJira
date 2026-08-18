@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { AlertCircle, ChevronDown, ChevronRight, Code2, Flag, FlaskConical, Loader2, Palette, Plus, Server, Sparkles, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Code2, Flag, FlaskConical, Loader2, Palette, Plus, Server, Sparkles, Trash2 } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { TaskDrawer } from '@/components/task/TaskDrawer'
 import { AttachmentUpload } from '@/components/task/AttachmentUpload'
@@ -7,6 +7,8 @@ import { UserAvatar } from '@/components/common/UserAvatar'
 import { StatusBadge } from '@/components/common/IssueBadges'
 import { MarkdownRenderer } from '@/lib/markdown'
 import { useAuthContext } from '@/auth/AuthContext'
+import { canAskInMapDiscipline, mapDisciplineForDepartment } from '@/lib/discipline'
+import { findTopicMismatch, type TopicMismatch } from '@/lib/mapTopicMatch'
 import { formatDate } from '@/lib/format'
 import { useI18n } from '@/lib/i18n'
 import { canDeleteAttachment, canManageProject, canOverrideDelete } from '@/lib/permissions'
@@ -190,10 +192,19 @@ function LinkedWork({ block }: { block: ProjectMapBlock }) {
   )
 }
 
-function MapBlockCard({ block }: { block: ProjectMapBlock }) {
+function MapBlockCard({
+  block,
+  focused,
+  onNavigateToBlock,
+}: {
+  block: ProjectMapBlock
+  focused: boolean
+  onNavigateToBlock: (block: ProjectMapBlock) => void
+}) {
   const { locale, t } = useI18n()
   const { profile } = useAuthContext()
   const members = useStore((state) => state.members)
+  const allBlocks = useStore((state) => state.projectMapBlocks)
   const projectMapQa = useStore((state) => state.projectMapQa)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const addProjectMapQa = useStore((state) => state.addProjectMapQa)
@@ -203,7 +214,18 @@ function MapBlockCard({ block }: { block: ProjectMapBlock }) {
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const [mismatch, setMismatch] = useState<TopicMismatch | null>(null)
+  const sectionRef = useRef<HTMLElement>(null)
   const canManage = canManageProject(activeProjectRole)
+  const canAsk = canAskInMapDiscipline(block.discipline, profile, activeProjectRole)
+  const ownDiscipline = mapDisciplineForDepartment(profile?.department)
+
+  // Arriving from the Q&A navigator: reveal the thread and bring it on screen.
+  useEffect(() => {
+    if (!focused) return
+    setQuestionsOpen(true)
+    sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [focused])
 
   const { questions, answersByQuestion } = useMemo(() => {
     const forBlock = projectMapQa.filter((entry) => entry.block_id === block.id)
@@ -219,11 +241,24 @@ function MapBlockCard({ block }: { block: ProjectMapBlock }) {
 
   async function handleAsk(event: FormEvent) {
     event.preventDefault()
-    if (!draft.trim()) return
+    if (!draft.trim() || !canAsk) return
+
+    // One speed bump, not a wall: if the question clearly belongs to another
+    // block, say so and make them press again. Pressing again posts it here —
+    // the heuristic is a hint and is sometimes wrong, so it never gets a veto.
+    if (!mismatch) {
+      const found = findTopicMismatch(draft, block, allBlocks)
+      if (found) {
+        setMismatch(found)
+        return
+      }
+    }
+
     setSending(true)
     try {
       await addProjectMapQa(block.id, draft)
       setDraft('')
+      setMismatch(null)
       setQuestionsOpen(true)
     } finally {
       setSending(false)
@@ -236,7 +271,13 @@ function MapBlockCard({ block }: { block: ProjectMapBlock }) {
   }
 
   return (
-    <section className="rounded-[28px] bg-white p-5 shadow-sm">
+    <section
+      ref={sectionRef}
+      className={[
+        'rounded-[28px] bg-white p-5 shadow-sm transition',
+        focused ? 'ring-2 ring-qira-pistachio' : '',
+      ].join(' ')}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {canManage ? (
@@ -337,22 +378,163 @@ function MapBlockCard({ block }: { block: ProjectMapBlock }) {
           </div>
         )}
 
-        <form onSubmit={handleAsk} className="mt-3 flex items-center gap-2">
-          <input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder={t('map.askPlaceholder')}
-            className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-qira-pistachio"
-          />
-          <button
-            type="submit"
-            disabled={!draft.trim() || sending}
-            className="shrink-0 rounded-xl bg-qira-pistachio px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-40"
-          >
-            {t('map.ask')}
-          </button>
-        </form>
+        {mismatch && (
+          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-amber-900">{t('map.mismatchTitle')}</p>
+                <p className="mt-1 text-sm text-amber-800">{t('map.mismatchBody')}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onNavigateToBlock(mismatch.suggested)
+                    setMismatch(null)
+                  }}
+                  className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3 py-2 text-left text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
+                >
+                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px]">
+                    {t(`map.discipline.${mismatch.suggested.discipline}`)}
+                  </span>
+                  <span className="truncate">{mismatch.suggested.title}</span>
+                </button>
+                <p className="mt-2 text-xs text-amber-700">{t('map.mismatchHint')}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {canAsk ? (
+          <form onSubmit={handleAsk} className="mt-3 flex items-center gap-2">
+            <input
+              value={draft}
+              onChange={(event) => {
+                setDraft(event.target.value)
+                // Editing the question invalidates the previous verdict, so the
+                // check re-runs on the next submit instead of waving it through.
+                if (mismatch) setMismatch(null)
+              }}
+              placeholder={t('map.askPlaceholder')}
+              className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-qira-pistachio"
+            />
+            <button
+              type="submit"
+              disabled={!draft.trim() || sending}
+              className="shrink-0 rounded-xl bg-qira-pistachio px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-40"
+            >
+              {mismatch ? t('map.askAnyway') : t('map.ask')}
+            </button>
+          </form>
+        ) : (
+          <p className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500">
+            {ownDiscipline
+              ? t('map.askOtherBranch', { branch: t(`map.discipline.${ownDiscipline}`) })
+              : t('map.askNoDepartment')}
+          </p>
+        )}
       </div>
+    </section>
+  )
+}
+
+interface QaNavEntry {
+  question: ProjectMapQaEntry
+  block: ProjectMapBlock
+  answerCount: number
+}
+
+/**
+ * Standing index of every thread in the map, split by whether it has been
+ * answered. With a couple of hundred blocks across four tabs, a question is
+ * otherwise unfindable unless you already know which block it sits under.
+ */
+function QaNavigator({
+  entries,
+  onOpen,
+  activeQuestionId,
+}: {
+  entries: QaNavEntry[]
+  onOpen: (entry: QaNavEntry) => void
+  activeQuestionId: string | null
+}) {
+  const { locale, t } = useI18n()
+  const [open, setOpen] = useState(true)
+
+  const unanswered = entries.filter((entry) => entry.answerCount === 0)
+  const answered = entries.filter((entry) => entry.answerCount > 0)
+
+  function renderGroup(label: string, group: QaNavEntry[], tone: 'pending' | 'done') {
+    if (group.length === 0) return null
+    return (
+      <div>
+        <p className="px-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+          {label} · {group.length}
+        </p>
+        <div className="mt-1.5 space-y-1.5">
+          {group.map((entry) => (
+            <button
+              key={entry.question.id}
+              type="button"
+              onClick={() => onOpen(entry)}
+              className={[
+                'w-full rounded-xl border px-3 py-2 text-left transition',
+                entry.question.id === activeQuestionId
+                  ? 'border-qira-pistachio bg-qira-pistachio-lt/40'
+                  : 'border-slate-200 bg-white hover:bg-slate-50',
+              ].join(' ')}
+            >
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={[
+                    'h-1.5 w-1.5 shrink-0 rounded-full',
+                    tone === 'pending' ? 'bg-amber-500' : 'bg-emerald-500',
+                  ].join(' ')}
+                  aria-hidden
+                />
+                <span className="shrink-0 text-[11px] font-semibold text-slate-400">
+                  {t(`map.discipline.${entry.block.discipline}`)}
+                </span>
+                <span className="ml-auto shrink-0 text-[11px] text-slate-400">
+                  {formatDate(locale, entry.question.created_at)}
+                </span>
+              </div>
+              <p className="mt-1 line-clamp-2 text-sm text-slate-900">{entry.question.body}</p>
+              <p className="mt-0.5 truncate text-xs text-slate-400">{entry.block.title}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <section className="rounded-[28px] bg-white p-4 shadow-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        {open ? <ChevronDown size={14} className="text-slate-500" /> : <ChevronRight size={14} className="text-slate-500" />}
+        <span className="text-sm font-semibold text-slate-900">{t('map.navTitle')}</span>
+        {unanswered.length > 0 && (
+          <span className="ml-auto shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+            {unanswered.length}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="mt-3 max-h-[60vh] space-y-4 overflow-y-auto pr-0.5">
+          {entries.length === 0 ? (
+            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-400">{t('map.navEmpty')}</p>
+          ) : (
+            <>
+              {renderGroup(t('map.navUnanswered'), unanswered, 'pending')}
+              {renderGroup(t('map.navAnswered'), answered, 'done')}
+            </>
+          )}
+        </div>
+      )}
     </section>
   )
 }
@@ -371,7 +553,10 @@ export function ProjectMapPage() {
   const loading = useStore((state) => state.loadingProjectMap)
   const error = useStore((state) => state.projectMapError)
   const createProjectMapBlock = useStore((state) => state.createProjectMapBlock)
+  const projectMapQa = useStore((state) => state.projectMapQa)
   const [discipline, setDiscipline] = useState<MapDiscipline>('backend')
+  const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null)
+  const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null)
   const canManage = canManageProject(activeProjectRole)
 
   useEffect(() => {
@@ -396,6 +581,34 @@ export function ProjectMapPage() {
     () => blocks.filter((block) => block.discipline === discipline),
     [blocks, discipline],
   )
+
+  const qaEntries = useMemo<QaNavEntry[]>(() => {
+    const blockById = new Map(blocks.map((block) => [block.id, block]))
+    const answerCounts = new Map<string, number>()
+    for (const entry of projectMapQa) {
+      if (!entry.parent_id) continue
+      answerCounts.set(entry.parent_id, (answerCounts.get(entry.parent_id) ?? 0) + 1)
+    }
+    return projectMapQa
+      .filter((entry) => !entry.parent_id && blockById.has(entry.block_id))
+      .map((question) => ({
+        question,
+        block: blockById.get(question.block_id) as ProjectMapBlock,
+        answerCount: answerCounts.get(question.id) ?? 0,
+      }))
+      // Newest first — the navigator is a worklist, and the freshest ask is the
+      // one most likely still waiting on someone.
+      .sort((left, right) => right.question.created_at.localeCompare(left.question.created_at))
+  }, [projectMapQa, blocks])
+
+  /** Switch to the block's tab and scroll its thread into view. */
+  function navigateToBlock(block: ProjectMapBlock, questionId: string | null = null) {
+    setDiscipline(block.discipline)
+    setActiveQuestionId(questionId)
+    // Re-set even when it's the same block, so a second click re-scrolls.
+    setFocusedBlockId(null)
+    window.requestAnimationFrame(() => setFocusedBlockId(block.id))
+  }
 
   return (
     <GlobalLayout>
@@ -455,26 +668,44 @@ export function ProjectMapPage() {
             </div>
           </section>
         ) : (
-          <>
-            {visibleBlocks.length === 0 ? (
-              <section className="rounded-[28px] bg-white p-8 shadow-sm">
-                <p className="text-center text-sm text-slate-500">{t('map.empty')}</p>
-              </section>
-            ) : (
-              visibleBlocks.map((block) => <MapBlockCard key={block.id} block={block} />)
-            )}
+          <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start">
+            <div className="flex min-w-0 flex-1 flex-col gap-4">
+              {visibleBlocks.length === 0 ? (
+                <section className="rounded-[28px] bg-white p-8 shadow-sm">
+                  <p className="text-center text-sm text-slate-500">{t('map.empty')}</p>
+                </section>
+              ) : (
+                visibleBlocks.map((block) => (
+                  <MapBlockCard
+                    key={block.id}
+                    block={block}
+                    focused={block.id === focusedBlockId}
+                    onNavigateToBlock={(target) => navigateToBlock(target)}
+                  />
+                ))
+              )}
 
-            {canManage && (
-              <button
-                type="button"
-                onClick={() => void createProjectMapBlock({ discipline, title: t('map.newBlockTitle') })}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[28px] border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                <Plus size={15} />
-                {t('map.addBlock')}
-              </button>
-            )}
-          </>
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => void createProjectMapBlock({ discipline, title: t('map.newBlockTitle') })}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[28px] border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
+                >
+                  <Plus size={15} />
+                  {t('map.addBlock')}
+                </button>
+              )}
+            </div>
+
+            {/* Above the blocks on narrow screens, pinned beside them on wide. */}
+            <aside className="order-first w-full shrink-0 lg:sticky lg:top-0 lg:order-none lg:w-[300px]">
+              <QaNavigator
+                entries={qaEntries}
+                activeQuestionId={activeQuestionId}
+                onOpen={(entry) => navigateToBlock(entry.block, entry.question.id)}
+              />
+            </aside>
+          </div>
         )}
       </div>
       <TaskDrawer />

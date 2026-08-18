@@ -1,5 +1,6 @@
 import { isFreshTask, isSuperseded } from './ops'
-import type { JiraUserPlaceholder, Profile, ProjectMember, Task, TaskLink } from '@/types'
+import { canManageProject } from './permissions'
+import type { JiraUserPlaceholder, MapDiscipline, Profile, ProjectMember, Task, TaskLink } from '@/types'
 
 export type Discipline = 'product' | 'design' | 'backend' | 'frontend' | 'qa'
 
@@ -25,6 +26,43 @@ const DEPARTMENT_TO_DISCIPLINE: Partial<Record<string, Discipline>> = {
   Backend: 'backend',
   Frontend: 'frontend',
   'Quality Assurance': 'qa',
+}
+
+/**
+ * A person's own Project Map branch, or null when their department maps to no
+ * branch (unset, Product, Executive Leadership, Project Delivery). Mirrors
+ * map_discipline_for_department() in the DB — keep both in step.
+ */
+export function mapDisciplineForDepartment(department: string | null | undefined): MapDiscipline | null {
+  switch ((department ?? '').trim()) {
+    case 'Design': return 'design'
+    case 'Backend': return 'backend'
+    case 'Frontend': return 'frontend'
+    case 'Quality Assurance': return 'qa'
+    default: return null
+  }
+}
+
+/**
+ * Who may raise a question in a given branch: the global super admin and the
+ * project's owner/admin/founder/ceo anywhere (the same tier that curates the
+ * map's blocks, and none of whom has a branch of their own), everyone else only
+ * in their own. Answering is never scoped this way — the rule is about asking
+ * in the wrong place, not about helping.
+ *
+ * Mirrors can_ask_in_map_discipline() in the DB, which is the real enforcement;
+ * this is the UI-gating half. AI agents don't pass through either check — they
+ * write over MCP as service_role.
+ */
+export function canAskInMapDiscipline(
+  discipline: MapDiscipline,
+  profile: Pick<Profile, 'role' | 'department'> | null | undefined,
+  projectRole: ProjectMember['project_role'] | null,
+): boolean {
+  if (!profile) return false
+  if (profile.role === 'admin') return true
+  if (canManageProject(projectRole)) return true
+  return mapDisciplineForDepartment(profile.department) === discipline
 }
 
 function taskAssigneeIds(task: Pick<Task, 'assignee_ids' | 'assignee_id' | 'assignee_placeholder_id'>): string[] {
