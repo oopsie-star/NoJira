@@ -3,11 +3,9 @@ import {
   createContext, useContext, useState, useEffect,
   useMemo, useCallback, useRef, type ReactNode,
 } from 'react'
-import { useNavigate } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store'
-import { consumePostLoginRedirect } from '@/lib/postLoginRedirect'
 import type { Profile } from '@/types'
 
 interface AuthContextValue {
@@ -101,7 +99,6 @@ export function AuthDebugPanel() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const navigate = useNavigate()
   const [session,   setSession]   = useState<Session | null>(null)
   const [profile,   setProfile]   = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -188,16 +185,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         settled = true
         await establishSession(session)
         setIsLoading(false)
-
-        // Every sign-in method (password, Google's full-page round-trip,
-        // email confirm) lands on the hardcoded /board redirectTo. If
-        // ProtectedRoute stashed a deeper path before bouncing here — a
-        // Telegram notification link opened while logged out, say — send
-        // the user on to it instead of leaving them on the board.
-        if (event === 'SIGNED_IN') {
-          const redirect = consumePostLoginRedirect()
-          if (redirect) navigate(redirect, { replace: true })
-        }
       }
     )
 
