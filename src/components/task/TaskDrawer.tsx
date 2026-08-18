@@ -418,6 +418,17 @@ export function TaskDrawer() {
       <aside className="fixed bottom-0 right-0 top-0 z-[70] flex w-full flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl lg:max-w-[760px]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-3 sm:px-6 sm:py-4">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            {/* The drawer covers the whole screen on mobile, hiding the bottom
+                nav — this is the conventional top-left "back" spot so leaving
+                doesn't depend on spotting the X among the action icons. */}
+            <button
+              type="button"
+              onClick={handleClose}
+              aria-label={t('common.close')}
+              className="-ml-1.5 inline-flex shrink-0 items-center justify-center rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 lg:hidden"
+            >
+              <ChevronLeft size={22} />
+            </button>
             <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
               {currentTask.key}
             </span>

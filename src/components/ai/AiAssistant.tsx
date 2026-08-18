@@ -452,7 +452,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     <>
       {open && (
         <div
-          className="fixed right-4 bottom-40 lg:right-6 lg:bottom-20 z-[80] w-80 sm:w-96 rounded-2xl bg-white shadow-2xl flex flex-col"
+          className="fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom)+4.5rem)] lg:bottom-20 z-[80] w-80 sm:w-96 rounded-2xl bg-white shadow-2xl flex flex-col"
           style={{ maxHeight: '60vh', animation: 'aiSlideUp 0.18s ease-out' }}
         >
           <style>{`
@@ -579,7 +579,11 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
         </div>
       )}
 
-      <div className="fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-[80]">
+      {/* bottom-24 alone drifted under the mobile tab bar on devices with a
+          tall safe-area inset (e.g. the iOS home indicator) since it didn't
+          account for it — tie this to the same reserved nav height GlobalLayout
+          already pads <main> with, plus a gap, so it can't overlap. */}
+      <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom)+0.75rem)] right-4 lg:bottom-6 lg:right-6 z-[80]">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}

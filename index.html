@@ -1,8 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" translate="no">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Chrome/Google Translate rewrites live text nodes outside React's
+         control; on a page this dynamic that reliably surfaces as
+         "NotFoundError: insertBefore" the next time React reconciles near
+         translated content (worst on mobile, where auto-translate is more
+         eagerly offered). Opting the whole app out is the standard fix. -->
+    <meta name="google" content="notranslate" />
     <title>Qira</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -13,7 +19,7 @@
     />
   </head>
   <body class="antialiased">
-    <div id="root"></div>
+    <div id="root" class="notranslate" translate="no"></div>
     <script>
       (function () {
         var redirect = sessionStorage.getItem('nojira-gh-redirect');
