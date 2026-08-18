@@ -182,7 +182,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
                         {task.epic.title}
                       </span>
                     )}
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
+                    <p className="min-w-0 flex-1 break-words text-sm font-medium text-slate-900">
                       {task.title}
                     </p>
                   </div>

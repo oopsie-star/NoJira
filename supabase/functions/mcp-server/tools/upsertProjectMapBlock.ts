@@ -156,6 +156,7 @@ export async function upsertProjectMapBlock(admin: SupabaseClient, args: UpsertP
 
   await notifyProjectMapBlock({
     projectId: project.id,
+    blockId: data.id,
     discipline,
     title,
     agentName,

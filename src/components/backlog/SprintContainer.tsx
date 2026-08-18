@@ -57,6 +57,10 @@ export function SprintContainer({
   const [showCreate, setShowCreate] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [requestingDelete, setRequestingDelete] = useState(false)
+  // A permanently-mounted <input> can't wrap a long name onto a second line
+  // (plain-text-only CSS behavior) — so it only becomes an input once
+  // clicked, and reverts to the wrapping heading on blur.
+  const [editingName, setEditingName] = useState(false)
 
   const epic = useMemo(
     () => (sprint.epic_id ? epics.find((item) => item.id === sprint.epic_id) ?? null : null),
@@ -143,18 +147,31 @@ export function SprintContainer({
                   <Rocket size={14} />
                 </span>
                 {canEditName ? (
-                  <input
-                    key={sprint.name}
-                    defaultValue={sprint.name}
-                    onBlur={(event) => {
-                      const value = event.target.value.trim()
-                      if (value && value !== sprint.name) void updateSprint(sprint.id, { name: value })
-                      else event.target.value = sprint.name
-                    }}
-                    className="min-w-0 flex-1 truncate rounded-md border border-transparent bg-transparent px-1 -mx-1 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-200 focus:bg-white sm:text-base"
-                  />
+                  editingName ? (
+                    <input
+                      key={sprint.name}
+                      autoFocus
+                      defaultValue={sprint.name}
+                      onBlur={(event) => {
+                        const value = event.target.value.trim()
+                        if (value && value !== sprint.name) void updateSprint(sprint.id, { name: value })
+                        setEditingName(false)
+                      }}
+                      className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-1 -mx-1 text-sm font-semibold text-slate-900 outline-none sm:text-base"
+                    />
+                  ) : (
+                    <h2
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setEditingName(true)}
+                      onKeyDown={(event) => { if (event.key === 'Enter') setEditingName(true) }}
+                      className="min-w-0 cursor-text break-words rounded-md px-1 -mx-1 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 sm:text-base"
+                    >
+                      {sprint.name}
+                    </h2>
+                  )
                 ) : (
-                  <h2 className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-base">{sprint.name}</h2>
+                  <h2 className="min-w-0 break-words text-sm font-semibold text-slate-900 sm:text-base">{sprint.name}</h2>
                 )}
                 <span className={[
                   'rounded-full px-2 py-0.5 text-[11px] font-semibold',

@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthContext } from '@/auth/AuthContext'
 import { useStore } from '@/store'
 import { projectPath, sectionFromPathname } from '@/lib/projectRoutes'
+import { savePostLoginRedirect } from '@/lib/postLoginRedirect'
 
 const AuthPage = lazy(() => import('@/components/auth/AuthPage').then((module) => ({ default: module.AuthPage })))
 const BoardPage = lazy(() => import('@/pages/BoardPage').then((module) => ({ default: module.BoardPage })))
@@ -23,13 +24,21 @@ function FullPageSpinner() {
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { session, profile, isLoading, isPendingApproval } = useAuthContext()
+  const location = useLocation()
   if (isLoading) return <FullPageSpinner />
   // No profile means no identity, and rendering the app without one showed
   // its sections with every field blank — and skipped the approval check
   // below, which needs the profile to reject anyone. AuthProvider already
   // refuses to set a session without a profile; this keeps that invariant
   // enforced at the gate itself.
-  if (!session || !profile) return <Navigate to="/auth" replace />
+  if (!session || !profile) {
+    // A deep link (e.g. a Telegram notification) opened while logged out
+    // would otherwise be lost — every sign-in method lands on /board once
+    // done. Save it so AuthContext can send the user on to where they were
+    // actually headed.
+    savePostLoginRedirect(location.pathname + location.search + location.hash)
+    return <Navigate to="/auth" replace />
+  }
   if (isPendingApproval) return <Navigate to="/pending-approval" replace />
   return <>{children}</>
 }

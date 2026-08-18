@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Code2, Flag, FlaskConical, Loader2, Palette, Plus, Server, Sparkles, Trash2 } from 'lucide-react'
 import { GlobalLayout } from '@/components/layout/GlobalLayout'
 import { TaskDrawer } from '@/components/task/TaskDrawer'
@@ -587,14 +588,33 @@ export function ProjectMapPage() {
   const error = useStore((state) => state.projectMapError)
   const createProjectMapBlock = useStore((state) => state.createProjectMapBlock)
   const projectMapQa = useStore((state) => state.projectMapQa)
-  const [discipline, setDiscipline] = useState<MapDiscipline>('backend')
+  const [searchParams] = useSearchParams()
+  const [discipline, setDiscipline] = useState<MapDiscipline>(() => {
+    const requested = searchParams.get('discipline')
+    return (MAP_DISCIPLINES as readonly string[]).includes(requested ?? '') ? (requested as MapDiscipline) : 'backend'
+  })
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null)
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null)
   const canManage = canManageProject(activeProjectRole)
+  const deepLinkConsumedRef = useRef(false)
 
   useEffect(() => {
     fetchProjects()
   }, [fetchProjects])
+
+  // A notification link (e.g. from Telegram) can point at one specific
+  // block via ?discipline=&block= — once its data has loaded, switch to
+  // its tab and scroll it into view, same as the in-app Q&A navigator does.
+  useEffect(() => {
+    if (deepLinkConsumedRef.current) return
+    const blockId = searchParams.get('block')
+    if (!blockId || blocks.length === 0) return
+    const target = blocks.find((block) => block.id === blockId)
+    if (!target) return
+    deepLinkConsumedRef.current = true
+    setDiscipline(target.discipline)
+    window.requestAnimationFrame(() => setFocusedBlockId(target.id))
+  }, [blocks, searchParams])
 
   useEffect(() => {
     if (activeProjectId) {

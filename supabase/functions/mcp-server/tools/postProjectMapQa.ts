@@ -82,6 +82,7 @@ export async function postProjectMapQa(admin: SupabaseClient, args: PostProjectM
   if (!answerTo) {
     await notifyProjectMapQuestion({
       projectId: block.project_id,
+      blockId: block.id,
       discipline: block.discipline,
       blockTitle: block.title,
       body,

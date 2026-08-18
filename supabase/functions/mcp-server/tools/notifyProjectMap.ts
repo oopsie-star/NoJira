@@ -12,7 +12,7 @@
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
-async function deliver(payload: Record<string, unknown>): Promise<void> {
+async function deliver(payload: Record<string, unknown>, linkPath: string): Promise<void> {
   if (!supabaseUrl || !serviceRoleKey) return
   try {
     await fetch(`${supabaseUrl.replace(/\/$/, '')}/functions/v1/send-task-notification`, {
@@ -21,11 +21,16 @@ async function deliver(payload: Record<string, unknown>): Promise<void> {
         Authorization: `Bearer ${serviceRoleKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ...payload, task_id: null, link_path: 'map' }),
+      body: JSON.stringify({ ...payload, task_id: null, link_path: linkPath }),
     })
   } catch (error) {
     console.error('[mcp-server] Project Map notification failed', error)
   }
+}
+
+/** ProjectMapPage reads these on load to switch to the right tab and scroll/highlight the block. */
+function mapBlockLinkPath(discipline: string, blockId: string): string {
+  return `map?discipline=${encodeURIComponent(discipline)}&block=${encodeURIComponent(blockId)}`
 }
 
 function truncate(text: string, limit: number) {
@@ -47,6 +52,7 @@ function sectionLabel(discipline: string) {
 /** Everyone on the project — new material is for the whole team to see. */
 export async function notifyProjectMapBlock(options: {
   projectId: string
+  blockId: string
   discipline: string
   title: string
   agentName: string
@@ -60,12 +66,13 @@ export async function notifyProjectMapBlock(options: {
     project_id: options.projectId,
     subject: `Карта проекта · ${section}: ${truncate(options.title, 120)}`,
     body_text: `${verb} в разделе «${section}» карты проекта. Автор: ${options.agentName}.`,
-  })
+  }, mapBlockLinkPath(options.discipline, options.blockId))
 }
 
 /** Questions go to the global super admins, who field them. */
 export async function notifyProjectMapQuestion(options: {
   projectId: string
+  blockId: string
   discipline: string
   blockTitle: string
   body: string
@@ -78,5 +85,5 @@ export async function notifyProjectMapQuestion(options: {
     project_id: options.projectId,
     subject: `Вопрос по карте проекта · ${section}: ${truncate(options.blockTitle, 100)}`,
     body_text: `${options.askedBy} спрашивает: ${truncate(options.body, 400)}`,
-  })
+  }, mapBlockLinkPath(options.discipline, options.blockId))
 }

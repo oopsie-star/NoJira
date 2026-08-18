@@ -431,6 +431,10 @@ function TaskListSection({
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const [descriptionOpen, setDescriptionOpen] = useState(false)
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
+  // A permanently-mounted <input> can't wrap long titles onto a second line
+  // (that's a plain-text-only CSS behavior) — so the editable title only
+  // becomes an input once clicked, and reverts to the wrapping heading on blur.
+  const [editingTitle, setEditingTitle] = useState(false)
 
   return (
     <section key={sectionKey} className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm">
@@ -449,23 +453,31 @@ function TaskListSection({
             <div className="flex flex-wrap items-center gap-2">
               {icon}
               {onTitleSave ? (
-                <input
-                  key={title}
-                  defaultValue={title}
-                  onBlur={(event) => {
-                    const value = event.target.value.trim()
-                    if (value && value !== title) onTitleSave(value)
-                    // Always snap back to the real title: a genuine save
-                    // re-renders with the new title anyway (key={title}
-                    // remounts this input), while a proposal never touches
-                    // the row, so leaving the typed text showing would
-                    // falsely read as "saved" until the next full reload.
-                    event.target.value = title
-                  }}
-                  className="min-w-0 flex-1 truncate rounded-md border border-transparent bg-transparent px-1 -mx-1 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-200 focus:bg-white sm:text-base"
-                />
+                editingTitle ? (
+                  <input
+                    key={title}
+                    autoFocus
+                    defaultValue={title}
+                    onBlur={(event) => {
+                      const value = event.target.value.trim()
+                      if (value && value !== title) onTitleSave(value)
+                      setEditingTitle(false)
+                    }}
+                    className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-1 -mx-1 text-sm font-semibold text-slate-900 outline-none sm:text-base"
+                  />
+                ) : (
+                  <h2
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setEditingTitle(true)}
+                    onKeyDown={(event) => { if (event.key === 'Enter') setEditingTitle(true) }}
+                    className="min-w-0 cursor-text break-words rounded-md px-1 -mx-1 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 sm:text-base"
+                  >
+                    {title}
+                  </h2>
+                )
               ) : (
-                <h2 className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-base">{title}</h2>
+                <h2 className="min-w-0 break-words text-sm font-semibold text-slate-900 sm:text-base">{title}</h2>
               )}
               {titleBadges}
               <span className="text-xs text-slate-500">{t('backlog.issueCount', { count: itemCount })}</span>
