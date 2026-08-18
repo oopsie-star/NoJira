@@ -16,7 +16,11 @@ function Centered({ children }: { children: ReactNode }) {
 }
 
 // Big enough for reading, small enough that the <pre> text node stays cheap.
+// Only caps the source view — the rendered page always gets the whole document.
 const SOURCE_LIMIT = 500_000
+
+// Sanity bound on what we will hold in memory for an HTML attachment.
+const HTML_LIMIT = 20_000_000
 
 function SourceView({ text, error, truncated, errorLabel, truncatedLabel }: { text: string | null; error: boolean; truncated: boolean; errorLabel: string; truncatedLabel: string }) {
   if (error) return <Centered>{errorLabel}</Centered>
@@ -52,11 +56,9 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
     void logActivityEvent('play_audio', { taskId, detail: filename })
   }
 
-  // Fetch textual bodies directly (kept private — no external service). HTML is
-  // excluded on purpose: it renders straight from the signed URL, so a large
-  // document (a 2 MB generated page is normal) is never pulled into memory or
-  // clipped by SOURCE_LIMIT. Only the opt-in source view fetches it.
-  const needsBody = kind === 'text' || kind === 'markdown' || (kind === 'html' && showSource)
+  // Fetch textual bodies directly (kept private — no external service).
+  const needsBody = kind === 'text' || kind === 'markdown' || kind === 'html'
+  const bodyLimit = kind === 'html' ? HTML_LIMIT : SOURCE_LIMIT
 
   useEffect(() => {
     if (!needsBody || !signedUrl) return
@@ -72,8 +74,8 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
       })
       .then((body) => {
         if (!active) return
-        setTextTruncated(body.length > SOURCE_LIMIT)
-        setText(body.slice(0, SOURCE_LIMIT))
+        setTextTruncated(body.length > bodyLimit)
+        setText(body.slice(0, bodyLimit))
       })
       .catch(() => {
         if (!active) return
@@ -85,7 +87,25 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
       })
 
     return () => { active = false }
-  }, [needsBody, signedUrl])
+  }, [needsBody, bodyLimit, signedUrl])
+
+  // Storage serves user-uploaded HTML with a neutralised content type (it will
+  // not let arbitrary markup execute on its own domain), so pointing the iframe
+  // at the signed URL just shows the source as plain text. Re-wrapping the body
+  // in a Blob we label text/html puts the content type back under our control
+  // and keeps working regardless of what the storage layer sends.
+  const [htmlUrl, setHtmlUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (kind !== 'html' || !text) {
+      setHtmlUrl(null)
+      return
+    }
+
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/html;charset=utf-8' }))
+    setHtmlUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [kind, text])
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) { if (event.key === 'Escape') onClose() }
@@ -153,16 +173,19 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
               <div className="mx-auto max-w-3xl p-6"><MarkdownRenderer source={text ?? ''} /></div>
             )
           ) : kind === 'html' ? (
-            showSource ? (
-              textLoading ? <Centered><Loader2 size={20} className="animate-spin" /></Centered> : <SourceView text={text} error={textError} truncated={textTruncated} errorLabel={t('preview.unavailable')} truncatedLabel={t('preview.sourceTruncated', { limit: SOURCE_LIMIT.toLocaleString(locale === 'ru' ? 'ru-RU' : 'en-US') })} />
+            textLoading ? <Centered><Loader2 size={20} className="animate-spin" /></Centered> : textError ? (
+              <Centered>{t('preview.unavailable')}</Centered>
+            ) : showSource ? (
+              <SourceView text={text?.slice(0, SOURCE_LIMIT) ?? null} error={false} truncated={(text?.length ?? 0) > SOURCE_LIMIT} errorLabel={t('preview.unavailable')} truncatedLabel={t('preview.sourceTruncated', { limit: SOURCE_LIMIT.toLocaleString(locale === 'ru' ? 'ru-RU' : 'en-US') })} />
+            ) : !htmlUrl ? (
+              <Centered><Loader2 size={20} className="animate-spin" /></Centered>
             ) : (
-              /* Loaded by URL, not srcDoc, so document size is the browser's
-                 problem rather than ours. Sandboxed without allow-same-origin:
-                 the page sits in an opaque origin and cannot touch this app's
-                 session, storage, or cookies — it can only draw itself. */
+              /* Sandboxed without allow-same-origin: the page sits in an opaque
+                 origin and cannot touch this app's session, storage, or cookies
+                 — it can only draw itself. */
               <iframe
                 title={filename}
-                src={signedUrl}
+                src={htmlUrl}
                 sandbox="allow-scripts"
                 className="h-full w-full border-0 bg-white"
               />
