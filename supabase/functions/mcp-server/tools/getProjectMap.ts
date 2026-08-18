@@ -33,7 +33,7 @@ export async function getProjectMap(admin: SupabaseClient, args: GetProjectMapAr
 
   let blocksQuery = admin
     .from('project_map_blocks')
-    .select('id, discipline, title, body, attachments, linked_task_ids, linked_epic_ids, position, last_ai_agent, updated_at')
+    .select('id, discipline, covers_discipline, title, body, attachments, linked_task_ids, linked_epic_ids, position, last_ai_agent, updated_at')
     .eq('project_id', project.id)
     .order('position')
     .order('created_at')
@@ -83,6 +83,7 @@ export async function getProjectMap(admin: SupabaseClient, args: GetProjectMapAr
       return {
         id: block.id,
         discipline: block.discipline,
+        covers_discipline: block.covers_discipline,
         title: block.title,
         body: block.body,
         position: block.position,

@@ -1,6 +1,7 @@
 import { isFreshTask, isSuperseded } from './ops'
 import { canManageProject } from './permissions'
-import type { JiraUserPlaceholder, MapDiscipline, Profile, ProjectMember, Task, TaskLink } from '@/types'
+import { MAP_DISCIPLINES } from '@/types'
+import type { JiraUserPlaceholder, MapDiscipline, Profile, ProjectMapBlock, ProjectMember, Task, TaskLink } from '@/types'
 
 export type Discipline = 'product' | 'design' | 'backend' | 'frontend' | 'qa'
 
@@ -44,25 +45,55 @@ export function mapDisciplineForDepartment(department: string | null | undefined
 }
 
 /**
- * Who may raise a question in a given branch: the global super admin and the
- * project's owner/admin/founder/ceo anywhere (the same tier that curates the
- * map's blocks, and none of whom has a branch of their own), everyone else only
- * in their own. Answering is never scoped this way — the rule is about asking
- * in the wrong place, not about helping.
- *
- * Mirrors can_ask_in_map_discipline() in the DB, which is the real enforcement;
- * this is the UI-gating half. AI agents don't pass through either check — they
- * write over MCP as service_role.
+ * Every branch a person may act in — their primary department plus any
+ * additional ones, for people holding combined roles (backend + frontend, say).
+ * Mirrors map_disciplines_for_profile() in the DB.
  */
-export function canAskInMapDiscipline(
-  discipline: MapDiscipline,
-  profile: Pick<Profile, 'role' | 'department'> | null | undefined,
+export function mapDisciplinesForProfile(
+  profile: Pick<Profile, 'department' | 'additional_departments'> | null | undefined,
+): MapDiscipline[] {
+  if (!profile) return []
+  const found = new Set<MapDiscipline>()
+  for (const department of [profile.department, ...(profile.additional_departments ?? [])]) {
+    const discipline = mapDisciplineForDepartment(department)
+    if (discipline) found.add(discipline)
+  }
+  return MAP_DISCIPLINES.filter((discipline) => found.has(discipline))
+}
+
+/**
+ * Whether someone may raise a question on a specific block.
+ *
+ * Unrestricted: the global super admin and the project's owner/admin/founder/ceo
+ * — the tier that curates the map's blocks, none of whom has a branch of their
+ * own. A normal block needs the matching discipline.
+ *
+ * QA is cross-cutting: a QA block belongs to testers *and* to whoever's work it
+ * covers, since QA of the backend concerns the backend devs. A QA block that
+ * hasn't declared its coverage is open to anyone holding any discipline —
+ * undeclared means "we don't know whose work yet", which is closer to everyone
+ * than to nobody.
+ *
+ * Mirrors can_ask_in_map_block() in the DB, which is the real enforcement; this
+ * is the UI-gating half. AI agents pass through neither — they write over MCP
+ * as service_role.
+ */
+export function canAskInMapBlock(
+  block: Pick<ProjectMapBlock, 'discipline' | 'covers_discipline'>,
+  profile: Pick<Profile, 'role' | 'department' | 'additional_departments'> | null | undefined,
   projectRole: ProjectMember['project_role'] | null,
 ): boolean {
   if (!profile) return false
   if (profile.role === 'admin') return true
   if (canManageProject(projectRole)) return true
-  return mapDisciplineForDepartment(profile.department) === discipline
+
+  const own = mapDisciplinesForProfile(profile)
+  if (block.discipline === 'qa') {
+    if (own.includes('qa')) return true
+    if (block.covers_discipline) return own.includes(block.covers_discipline)
+    return own.length > 0
+  }
+  return own.includes(block.discipline)
 }
 
 function taskAssigneeIds(task: Pick<Task, 'assignee_ids' | 'assignee_id' | 'assignee_placeholder_id'>): string[] {
@@ -72,10 +103,12 @@ function taskAssigneeIds(task: Pick<Task, 'assignee_ids' | 'assignee_id' | 'assi
   return []
 }
 
-function departmentOf(id: string, members: Profile[], placeholders: JiraUserPlaceholder[]): string | null {
-  return members.find((m) => m.id === id)?.department
-    || placeholders.find((p) => p.id === id)?.department
-    || null
+/** Every department a person holds — combined roles included. Placeholders only ever have one. */
+function departmentsOf(id: string, members: Profile[], placeholders: JiraUserPlaceholder[]): string[] {
+  const member = members.find((m) => m.id === id)
+  if (member) return [member.department, ...(member.additional_departments ?? [])].filter(Boolean)
+  const placeholder = placeholders.find((p) => p.id === id)
+  return placeholder?.department ? [placeholder.department] : []
 }
 
 /** CEO, founder, and (global) super admin are always Product, regardless of their `department`. */
@@ -97,8 +130,10 @@ function disciplinesOf(
       found.add('product')
       continue
     }
-    const discipline = DEPARTMENT_TO_DISCIPLINE[departmentOf(id, members, placeholders) ?? '']
-    if (discipline) found.add(discipline)
+    for (const department of departmentsOf(id, members, placeholders)) {
+      const discipline = DEPARTMENT_TO_DISCIPLINE[department]
+      if (discipline) found.add(discipline)
+    }
   }
   return found
 }

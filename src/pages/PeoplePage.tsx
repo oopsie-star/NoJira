@@ -1010,6 +1010,43 @@ export function PeoplePage() {
                               </select>
                             </label>
 
+                            {/* Combined roles: someone can genuinely be backend *and* frontend,
+                                and they get access to every branch listed here. */}
+                            <div className="block">
+                              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                                {t('people.additionalDepartments')}
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {DEPARTMENT_OPTIONS.filter((option) => option !== person.department).map((option) => {
+                                  const selected = (person.additional_departments ?? []).includes(option)
+                                  return (
+                                    <button
+                                      key={option}
+                                      type="button"
+                                      disabled={!canEditMemberProfile}
+                                      onClick={() => {
+                                        const current = person.additional_departments ?? []
+                                        void handleUpdateProfileField(person.id, {
+                                          additional_departments: selected
+                                            ? current.filter((item) => item !== option)
+                                            : [...current, option],
+                                        })
+                                      }}
+                                      className={[
+                                        'rounded-full px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50',
+                                        selected
+                                          ? 'bg-qira-pistachio text-white'
+                                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                                      ].join(' ')}
+                                    >
+                                      {option}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                              <p className="mt-1.5 text-xs text-slate-400">{t('people.additionalDepartmentsHint')}</p>
+                            </div>
+
                             <label className="block">
                               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.locale')}</span>
                               <select

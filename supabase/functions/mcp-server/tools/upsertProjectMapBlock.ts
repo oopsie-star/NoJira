@@ -11,6 +11,7 @@ interface UpsertProjectMapBlockArgs {
   title?: string
   body?: string
   block_id?: string
+  covers_discipline?: string
   linked_tasks?: unknown
   linked_epics?: unknown
   position?: number
@@ -97,6 +98,19 @@ export async function upsertProjectMapBlock(admin: SupabaseClient, args: UpsertP
     last_ai_agent: agentName,
   }
   if (typeof args.position === 'number') fields.position = args.position
+
+  // QA blocks declare whose work they cover — that's what grants those authors
+  // (not just testers) the right to ask about the block. Only meaningful on QA.
+  if (args.covers_discipline !== undefined) {
+    const covers = args.covers_discipline === null ? null : String(args.covers_discipline).trim().toLowerCase()
+    if (covers && discipline !== 'qa') {
+      throw new ToolError('"covers_discipline" only applies to QA blocks.')
+    }
+    if (covers && !['design', 'backend', 'frontend'].includes(covers)) {
+      throw new ToolError('"covers_discipline" must be one of: design, backend, frontend.')
+    }
+    fields.covers_discipline = covers || null
+  }
   if (taskRefs) fields.linked_task_ids = await resolveTaskIds(admin, project.id, taskRefs)
   if (epicRefs) fields.linked_epic_ids = await resolveEpicIds(admin, project.id, epicRefs)
 

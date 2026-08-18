@@ -12,6 +12,8 @@ export interface Profile {
   role:        UserRole
   job_title:   string
   department:  string
+  /** Secondary departments for combined roles (e.g. backend + frontend). Access is the union with `department`. */
+  additional_departments: string[]
   locale:      Locale
   created_at:  string
   approved:    boolean
@@ -308,6 +310,8 @@ export interface ProjectMapBlock {
   id:              string
   project_id:      string
   discipline:      MapDiscipline
+  /** QA blocks only: whose work this QA material covers. Null = not declared yet. */
+  covers_discipline: Exclude<MapDiscipline, 'qa'> | null
   title:           string
   body:            string
   attachments:     string[]

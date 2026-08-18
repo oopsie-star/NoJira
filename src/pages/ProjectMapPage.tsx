@@ -7,7 +7,7 @@ import { UserAvatar } from '@/components/common/UserAvatar'
 import { StatusBadge } from '@/components/common/IssueBadges'
 import { MarkdownRenderer } from '@/lib/markdown'
 import { useAuthContext } from '@/auth/AuthContext'
-import { canAskInMapDiscipline, mapDisciplineForDepartment } from '@/lib/discipline'
+import { canAskInMapBlock, mapDisciplinesForProfile } from '@/lib/discipline'
 import { findTopicMismatch, type TopicMismatch } from '@/lib/mapTopicMatch'
 import { formatDate } from '@/lib/format'
 import { useI18n } from '@/lib/i18n'
@@ -21,6 +21,11 @@ const DISCIPLINE_ICONS: Record<MapDiscipline, typeof Server> = {
   design: Palette,
   qa: FlaskConical,
 }
+
+/** What a QA block can declare it covers — QA never covers itself. */
+const COVERABLE_DISCIPLINES = MAP_DISCIPLINES.filter(
+  (item): item is Exclude<MapDiscipline, 'qa'> => item !== 'qa',
+)
 
 /** Matches the discipline badge palette used on backlog rows. */
 const DISCIPLINE_ACTIVE_CLASSES: Record<MapDiscipline, string> = {
@@ -217,8 +222,8 @@ function MapBlockCard({
   const [mismatch, setMismatch] = useState<TopicMismatch | null>(null)
   const sectionRef = useRef<HTMLElement>(null)
   const canManage = canManageProject(activeProjectRole)
-  const canAsk = canAskInMapDiscipline(block.discipline, profile, activeProjectRole)
-  const ownDiscipline = mapDisciplineForDepartment(profile?.department)
+  const canAsk = canAskInMapBlock(block, profile, activeProjectRole)
+  const ownDisciplines = mapDisciplinesForProfile(profile)
 
   // Arriving from the Q&A navigator: reveal the thread and bring it on screen.
   useEffect(() => {
@@ -303,6 +308,32 @@ function MapBlockCard({
                 {t(`ai.agent.${block.last_ai_agent}`)}
               </span>
             )}
+            {/* QA is cross-cutting: declaring whose work a QA block covers is
+                what lets those authors ask about it, not just testers. */}
+            {block.discipline === 'qa' && (canManage ? (
+              <label className="inline-flex items-center gap-1">
+                <span>{t('map.coversLabel')}</span>
+                <select
+                  value={block.covers_discipline ?? ''}
+                  onChange={(event) => void updateProjectMapBlock(block.id, {
+                    covers_discipline: (event.target.value || null) as ProjectMapBlock['covers_discipline'],
+                  })}
+                  className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-600 outline-none transition focus:border-qira-pistachio"
+                >
+                  <option value="">{t('map.coversUndeclared')}</option>
+                  {COVERABLE_DISCIPLINES.map((item) => (
+                    <option key={item} value={item}>{t(`map.discipline.${item}`)}</option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">
+                {t('map.coversLabel')}{' '}
+                {block.covers_discipline
+                  ? t(`map.discipline.${block.covers_discipline}`)
+                  : t('map.coversUndeclared')}
+              </span>
+            ))}
           </div>
         </div>
         {canManage && (
@@ -427,8 +458,10 @@ function MapBlockCard({
           </form>
         ) : (
           <p className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500">
-            {ownDiscipline
-              ? t('map.askOtherBranch', { branch: t(`map.discipline.${ownDiscipline}`) })
+            {ownDisciplines.length > 0
+              ? t('map.askOtherBranch', {
+                  branch: ownDisciplines.map((item) => t(`map.discipline.${item}`)).join(', '),
+                })
               : t('map.askNoDepartment')}
           </p>
         )}

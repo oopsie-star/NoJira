@@ -4,6 +4,25 @@ export interface McpToolSchema {
   name: string
   description: string
   inputSchema: Record<string, unknown>
+  _meta?: Record<string, unknown>
+}
+
+// ChatGPT's Apps SDK file-input convention: a top-level input field listed
+// here gets populated by ChatGPT itself with { download_url, file_id,
+// mime_type?, file_name? } for whatever the user attached — the model never
+// has to author raw bytes. See supabase/functions/mcp-server/tools/attachmentPaths.ts
+// for the server side of this (resolveAttachmentBytes).
+const FILE_PARAM_PROPERTY = {
+  type: 'object',
+  description:
+    'File reference for clients that support the openai/fileParams convention (e.g. ChatGPT) — the server fetches the bytes from download_url itself. Use this OR content_base64, not both.',
+  properties: {
+    download_url: { type: 'string', description: 'Temporary URL the server fetches the file bytes from.' },
+    file_id: { type: 'string' },
+    mime_type: { type: 'string' },
+    file_name: { type: 'string' },
+  },
+  required: ['download_url', 'file_id'],
 }
 
 // Claude and ChatGPT both reach this server through the same static
@@ -151,53 +170,59 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
   {
     name: 'attach_task_file',
     description:
-      `Attach a file to a task (max 20MB). content_base64 is the raw file content, base64-encoded. To mark a previous attachment as superseded, call rename_attachment on it with "УСТАРЕЛО " prefixed to its current name.${CROSS_AGENT_NOTE}`,
+      `Attach a file to a task (max 20MB). Provide the file via "file" (preferred if your client supports openai/fileParams — e.g. ChatGPT) or "content_base64" (raw file content, base64-encoded — e.g. Claude Code, which reads the file itself). To mark a previous attachment as superseded, call rename_attachment on it with "УСТАРЕЛО " prefixed to its current name.${CROSS_AGENT_NOTE}`,
     inputSchema: {
       type: 'object',
       properties: {
         task: { type: 'string', description: 'Task key or id.' },
         filename: { type: 'string', description: 'Original filename, e.g. "spec.pdf" — any script, does not need to be ASCII.' },
-        content_base64: { type: 'string', description: 'Raw file bytes, base64-encoded.' },
-        mime_type: { type: 'string', description: 'Optional MIME type, e.g. "application/pdf".' },
+        file: FILE_PARAM_PROPERTY,
+        content_base64: { type: 'string', description: 'Raw file bytes, base64-encoded. Use this OR file, not both.' },
+        mime_type: { type: 'string', description: 'Optional MIME type, e.g. "application/pdf". Falls back to file.mime_type.' },
         agent_name: AGENT_NAME_PROPERTY,
         confirmed_cross_agent: CONFIRMED_CROSS_AGENT_PROPERTY,
       },
-      required: ['task', 'filename', 'content_base64', 'agent_name'],
+      required: ['task', 'filename', 'agent_name'],
     },
+    _meta: { 'openai/fileParams': ['file'] },
   },
   {
     name: 'attach_epic_file',
-    description: `Attach a file to an epic (max 20MB). See attach_task_file for content_base64 details.${CROSS_AGENT_NOTE}`,
+    description: `Attach a file to an epic (max 20MB). See attach_task_file for the file/content_base64 details.${CROSS_AGENT_NOTE}`,
     inputSchema: {
       type: 'object',
       properties: {
         project: { type: 'string', description: 'Project key.' },
         epic: { type: 'string', description: 'Epic key or title.' },
         filename: { type: 'string' },
-        content_base64: { type: 'string', description: 'Raw file bytes, base64-encoded.' },
+        file: FILE_PARAM_PROPERTY,
+        content_base64: { type: 'string', description: 'Raw file bytes, base64-encoded. Use this OR file, not both.' },
         mime_type: { type: 'string' },
         agent_name: AGENT_NAME_PROPERTY,
         confirmed_cross_agent: CONFIRMED_CROSS_AGENT_PROPERTY,
       },
-      required: ['project', 'epic', 'filename', 'content_base64', 'agent_name'],
+      required: ['project', 'epic', 'filename', 'agent_name'],
     },
+    _meta: { 'openai/fileParams': ['file'] },
   },
   {
     name: 'attach_sprint_file',
-    description: `Attach a file to a sprint (max 20MB). See attach_task_file for content_base64 details.${CROSS_AGENT_NOTE}`,
+    description: `Attach a file to a sprint (max 20MB). See attach_task_file for the file/content_base64 details.${CROSS_AGENT_NOTE}`,
     inputSchema: {
       type: 'object',
       properties: {
         project: { type: 'string', description: 'Project key.' },
         sprint: { type: 'string', description: 'Sprint name.' },
         filename: { type: 'string' },
-        content_base64: { type: 'string', description: 'Raw file bytes, base64-encoded.' },
+        file: FILE_PARAM_PROPERTY,
+        content_base64: { type: 'string', description: 'Raw file bytes, base64-encoded. Use this OR file, not both.' },
         mime_type: { type: 'string' },
         agent_name: AGENT_NAME_PROPERTY,
         confirmed_cross_agent: CONFIRMED_CROSS_AGENT_PROPERTY,
       },
-      required: ['project', 'sprint', 'filename', 'content_base64', 'agent_name'],
+      required: ['project', 'sprint', 'filename', 'agent_name'],
     },
+    _meta: { 'openai/fileParams': ['file'] },
   },
   {
     name: 'rename_attachment',
@@ -320,6 +345,12 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
         title: { type: 'string', description: 'Block heading — also its identity within the discipline when block_id is omitted.' },
         body: { type: 'string', description: 'Markdown body of the block.' },
         block_id: { type: 'string', description: 'Update this exact block (from get_project_map). Omit to match on title.' },
+        covers_discipline: {
+          type: 'string',
+          enum: ['design', 'backend', 'frontend'],
+          description:
+            'QA blocks only: whose work this QA material covers. Set it — it is what lets those authors (not just testers) ask questions on the block. Rejected on non-QA blocks.',
+        },
         linked_tasks: {
           type: 'array',
           items: { type: 'string' },
