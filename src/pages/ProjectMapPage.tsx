@@ -8,7 +8,7 @@ import { UserAvatar } from '@/components/common/UserAvatar'
 import { StatusBadge } from '@/components/common/IssueBadges'
 import { MarkdownRenderer } from '@/lib/markdown'
 import { useAuthContext } from '@/auth/AuthContext'
-import { canAskInMapBlock, mapDisciplinesForProfile } from '@/lib/discipline'
+import { canAskInMapBlock, mapDisciplinesInProject } from '@/lib/discipline'
 import { findTopicMismatch, type TopicMismatch } from '@/lib/mapTopicMatch'
 import { formatDate } from '@/lib/format'
 import { useI18n } from '@/lib/i18n'
@@ -211,6 +211,7 @@ function MapBlockCard({
   const { profile } = useAuthContext()
   const members = useStore((state) => state.members)
   const allBlocks = useStore((state) => state.projectMapBlocks)
+  const projectMembers = useStore((state) => state.projectMembers)
   const projectMapQa = useStore((state) => state.projectMapQa)
   const activeProjectRole = useStore((state) => state.activeProjectRole)
   const addProjectMapQa = useStore((state) => state.addProjectMapQa)
@@ -223,8 +224,8 @@ function MapBlockCard({
   const [mismatch, setMismatch] = useState<TopicMismatch | null>(null)
   const sectionRef = useRef<HTMLElement>(null)
   const canManage = canManageProject(activeProjectRole)
-  const canAsk = canAskInMapBlock(block, profile, activeProjectRole)
-  const ownDisciplines = mapDisciplinesForProfile(profile)
+  const canAsk = canAskInMapBlock(block, profile, activeProjectRole, projectMembers)
+  const ownDisciplines = mapDisciplinesInProject(profile?.id, projectMembers)
 
   // Arriving from the Q&A navigator: reveal the thread and bring it on screen.
   useEffect(() => {

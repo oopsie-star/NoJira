@@ -45,16 +45,30 @@ export function mapDisciplineForDepartment(department: string | null | undefined
 }
 
 /**
- * Every branch a person may act in — their primary department plus any
- * additional ones, for people holding combined roles (backend + frontend, say).
- * Mirrors map_disciplines_for_profile() in the DB.
+ * Every department a person holds *on this project* — primary plus any combined
+ * roles. Departments live on the membership, not the person: the same designer
+ * can be a plain participant on the next project over.
  */
-export function mapDisciplinesForProfile(
-  profile: Pick<Profile, 'department' | 'additional_departments'> | null | undefined,
+export function departmentsInProject(
+  profileId: string | null | undefined,
+  projectMembers: ProjectMember[],
+): string[] {
+  if (!profileId) return []
+  const membership = projectMembers.find((member) => member.profile_id === profileId)
+  if (!membership) return []
+  return [membership.department, ...(membership.additional_departments ?? [])].filter(Boolean)
+}
+
+/**
+ * Every branch a person may act in on this project.
+ * Mirrors map_disciplines_in_project() in the DB.
+ */
+export function mapDisciplinesInProject(
+  profileId: string | null | undefined,
+  projectMembers: ProjectMember[],
 ): MapDiscipline[] {
-  if (!profile) return []
   const found = new Set<MapDiscipline>()
-  for (const department of [profile.department, ...(profile.additional_departments ?? [])]) {
+  for (const department of departmentsInProject(profileId, projectMembers)) {
     const discipline = mapDisciplineForDepartment(department)
     if (discipline) found.add(discipline)
   }
@@ -80,14 +94,15 @@ export function mapDisciplinesForProfile(
  */
 export function canAskInMapBlock(
   block: Pick<ProjectMapBlock, 'discipline' | 'covers_discipline'>,
-  profile: Pick<Profile, 'role' | 'department' | 'additional_departments'> | null | undefined,
+  profile: Pick<Profile, 'id' | 'role'> | null | undefined,
   projectRole: ProjectMember['project_role'] | null,
+  projectMembers: ProjectMember[],
 ): boolean {
   if (!profile) return false
   if (profile.role === 'admin') return true
   if (canManageProject(projectRole)) return true
 
-  const own = mapDisciplinesForProfile(profile)
+  const own = mapDisciplinesInProject(profile.id, projectMembers)
   if (block.discipline === 'qa') {
     if (own.includes('qa')) return true
     if (block.covers_discipline) return own.includes(block.covers_discipline)
@@ -103,10 +118,18 @@ function taskAssigneeIds(task: Pick<Task, 'assignee_ids' | 'assignee_id' | 'assi
   return []
 }
 
-/** Every department a person holds — combined roles included. Placeholders only ever have one. */
-function departmentsOf(id: string, members: Profile[], placeholders: JiraUserPlaceholder[]): string[] {
-  const member = members.find((m) => m.id === id)
-  if (member) return [member.department, ...(member.additional_departments ?? [])].filter(Boolean)
+/**
+ * Every department an assignee holds on this project — combined roles included.
+ * Real people carry it on their membership; imported Jira placeholders are
+ * already project-scoped rows, so theirs stays where it is.
+ */
+function departmentsOf(
+  id: string,
+  projectMembers: ProjectMember[],
+  placeholders: JiraUserPlaceholder[],
+): string[] {
+  const own = departmentsInProject(id, projectMembers)
+  if (own.length > 0) return own
   const placeholder = placeholders.find((p) => p.id === id)
   return placeholder?.department ? [placeholder.department] : []
 }
@@ -130,7 +153,7 @@ function disciplinesOf(
       found.add('product')
       continue
     }
-    for (const department of departmentsOf(id, members, placeholders)) {
+    for (const department of departmentsOf(id, projectMembers, placeholders)) {
       const discipline = DEPARTMENT_TO_DISCIPLINE[department]
       if (discipline) found.add(discipline)
     }

@@ -576,6 +576,7 @@ interface AppState {
   markAllNotificationsRead: () => Promise<void>
   updateProfile: (id: string, fields: Partial<Profile>) => Promise<void>
   updateProjectMemberRole: (membershipId: string, role: ProjectRole) => Promise<void>
+  updateProjectMemberDepartments: (membershipId: string, fields: { department?: string; additional_departments?: string[] }) => Promise<void>
   removeProjectMember: (profileId: string) => Promise<void>
   inviteToProject: (email: string, role: ProjectRole, message?: string | null) => Promise<{ emailSent: boolean } | null>
   cancelInvite: (inviteId: string) => Promise<void>
@@ -922,6 +923,8 @@ export const useStore = create<AppState>((set, get) => {
         id: `admin-${project.id}`,
         project_id: project.id,
         profile_id: profileId,
+        department: '',
+        additional_departments: [],
         project_role: 'owner',
         created_at: project.created_at,
         project,
@@ -1757,6 +1760,8 @@ export const useStore = create<AppState>((set, get) => {
       project_id: nextProject.id,
       profile_id: profile.id,
       project_role: 'owner',
+      department: '',
+      additional_departments: [],
       created_at: nextProject.created_at,
       project: nextProject,
       profile,
@@ -2884,6 +2889,23 @@ export const useStore = create<AppState>((set, get) => {
 
     await get().fetchProjects()
     await get().fetchMembers()
+  },
+
+  // Departments live on the membership, not the person — the same designer can
+  // be a plain participant on the next project over.
+  updateProjectMemberDepartments: async (membershipId, fields) => {
+    const previous = get().projectMembers
+    set((state) => ({
+      projectMembers: state.projectMembers.map((member) => (
+        member.id === membershipId ? { ...member, ...fields } : member
+      )),
+    }))
+
+    const { error } = await supabase.from('project_members').update(fields).eq('id', membershipId)
+    if (error) {
+      set({ projectMembers: previous })
+      get().notify(getErrorMessage(error), 'error')
+    }
   },
 
   inviteToProject: async (email, role, message = null) => {

@@ -44,6 +44,10 @@ export interface ProjectMember {
   project_id:   string
   profile_id:   string
   project_role: ProjectRole
+  /** This person's primary department ON THIS PROJECT — the same person can be a designer here and a plain participant elsewhere. */
+  department:   string
+  /** Secondary departments on this project, for combined roles (e.g. backend + frontend). */
+  additional_departments: string[]
   created_at:   string
   project?:     Project | null
   profile?:     Profile | null

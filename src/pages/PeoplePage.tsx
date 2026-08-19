@@ -178,6 +178,7 @@ export function PeoplePage() {
   const disconnectTelegram = useStore((state) => state.disconnectTelegram)
   const generateTelegramLinkCode = useStore((state) => state.generateTelegramLinkCode)
   const updateProjectMemberRole = useStore((state) => state.updateProjectMemberRole)
+  const updateProjectMemberDepartments = useStore((state) => state.updateProjectMemberDepartments)
   const reassignTaskAssignee = useStore((state) => state.reassignTaskAssignee)
 
   const [removingPlaceholderId, setRemovingPlaceholderId] = useState<string | null>(null)
@@ -992,22 +993,25 @@ export function PeoplePage() {
                               </select>
                             </label>
 
+                            {/* Department belongs to the membership, not the person: the same
+                                designer is a plain participant on the next project over. */}
                             <label className="block">
                               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.department')}</span>
                               <select
                                 disabled={!canEditMemberProfile}
-                                value={person.department ?? ''}
-                                onChange={(event) => void handleUpdateProfileField(person.id, { department: event.target.value })}
+                                value={member.department ?? ''}
+                                onChange={(event) => void updateProjectMemberDepartments(member.id, { department: event.target.value })}
                                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
                               >
                                 <option value="">{t('common.none')}</option>
-                                {person.department && !DEPARTMENT_OPTIONS.includes(person.department) && (
-                                  <option value={person.department}>{person.department}</option>
+                                {member.department && !DEPARTMENT_OPTIONS.includes(member.department) && (
+                                  <option value={member.department}>{member.department}</option>
                                 )}
                                 {DEPARTMENT_OPTIONS.map((option) => (
                                   <option key={option} value={option}>{option}</option>
                                 ))}
                               </select>
+                              <p className="mt-1.5 text-xs text-slate-400">{t('people.departmentHint')}</p>
                             </label>
 
                             {/* Combined roles: someone can genuinely be backend *and* frontend,
@@ -1017,16 +1021,16 @@ export function PeoplePage() {
                                 {t('people.additionalDepartments')}
                               </span>
                               <div className="flex flex-wrap gap-1.5">
-                                {DEPARTMENT_OPTIONS.filter((option) => option !== person.department).map((option) => {
-                                  const selected = (person.additional_departments ?? []).includes(option)
+                                {DEPARTMENT_OPTIONS.filter((option) => option !== member.department).map((option) => {
+                                  const selected = (member.additional_departments ?? []).includes(option)
                                   return (
                                     <button
                                       key={option}
                                       type="button"
                                       disabled={!canEditMemberProfile}
                                       onClick={() => {
-                                        const current = person.additional_departments ?? []
-                                        void handleUpdateProfileField(person.id, {
+                                        const current = member.additional_departments ?? []
+                                        void updateProjectMemberDepartments(member.id, {
                                           additional_departments: selected
                                             ? current.filter((item) => item !== option)
                                             : [...current, option],
