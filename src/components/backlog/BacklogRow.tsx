@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Draggable } from '@hello-pangea/dnd'
-import { AlertTriangle, BookOpenText, Calendar, CheckSquare, ChevronDown, ChevronRight, CircleAlert, Code2, FlaskConical, GripVertical, History, ListTree, MoreHorizontal, Music, Paperclip, Palette, Server, Sparkles, Target } from 'lucide-react'
+import { AlertTriangle, BookOpenText, Calendar, CheckSquare, ChevronDown, ChevronRight, CircleAlert, Code2, FlaskConical, GripVertical, History, ListTree, MoreHorizontal, Music, Paperclip, Palette, RefreshCw, Server, Sparkles, Target } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/common/IssueBadges'
 import { AssigneeAvatars } from '@/components/common/AssigneeAvatars'
 import { previewKind } from '@/lib/attachments'
@@ -76,6 +76,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
   const openTaskId = useStore((state) => state.openTaskId)
   const tasks = useStore((state) => state.tasks)
   const taskLinks = useStore((state) => state.taskLinks)
+  const updateTask = useStore((state) => state.updateTask)
   const placeholders = useStore((state) => state.placeholders)
   const selectedTaskIds = useStore((state) => state.selectedTaskIds)
   const toggleTaskSelection = useStore((state) => state.toggleTaskSelection)
@@ -92,6 +93,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
   // Newly added "To do" work stays highlighted (and pinned to the top) for a week;
   // a task also counts as fresh while it has a subtask created within that window.
   const fresh = isFreshTask(task, tasks)
+  const reworded = Boolean(task.formulation_changed_at)
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
   const disciplines = useMemo(
     () => taskDisciplines(task, members, placeholders, projectMembers),
@@ -137,7 +139,12 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
                   ? 'border-qira-pistachio bg-qira-pistachio-lt/50 ring-1 ring-qira-pistachio/40'
                   : snapshot.isDragging
                     ? 'border-slate-200 bg-white shadow-xl ring-2 ring-qira-pistachio/20'
-                    : task.status === 'done'
+                    // Reworded after it was started or finished — outranks every
+                    // other state, including "done", because that's the point:
+                    // finished work whose terms moved needs looking at again.
+                    : reworded
+                      ? 'border-orange-300 bg-orange-50 hover:bg-orange-100/70'
+                      : task.status === 'done'
                       ? 'border-sky-200 bg-sky-50 hover:bg-sky-100/70'
                       : fresh
                         ? 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100/70'
@@ -197,6 +204,22 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
                       </span>
                     )}
                     <StatusBadge status={task.status} />
+                    {/* Clears the flag by marking it done — the only way out, so a
+                        reworded task can't quietly go back to looking finished. */}
+                    {reworded && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void updateTask(task.id, { status: 'done' })
+                        }}
+                        title={t('task.rewordedHint')}
+                        className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-1 text-[11px] font-semibold text-orange-700 transition hover:bg-orange-200"
+                      >
+                        <RefreshCw size={11} />
+                        {t('task.rewordedConfirm')}
+                      </button>
+                    )}
                     <PriorityBadge priority={task.priority} />
                     {task.due_date && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">

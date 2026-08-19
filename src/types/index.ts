@@ -130,6 +130,8 @@ export interface Epic {
   attachments:              string[]
   created_at:               string
   is_vision:                boolean
+  /** The project's screen registry: each task in this epic is a screen, done = drawn by the designer. */
+  is_screen_registry:       boolean
 }
 
 export type SprintStatus = 'planned' | 'active' | 'completed'
@@ -206,6 +208,10 @@ export interface Task {
   // Mirrors Jira's board split: 'board' (on the board) | 'backlog' (in the board
   // backlog) | null (manual task or non-board import).
   jira_board_placement?:   'board' | 'backlog' | null
+  /** Set when a done/in_progress task is reworded; cleared when marked done again. Drives the orange re-check highlight. */
+  formulation_changed_at: string | null
+  /** For a frontend task: the screen (a task in the screen-registry epic) it implements. */
+  implements_screen_task_id?: string | null
   position:       number
   status_changed_at: string
   started_at:     string | null

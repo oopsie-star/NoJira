@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { DragDropContext, Droppable, type DropResult } from '@hello-pangea/dnd'
-import { AlertCircle, ChevronDown, ChevronRight, Flag, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
+import { AlertCircle, ChevronDown, ChevronRight, Flag, MonitorSmartphone, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
 import { BacklogRow } from './BacklogRow'
 import { BacklogStatusSummary } from './BacklogStatusSummary'
 import { BulkActionBar } from './BulkActionBar'
@@ -1157,6 +1157,14 @@ export function BacklogView() {
                       }
 
                       if (canManageProject(activeProjectRole)) {
+                        // One registry per project — the DB enforces it, so offer
+                        // "make this one" only when it isn't already the registry.
+                        actions.push({
+                          label: epic.is_screen_registry
+                            ? t('backlog.unsetScreenRegistry')
+                            : t('backlog.setScreenRegistry'),
+                          onSelect: () => void updateEpic(epic.id, { is_screen_registry: !epic.is_screen_registry }),
+                        })
                         actions.push({
                           label: t('backlog.archiveEpic'),
                           onSelect: () => handleArchiveEpic(epic),
@@ -1236,6 +1244,12 @@ export function BacklogView() {
                         )}
                         titleBadges={(
                           <>
+                            {epic.is_screen_registry && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-pink-100 px-2 py-0.5 text-[11px] font-semibold text-pink-700">
+                                <MonitorSmartphone size={11} />
+                                {t('backlog.screenRegistry')}
+                              </span>
+                            )}
                             <span
                               className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
                               style={{ backgroundColor: `${epic.color}20`, color: epic.color }}

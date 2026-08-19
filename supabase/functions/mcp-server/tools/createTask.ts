@@ -20,7 +20,36 @@ interface CreateTaskArgs {
   assignee_email?: string
   epic?: string
   sprint?: string
+  implements_screen?: string
   agent_name?: string
+}
+
+/**
+ * A screen reference (task key or id) → its task id, checked to be a real
+ * screen: a task inside the project's screen-registry epic. Anything else is
+ * rejected rather than silently linked, so the registry stays meaningful.
+ */
+async function resolveScreenTaskId(admin: SupabaseClient, projectId: string, ref: string): Promise<string> {
+  const { data: epic, error: epicError } = await admin
+    .from('epics')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('is_screen_registry', true)
+    .maybeSingle()
+  if (epicError) throw new ToolError(`Failed to look up the screen registry: ${epicError.message}`)
+  if (!epic) throw new ToolError('This project has no screen registry epic, so there are no screens to implement.')
+
+  const trimmed = ref.trim()
+  const { data, error } = await admin
+    .from('tasks')
+    .select('id, status')
+    .eq('project_id', projectId)
+    .eq('epic_id', epic.id)
+    .or(`key.eq.${trimmed},id.eq.${trimmed}`)
+    .maybeSingle()
+  if (error) throw new ToolError(`Failed to resolve screen "${ref}": ${error.message}`)
+  if (!data) throw new ToolError(`"${ref}" is not a screen in this project's screen registry.`)
+  return data.id
 }
 
 export async function createTask(admin: SupabaseClient, args: CreateTaskArgs) {
@@ -43,6 +72,9 @@ export async function createTask(admin: SupabaseClient, args: CreateTaskArgs) {
   const assigneeId = args.assignee_email ? (await resolveProfileByEmail(admin, args.assignee_email)).id : null
   const epic = args.epic ? await resolveEpicByKeyOrTitle(admin, project.id, args.epic) : null
   const sprint = args.sprint ? await resolveSprintByName(admin, project.id, args.sprint, epic?.id) : null
+  const screenId = args.implements_screen
+    ? await resolveScreenTaskId(admin, project.id, args.implements_screen)
+    : null
 
   const { data, error } = await admin
     .from('tasks')
@@ -56,6 +88,7 @@ export async function createTask(admin: SupabaseClient, args: CreateTaskArgs) {
       reporter_id: reporterId,
       epic_id: epic?.id ?? null,
       sprint_id: sprint?.id ?? null,
+      implements_screen_task_id: screenId,
     })
     .select('id, key, title, status')
     .single()

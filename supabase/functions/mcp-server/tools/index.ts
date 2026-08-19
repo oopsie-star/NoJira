@@ -12,6 +12,7 @@ import { deleteProjectMapBlock } from './deleteProjectMapBlock.ts'
 import { getProject } from './getProject.ts'
 import { getProjectMap } from './getProjectMap.ts'
 import { getTask } from './getTask.ts'
+import { listDesignScreens } from './listDesignScreens.ts'
 import { listProjects } from './listProjects.ts'
 import { listTasks } from './listTasks.ts'
 import { markTaskSuperseded } from './markTaskSuperseded.ts'
@@ -51,4 +52,5 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   upsert_project_map_block: upsertProjectMapBlock,
   delete_project_map_block: deleteProjectMapBlock,
   post_project_map_qa: postProjectMapQa,
+  list_design_screens: listDesignScreens,
 }

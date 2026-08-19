@@ -85,9 +85,27 @@ export const TOOL_SCHEMAS: McpToolSchema[] = [
         assignee_email: { type: 'string' },
         epic: { type: 'string', description: 'Epic key or title, resolved within the project.' },
         sprint: { type: 'string', description: 'Sprint name, resolved within the project.' },
+        implements_screen: {
+          type: 'string',
+          description:
+            "Key or id of the screen this task builds — a task in the project's screen-registry epic (see list_design_screens). Use it on frontend tasks written for a finished design, so the screen shows what is already being built.",
+        },
         agent_name: AGENT_NAME_PROPERTY,
       },
       required: ['project', 'title', 'agent_name'],
+    },
+  },
+  {
+    name: 'list_design_screens',
+    description:
+      "The project's screens and how far the design has got with each. Screens are the tasks inside the epic flagged as the screen registry: a screen marked done means the designer finished it and it is ready to build. Read this before writing frontend tasks — a screen that is not ready has no settled design to implement — and check `implemented_by` so you add what is missing instead of repeating work.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Project key.' },
+        only_ready: { type: 'boolean', description: 'Return only screens the designer has finished.' },
+      },
+      required: ['project'],
     },
   },
   {
