@@ -106,6 +106,21 @@ export async function createTask(admin: SupabaseClient, args: CreateTaskArgs) {
     console.error('[mcp-server] Failed to record task_created activity', activityError.message)
   }
 
+  // The screen lives in the designer's registry epic, this task lives wherever
+  // canon puts it (its own epic/sprint) — implements_screen_task_id links them
+  // without moving either. That link is invisible unless someone thinks to
+  // query it, so also drop a comment where the designer will actually see it:
+  // on the screen task itself.
+  if (screenId) {
+    const { error: commentError } = await admin.from('task_comments').insert({
+      project_id: project.id,
+      task_id: screenId,
+      author_id: reporterId,
+      body: `Экран реализуется во фронтенд-задаче: ${data.key} — ${data.title}`,
+    })
+    if (commentError) console.error('[mcp-server] Failed to comment on screen task', commentError.message)
+  }
+
   const { error: auditError } = await admin.from('agent_audit_log').insert({
     agent_type: 'mcp',
     agent_name: agentName,
