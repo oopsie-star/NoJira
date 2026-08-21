@@ -62,16 +62,29 @@ export interface PrototypeGenerationResult {
   truncated?: boolean
 }
 
-/** Big enough for a full single-screen document; providers that cap lower just return less. */
-const MAX_OUTPUT_TOKENS = 16000
+/**
+ * Big enough for a full single-screen document; providers that cap lower just
+ * return less. Kept well short of the 16k ceiling used earlier: this call is
+ * non-streaming, so every one of these tokens is dead air on the wire before
+ * anything comes back — a lower cap directly shortens typical wait time.
+ */
+const MAX_OUTPUT_TOKENS = 10000
 
 // callLLM's fetch only aborts when the caller's signal fires (the user hitting
 // Stop) — a provider that accepts the connection and then never responds would
 // otherwise spin the "Generating…" state forever with no way out but a silent
 // manual abort. This bounds that wait and reports it as a distinct, explained
-// outcome instead. 2 minutes is generous for a 16k-token single-screen document
-// but still short enough to not look indistinguishable from "stuck".
-const GENERATION_TIMEOUT_MS = 120_000
+// outcome instead.
+//
+// The request is non-streaming, so nothing comes back until the model has
+// finished the entire document — a slower or rate-limited model can
+// legitimately take several minutes here, not just seconds. An earlier version
+// of this cap was 120s and it turned out to be shorter than genuine, eventually-
+// successful generations were taking: it converted "slow but working" into
+// "always fails" for exactly the provider/model this account has configured.
+// 5 minutes is long enough to not do that again while still bounding a truly
+// dead connection.
+const GENERATION_TIMEOUT_MS = 300_000
 
 export async function generatePrototypeHtml(
   brief: string,
