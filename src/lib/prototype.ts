@@ -65,6 +65,14 @@ export interface PrototypeGenerationResult {
 /** Big enough for a full single-screen document; providers that cap lower just return less. */
 const MAX_OUTPUT_TOKENS = 16000
 
+// callLLM's fetch only aborts when the caller's signal fires (the user hitting
+// Stop) — a provider that accepts the connection and then never responds would
+// otherwise spin the "Generating…" state forever with no way out but a silent
+// manual abort. This bounds that wait and reports it as a distinct, explained
+// outcome instead. 2 minutes is generous for a 16k-token single-screen document
+// but still short enough to not look indistinguishable from "stuck".
+const GENERATION_TIMEOUT_MS = 120_000
+
 export async function generatePrototypeHtml(
   brief: string,
   platform: PrototypePlatform,
@@ -79,12 +87,31 @@ export async function generatePrototypeHtml(
     { role: 'user', content: brief },
   ]
 
-  const result = await callLLM(messages, {
-    maxTokens: MAX_OUTPUT_TOKENS,
-    signal: options?.signal,
-  })
+  // A timeout controller of our own, wired to abort alongside the caller's
+  // (the modal's Stop button) — whichever fires first wins.
+  const timeoutController = new AbortController()
+  const onCallerAbort = () => timeoutController.abort()
+  options?.signal?.addEventListener('abort', onCallerAbort)
+  const timer = setTimeout(() => timeoutController.abort(), GENERATION_TIMEOUT_MS)
 
-  if (result.aborted) return { html: null, error: null, aborted: true }
+  let result
+  try {
+    result = await callLLM(messages, {
+      maxTokens: MAX_OUTPUT_TOKENS,
+      signal: timeoutController.signal,
+    })
+  } finally {
+    clearTimeout(timer)
+    options?.signal?.removeEventListener('abort', onCallerAbort)
+  }
+
+  if (result.aborted) {
+    // Distinguish "you clicked Stop" from "we gave up waiting" — callLLM only
+    // reports AbortError, so the caller's own signal is the tell: if it never
+    // fired, the timeout must have.
+    if (options?.signal?.aborted) return { html: null, error: null, aborted: true }
+    return { html: null, error: 'timeout' }
+  }
   if (result.error) return { html: null, error: result.error }
 
   const html = extractHtmlDocument(result.content ?? '')

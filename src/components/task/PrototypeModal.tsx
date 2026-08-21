@@ -112,6 +112,7 @@ export function PrototypeModal({ task, onClose }: PrototypeModalProps) {
       if (result.aborted) return
       if (result.error === 'no-api-key') { setError(t('prototype.noApiKey')); return }
       if (result.error === 'no-html') { setError(t('prototype.noHtml')); return }
+      if (result.error === 'timeout') { setError(t('prototype.timeout')); return }
       if (result.error) { setError(result.error); return }
       setHtml(result.html)
       setTruncated(Boolean(result.truncated))
