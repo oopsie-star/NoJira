@@ -994,13 +994,25 @@ export function PeoplePage() {
                             </label>
 
                             {/* Department belongs to the membership, not the person: the same
-                                designer is a plain participant on the next project over. */}
+                                designer is a plain participant on the next project over.
+                                Hence `canManage`, not `canEditMemberProfile` — project_members
+                                is manager-only under RLS, so letting someone edit their own
+                                would just be a control that never saves. */}
                             <label className="block">
                               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.department')}</span>
                               <select
-                                disabled={!canEditMemberProfile}
+                                disabled={!canManage}
                                 value={member.department ?? ''}
-                                onChange={(event) => void updateProjectMemberDepartments(member.id, { department: event.target.value })}
+                                onChange={(event) => {
+                                  // Promoting a combined role to primary has to take it out of
+                                  // the chips — they're rendered as "everything except the
+                                  // primary", so a duplicate would be stuck there unclearable.
+                                  const next = event.target.value
+                                  void updateProjectMemberDepartments(member.id, {
+                                    department: next,
+                                    additional_departments: (member.additional_departments ?? []).filter((item) => item !== next),
+                                  })
+                                }}
                                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
                               >
                                 <option value="">{t('common.none')}</option>
@@ -1027,7 +1039,7 @@ export function PeoplePage() {
                                     <button
                                       key={option}
                                       type="button"
-                                      disabled={!canEditMemberProfile}
+                                      disabled={!canManage}
                                       onClick={() => {
                                         const current = member.additional_departments ?? []
                                         void updateProjectMemberDepartments(member.id, {

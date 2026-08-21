@@ -87,11 +87,16 @@ async function fetchAllTasks(
   return all
 }
 
+// `department` / `additional_departments` live on the membership (they used to
+// be global, on `profiles`) — leave them out of these column lists and every
+// edit writes to the DB fine but reads back as blank on the next fetch.
 const PROJECT_ACCESS_SELECT = `
   id,
   project_id,
   profile_id,
   project_role,
+  department,
+  additional_departments,
   created_at,
   project:projects(*)
 `
@@ -101,6 +106,8 @@ const PROJECT_MEMBER_SELECT = `
   project_id,
   profile_id,
   project_role,
+  department,
+  additional_departments,
   created_at,
   profile:profiles(*)
 `
@@ -2901,10 +2908,25 @@ export const useStore = create<AppState>((set, get) => {
       )),
     }))
 
-    const { error } = await supabase.from('project_members').update(fields).eq('id', membershipId)
+    // `.select()` on purpose: only a project manager may UPDATE project_members,
+    // and RLS turns a forbidden edit into zero rows matched rather than an error.
+    // Without this the optimistic state would sit there looking saved until the
+    // next fetch quietly put the old value back.
+    const { data, error } = await supabase
+      .from('project_members')
+      .update(fields)
+      .eq('id', membershipId)
+      .select('id')
+
     if (error) {
       set({ projectMembers: previous })
       get().notify(getErrorMessage(error), 'error')
+      return
+    }
+
+    if (!data || data.length === 0) {
+      set({ projectMembers: previous })
+      get().notify('Department change was rejected — project manager rights required.', 'error')
     }
   },
 
