@@ -99,8 +99,7 @@ export function canAskInMapBlock(
   projectMembers: ProjectMember[],
 ): boolean {
   if (!profile) return false
-  if (profile.role === 'admin') return true
-  if (canManageProject(projectRole)) return true
+  if (canManageProject(projectRole, profile.role === 'admin')) return true
 
   const own = mapDisciplinesInProject(profile.id, projectMembers)
   if (block.discipline === 'qa') {

@@ -67,9 +67,9 @@ export function SprintContainer({
     [epics, sprint.epic_id]
   )
   const statusCounts = useMemo(() => getStatusCounts(tasks), [tasks])
-  const canManageSprint = canManageProject(activeProjectRole)
   const isSuperAdmin = profile?.role === 'admin'
-  const canEditName = canEditAuthoredContent(activeProjectRole, profile?.id, sprint.created_by)
+  const canManageSprint = canManageProject(activeProjectRole, isSuperAdmin)
+  const canEditName = canEditAuthoredContent(activeProjectRole, isSuperAdmin, profile?.id, sprint.created_by)
 
   const dateLabel = useMemo(() => {
     if (!sprint.start_date && !sprint.end_date) return null
@@ -262,7 +262,7 @@ export function SprintContainer({
                   pathPrefix={`${sprint.project_id}/sprints/${sprint.id}`}
                   currentUserId={profile?.id ?? null}
                   attachments={sprint.attachments}
-                  canDelete={(authorId) => canDeleteAttachment(activeProjectRole, profile?.id ?? null, authorId)}
+                  canDelete={(authorId) => canDeleteAttachment(activeProjectRole, isSuperAdmin, profile?.id ?? null, authorId)}
                   onAttachmentsChange={(paths) => updateSprint(sprint.id, { attachments: paths })}
                   wide
                 />

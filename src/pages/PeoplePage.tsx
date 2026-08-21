@@ -205,8 +205,8 @@ export function PeoplePage() {
   const [projectActionError, setProjectActionError] = useState<string | null>(null)
   const [availableRoles, setAvailableRoles] = useState<Record<string, ProjectRole>>({})
   const isAdmin = profile?.role === 'admin'
-  const canManage = canManageProject(activeProjectRole)
-  const canInvite = canInviteToProject(activeProjectRole)
+  const canManage = canManageProject(activeProjectRole, isAdmin)
+  const canInvite = canInviteToProject(activeProjectRole, isAdmin)
   const canManageTelegram = canManageTelegramLink(activeProjectRole, isAdmin)
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
 

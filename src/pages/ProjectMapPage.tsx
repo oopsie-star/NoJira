@@ -69,7 +69,7 @@ function QaThread({ question, answers }: { question: ProjectMapQaEntry; answers:
   const [sending, setSending] = useState(false)
 
   const canDelete = (entry: ProjectMapQaEntry) =>
-    canOverrideDelete(activeProjectRole) || Boolean(profile?.id && entry.author_id === profile.id)
+    canOverrideDelete(activeProjectRole, profile?.role === 'admin') || Boolean(profile?.id && entry.author_id === profile.id)
 
   async function handleAnswer(event: FormEvent) {
     event.preventDefault()
@@ -223,7 +223,7 @@ function MapBlockCard({
   const [sending, setSending] = useState(false)
   const [mismatch, setMismatch] = useState<TopicMismatch | null>(null)
   const sectionRef = useRef<HTMLElement>(null)
-  const canManage = canManageProject(activeProjectRole)
+  const canManage = canManageProject(activeProjectRole, profile?.role === 'admin')
   const canAsk = canAskInMapBlock(block, profile, activeProjectRole, projectMembers)
   const ownDisciplines = mapDisciplinesInProject(profile?.id, projectMembers)
 
@@ -376,7 +376,7 @@ function MapBlockCard({
               pathPrefix={`${block.project_id}/project-map/${block.id}`}
               currentUserId={profile?.id ?? null}
               attachments={block.attachments}
-              canDelete={(authorId) => canDeleteAttachment(activeProjectRole, profile?.id ?? null, authorId)}
+              canDelete={(authorId) => canDeleteAttachment(activeProjectRole, profile?.role === 'admin', profile?.id ?? null, authorId)}
               onAttachmentsChange={(paths) => updateProjectMapBlock(block.id, { attachments: paths })}
               wide
             />
@@ -576,6 +576,7 @@ function QaNavigator({
 
 export function ProjectMapPage() {
   const { t } = useI18n()
+  const { profile } = useAuthContext()
   const fetchProjects = useStore((state) => state.fetchProjects)
   const fetchProjectMap = useStore((state) => state.fetchProjectMap)
   const fetchBacklog = useStore((state) => state.fetchBacklog)
@@ -596,7 +597,7 @@ export function ProjectMapPage() {
   })
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null)
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null)
-  const canManage = canManageProject(activeProjectRole)
+  const canManage = canManageProject(activeProjectRole, profile?.role === 'admin')
   const deepLinkConsumedRef = useRef(false)
 
   useEffect(() => {

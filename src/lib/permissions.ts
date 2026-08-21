@@ -4,18 +4,26 @@ const MANAGE_PROJECT_ROLES: ProjectRole[] = ['owner', 'admin', 'founder', 'ceo']
 const OVERRIDE_DELETE_ROLES: ProjectRole[] = ['owner', 'founder', 'ceo']
 const ACTIVITY_LOG_ROLES: ProjectRole[] = ['founder', 'ceo']
 
-export function canManageProject(role: ProjectRole | null) {
-  return Boolean(role && MANAGE_PROJECT_ROLES.includes(role))
+/**
+ * The global super admin (profiles.role === 'admin') outranks every project
+ * role, on every project, whether or not they're a member of it. Every helper
+ * below takes `isSuperAdmin` because every one of their DB counterparts starts
+ * with `public.is_admin() OR ...` — leaving it out of a UI gate is how a super
+ * admin ends up staring at a screen with the buttons missing for work the
+ * backend would have happily let them do.
+ */
+export function canManageProject(role: ProjectRole | null, isSuperAdmin: boolean) {
+  return isSuperAdmin || Boolean(role && MANAGE_PROJECT_ROLES.includes(role))
 }
 
-export function canInviteToProject(role: ProjectRole | null) {
+export function canInviteToProject(role: ProjectRole | null, isSuperAdmin: boolean) {
   // Project managers (owner/admin/founder/ceo) may invite & manage members,
   // matching the can_invite_to_project / can_manage_project checks on the backend.
-  return Boolean(role && MANAGE_PROJECT_ROLES.includes(role))
+  return isSuperAdmin || Boolean(role && MANAGE_PROJECT_ROLES.includes(role))
 }
 
-export function canOverrideDelete(role: ProjectRole | null) {
-  return Boolean(role && OVERRIDE_DELETE_ROLES.includes(role))
+export function canOverrideDelete(role: ProjectRole | null, isSuperAdmin: boolean) {
+  return isSuperAdmin || Boolean(role && OVERRIDE_DELETE_ROLES.includes(role))
 }
 
 /** Who logged in, viewed a task, downloaded a file, or played audio — the global
@@ -59,29 +67,32 @@ export function canManageTelegramLink(role: ProjectRole | null, isSuperAdmin: bo
 /** Renaming an epic/sprint/task: project admins, or whoever authored it. */
 export function canEditAuthoredContent(
   role: ProjectRole | null,
+  isSuperAdmin: boolean,
   currentUserId: string | null | undefined,
   authorId: string | null | undefined
 ) {
-  if (canManageProject(role)) return true
+  if (canManageProject(role, isSuperAdmin)) return true
   return Boolean(currentUserId && authorId && currentUserId === authorId)
 }
 
 /** Deleting an epic/sprint attachment: project admin, or whoever uploaded it (matches the storage RLS policy). */
 export function canDeleteAttachment(
   role: ProjectRole | null,
+  isSuperAdmin: boolean,
   currentUserId: string | null | undefined,
   authorId: string | null | undefined
 ) {
-  if (canManageProject(role)) return true
+  if (canManageProject(role, isSuperAdmin)) return true
   return Boolean(currentUserId && authorId && currentUserId === authorId)
 }
 
 export function canDeleteAuthoredContent(
   role: ProjectRole | null,
+  isSuperAdmin: boolean,
   currentUserId: string | null | undefined,
   authorId: string | null | undefined,
   taskStatus: TaskStatus
 ) {
-  if (canOverrideDelete(role)) return true
+  if (canOverrideDelete(role, isSuperAdmin)) return true
   return Boolean(currentUserId && authorId && currentUserId === authorId && taskStatus === 'todo')
 }

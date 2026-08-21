@@ -1142,7 +1142,7 @@ export function BacklogView() {
                         )
                       }
 
-                      if (canManageProject(activeProjectRole)) {
+                      if (canManageProject(activeProjectRole, isSuperAdmin)) {
                         actions.push({
                           label: t('backlog.convertToSprint'),
                           onSelect: () => handleConvertEpicToSprint(epic),
@@ -1156,7 +1156,7 @@ export function BacklogView() {
                         })
                       }
 
-                      if (canManageProject(activeProjectRole)) {
+                      if (canManageProject(activeProjectRole, isSuperAdmin)) {
                         // One registry per project — the DB enforces it, so offer
                         // "make this one" only when it isn't already the registry.
                         actions.push({
@@ -1193,7 +1193,7 @@ export function BacklogView() {
                         searchQuery={search}
                         description={epic.description}
                         onDescriptionSave={(() => {
-                          if (canEditAuthoredContent(activeProjectRole, profileId, epic.created_by)) {
+                          if (canEditAuthoredContent(activeProjectRole, isSuperAdmin, profileId, epic.created_by)) {
                             return (value: string) => void updateEpic(epic.id, { description: value })
                           }
                           if (canCollaborate) {
@@ -1203,7 +1203,7 @@ export function BacklogView() {
                           return undefined
                         })()}
                         onTitleSave={(() => {
-                          if (canEditAuthoredContent(activeProjectRole, profileId, epic.created_by)) {
+                          if (canEditAuthoredContent(activeProjectRole, isSuperAdmin, profileId, epic.created_by)) {
                             return (value: string) => void updateEpic(epic.id, { title: value })
                           }
                           if (canCollaborate) {
@@ -1218,7 +1218,7 @@ export function BacklogView() {
                             pathPrefix={`${epic.project_id}/epics/${epic.id}`}
                             currentUserId={profileId}
                             attachments={epic.attachments}
-                            canDelete={(authorId) => canDeleteAttachment(activeProjectRole, profileId, authorId)}
+                            canDelete={(authorId) => canDeleteAttachment(activeProjectRole, isSuperAdmin, profileId, authorId)}
                             onAttachmentsChange={(paths) => updateEpic(epic.id, { attachments: paths })}
                             wide
                           />

@@ -26,7 +26,7 @@ export function TaskCard({ task, index }: TaskCardProps) {
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
   const highPriority = task.priority === 'high' || task.priority === 'highest'
   const universal = isUniversalTask(task)
-  const canManage = profileRole === 'admin' || canManageProject(activeProjectRole)
+  const canManage = canManageProject(activeProjectRole, profileRole === 'admin')
   // Universal tasks: only admins may drag (dragging changes status).
   const dragLocked = universal && !canManage
 

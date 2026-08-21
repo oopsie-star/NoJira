@@ -22,7 +22,7 @@ export function BulkActionBar() {
   // Reorganizing across epics (as opposed to just picking a sprint) is
   // powerful enough — imported data can be messy — that it's reserved for
   // project owners/admins/founders/ceos and the global super admin.
-  const canMoveAcrossEpics = canManageProject(activeProjectRole) || profile?.role === 'admin'
+  const canMoveAcrossEpics = canManageProject(activeProjectRole, profile?.role === 'admin')
 
   const count = selectedTaskIds.length
   if (count === 0) return null

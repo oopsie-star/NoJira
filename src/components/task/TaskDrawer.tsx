@@ -373,12 +373,13 @@ export function TaskDrawer() {
     return t('task.link.relates_to')
   }
 
-  const canDelete = profile?.role === 'admin'
-  const canPrototype = canCreatePrototype(activeProjectRole, profile?.role === 'admin')
+  const isSuperAdmin = profile?.role === 'admin'
+  const canDelete = isSuperAdmin
+  const canPrototype = canCreatePrototype(activeProjectRole, isSuperAdmin)
   // Universal tasks (2+ assignees): only admins/managers may change the status.
-  const canManage = profile?.role === 'admin' || canManageProject(activeProjectRole)
+  const canManage = canManageProject(activeProjectRole, isSuperAdmin)
   const statusLocked = isUniversalTask(currentTask) && !canManage
-  const canEditTitle = canEditAuthoredContent(activeProjectRole, profile?.id, currentTask.reporter_id)
+  const canEditTitle = canEditAuthoredContent(activeProjectRole, isSuperAdmin, profile?.id, currentTask.reporter_id)
   const currentAssigneeIds = currentTask.assignee_ids?.length
     ? currentTask.assignee_ids
     : (currentTask.assignee_id
@@ -549,7 +550,7 @@ export function TaskDrawer() {
                 pathPrefix={`${currentTask.project_id}/${currentTask.id}`}
                 currentUserId={profile?.id ?? null}
                 attachments={currentTask.attachments}
-                canDelete={(authorId) => canDeleteAuthoredContent(activeProjectRole, profile?.id ?? null, authorId, currentTask.status)}
+                canDelete={(authorId) => canDeleteAuthoredContent(activeProjectRole, isSuperAdmin, profile?.id ?? null, authorId, currentTask.status)}
                 onAttachmentsChange={(paths) => updateTask(currentTask.id, { attachments: paths })}
               />
             </div>
@@ -750,6 +751,7 @@ export function TaskDrawer() {
                   taskComments.map((comment) => {
                     const canDeleteComment = canDeleteAuthoredContent(
                       activeProjectRole,
+                      isSuperAdmin,
                       profile?.id,
                       comment.author_id,
                       currentTask.status
@@ -991,7 +993,7 @@ export function TaskDrawer() {
                          const linkedTask = isIncoming
                            ? tasks.find((item) => item.id === link.source_task_id) ?? link.source_task
                            : tasks.find((item) => item.id === link.target_task_id) ?? link.target_task
-                         const canDeleteLink = canDeleteAuthoredContent(activeProjectRole, profile?.id, link.created_by, currentTask.status)
+                         const canDeleteLink = canDeleteAuthoredContent(activeProjectRole, isSuperAdmin, profile?.id, link.created_by, currentTask.status)
 
                          return (
                            <div key={link.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
