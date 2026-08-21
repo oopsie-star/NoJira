@@ -28,14 +28,17 @@ export interface PrototypeContext {
   platform:  PrototypePlatform
 }
 
-// Per-section budgets. The whole brief lands around 6–12k characters, which is
-// comfortable for Stitch's prompt box and cheap enough to send on every retry.
-const VISION_LIMIT = 2500
-const EPIC_LIMIT = 2000
-const TASK_LIMIT = 3000
-const BLOCK_LIMIT = 1200
-const BLOCKS_TOTAL_LIMIT = 6000
-const MAX_SUBTASKS = 15
+// Per-section budgets. Kept tight on purpose: this is a PROMPT, not a spec
+// document — the in-app generator sends it as the request body verbatim, and
+// with a non-streaming call every extra character of input is time the model
+// spends reading before it can start (and still has to finish) the response.
+// The whole brief now targets well under 2k characters.
+const VISION_LIMIT = 300
+const EPIC_LIMIT = 300
+const TASK_LIMIT = 500
+const BLOCK_LIMIT = 220
+const BLOCKS_TOTAL_LIMIT = 700
+const MAX_SUBTASKS = 8
 
 function clamp(text: string, limit: number): string {
   const trimmed = (text ?? '').trim()
@@ -82,80 +85,73 @@ export function selectMapBlocks(
 }
 
 const PLATFORM_BRIEF: Record<PrototypePlatform, string> = {
-  mobile: 'Mobile app screen (portrait, ~390×844 viewport).',
-  desktop: 'Desktop web screen (~1440px wide, responsive down to tablet).',
-}
-
-function section(heading: string, body: string): string {
-  return `## ${heading}\n${body}`
+  mobile: 'mobile app screen, portrait, ~390×844',
+  desktop: 'desktop web screen, ~1440px wide, responsive down to tablet',
 }
 
 /**
  * The single editable artifact the prototype modal shows. Whatever the operator
  * ends up with in that textarea is what both destinations receive verbatim —
  * nothing is re-assembled downstream.
+ *
+ * Deliberately written as a short flowing PROMPT — the kind of paragraph a
+ * designer would type into Stitch by hand — rather than a headed spec
+ * document. An earlier version quoted full epic/vision descriptions and every
+ * matching Project Map block verbatim, which could run to 10k+ characters for
+ * a task under a heavily-documented epic; sent as the request body to a
+ * non-streaming LLM call, that's pure latency before generation even starts.
+ * Each fact below is compressed to a clause, not copied wholesale.
  */
 export function buildPrototypeBrief(ctx: PrototypeContext): string {
   const { task, epic, vision, sprint, project, subtasks, mapBlocks, platform } = ctx
-  const parts: string[] = []
+  const sentences: string[] = []
 
   const productName = project?.name?.trim() || 'the product'
-  parts.push(
-    `Design a high-fidelity UI prototype for one screen of ${productName}.\n`
-    + `Target: ${PLATFORM_BRIEF[platform]}`
-  )
+  sentences.push(`Design a high-fidelity ${PLATFORM_BRIEF[platform]} for one screen of ${productName}.`)
 
-  if (vision?.description?.trim()) {
-    parts.push(section('Product vision', clamp(vision.description, VISION_LIMIT)))
-  } else if (project?.description?.trim()) {
-    parts.push(section('Product', clamp(project.description, VISION_LIMIT)))
-  }
+  const visionText = clamp(vision?.description ?? project?.description ?? '', VISION_LIMIT)
+  if (visionText) sentences.push(`Product: ${visionText}`)
 
   if (epic) {
-    const epicBody = [epic.title, clamp(epic.description, EPIC_LIMIT)].filter(Boolean).join('\n')
-    parts.push(section('Feature area this screen belongs to', epicBody))
+    const epicText = clamp(epic.description ?? '', EPIC_LIMIT)
+    sentences.push(`Feature area — ${epic.title}${epicText ? `: ${epicText}` : ''}.`)
   }
 
   if (sprint?.goal?.trim()) {
-    parts.push(section('Current sprint goal', clamp(sprint.goal, 500)))
+    sentences.push(`Current sprint goal: ${clamp(sprint.goal, 200)}.`)
   }
 
-  const taskBody = [
-    `${task.key} — ${task.title}`,
-    clamp(task.description, TASK_LIMIT) || '(no description written yet)',
-  ].join('\n')
-  parts.push(section('Screen to design', taskBody))
+  const taskText = clamp(task.description ?? '', TASK_LIMIT)
+  sentences.push(`Screen to design — ${task.key} ${task.title}.${taskText ? ` ${taskText}` : ''}`)
 
   if (subtasks.length) {
-    const list = subtasks
-      .slice(0, MAX_SUBTASKS)
-      .map((subtask) => `- ${subtask.title}`)
-      .join('\n')
-    parts.push(section('Must cover (subtasks)', list))
+    const list = subtasks.slice(0, MAX_SUBTASKS).map((subtask) => subtask.title).join('; ')
+    sentences.push(`Must cover: ${list}.`)
   }
 
   if (task.labels?.length) {
-    parts.push(section('Labels', task.labels.join(', ')))
+    sentences.push(`Labels: ${task.labels.join(', ')}.`)
   }
 
   if (mapBlocks.length) {
-    const canon = mapBlocks
-      .map((block) => `### [${block.discipline}] ${block.title}\n${clamp(block.body, BLOCK_LIMIT)}`)
-      .join('\n\n')
-    parts.push(section('Product canon (Project Map)', canon))
+    let spent = 0
+    const facts: string[] = []
+    for (const block of mapBlocks) {
+      const fact = clamp(block.body, BLOCK_LIMIT)
+      if (spent + fact.length > BLOCKS_TOTAL_LIMIT) continue
+      facts.push(`${block.title} — ${fact}`)
+      spent += fact.length
+    }
+    if (facts.length) sentences.push(`Visual/product language: ${facts.join(' | ')}.`)
   }
 
-  parts.push(section(
-    'Design requirements',
-    [
-      '- Show real, plausible content in the same language as the brief above — never lorem ipsum or placeholder boxes.',
-      '- Design the whole screen: navigation, headers, empty/loading states where they matter.',
-      '- Stay consistent with the product canon above; do not invent features it contradicts.',
-      '- Modern, clean, accessible: legible contrast, comfortable touch targets, clear visual hierarchy.',
-    ].join('\n')
-  ))
+  sentences.push(
+    'Use real, plausible content in the same language as this brief (never lorem ipsum), '
+    + 'design the whole screen including empty/loading states where relevant, stay consistent '
+    + 'with the product language above, and keep it modern, clean and accessible.'
+  )
 
-  return parts.join('\n\n')
+  return sentences.join('\n\n')
 }
 
 /**
