@@ -35,11 +35,17 @@ export function KanbanBoard() {
   ] as const
 
   const visibleTasks = useMemo(() => {
-    // In a specific sprint: show ALL sprint tasks — subtasks are valid work items
-    // and their parent may be in the backlog or a different sprint.
-    // In all-sprints / kanban mode: show only top-level tasks to avoid duplication.
+    // In a specific sprint: show ALL tasks IN THAT SPRINT — subtasks are valid
+    // work items and their parent may be in the backlog or a different sprint.
+    // The sprint_id check matters because fetchBoard also loads subtasks that
+    // live outside the sprint, purely so a card can list its children; those are
+    // context, not columns, and must not turn into cards here.
+    // In all-sprints / kanban mode: show only top-level tasks to avoid
+    // duplication — their subtasks are rolled up on the parent card.
     const isSpecificSprint = activeSprintId && activeSprintId !== 'all'
-    let result = tasks.filter((task) => isSpecificSprint || !task.parent_task_id)
+    let result = tasks.filter((task) => (
+      isSpecificSprint ? task.sprint_id === activeSprintId : !task.parent_task_id
+    ))
 
     for (const filterId of quickFilters) {
       if (filterId === 'blocked') result = result.filter((t) => isTaskBlocked(t.id, taskLinks, tasks))
@@ -111,9 +117,25 @@ export function KanbanBoard() {
       tasks: byEpic.get(epic.id) ?? [],
     }))
 
-    return noEpic.length > 0
+    const allLanes = noEpic.length > 0
       ? [...epicLanes, { id: NO_EPIC_LANE, epic: null, tasks: noEpic }]
       : epicLanes
+
+    // Lanes holding work come first, empty ones after. A project accumulates far
+    // more epics than any one sprint touches, so in epic order a sprint with a
+    // couple of tasks reads as an empty board — you scroll past a screenful of
+    // blank epics before reaching anything. Stable within each group, so the
+    // epic ordering still holds among the lanes that do have work.
+    const hasWork = (lane: BoardLane) => lane.tasks.some((task) => !isTerminalStatus(task.status))
+    return allLanes
+      .map((lane, index) => ({ lane, index }))
+      .sort((left, right) => {
+        const leftHasWork = hasWork(left.lane)
+        const rightHasWork = hasWork(right.lane)
+        if (leftHasWork !== rightHasWork) return leftHasWork ? -1 : 1
+        return left.index - right.index
+      })
+      .map((entry) => entry.lane)
   }, [grouped, visibleTasks, epics])
 
   function toggleFilter(id: string) {

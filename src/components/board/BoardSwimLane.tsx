@@ -96,8 +96,22 @@ interface BoardSwimLaneProps {
 export function BoardSwimLane({ lane, showClosed, sprintId }: BoardSwimLaneProps) {
   const { t } = useI18n()
   const activeTasks = useMemo(() => lane.tasks.filter((task) => !isTerminalStatus(task.status)), [lane.tasks])
-  // Lanes with no work start collapsed so empty epics don't flood the board.
-  const [collapsed, setCollapsed] = useState(lane.tasks.length === 0)
+
+  // How many cards this lane would actually render right now. It is NOT
+  // lane.tasks.length: closed (cancelled/archived/deleted) tasks only show when
+  // the Closed column is switched on, so a lane holding nothing but closed work
+  // used to open onto three empty columns while its own header said "0 issues".
+  const renderedCount = showClosed ? lane.tasks.length : activeTasks.length
+
+  // Empty lanes collapse so a sprint with a handful of tasks isn't buried under
+  // a screenful of blank epics — but that is a DEFAULT, not a latch. It used to
+  // be plain initial state, so a lane that was empty when the board mounted
+  // stayed shut afterwards and work added into it (a drag, a realtime insert, a
+  // freshly created task) simply never appeared. Deriving it means the lane
+  // opens as soon as it has something to show; `manualCollapsed` keeps the
+  // user's own click winning over that default once they make one.
+  const [manualCollapsed, setManualCollapsed] = useState<boolean | null>(null)
+  const collapsed = manualCollapsed ?? renderedCount === 0
 
   const columns = useMemo(() => {
     const map: Record<'todo' | 'in_progress' | 'done', Task[]> = { todo: [], in_progress: [], done: [] }
@@ -119,7 +133,7 @@ export function BoardSwimLane({ lane, showClosed, sprintId }: BoardSwimLaneProps
       <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2">
         <button
           type="button"
-          onClick={() => setCollapsed((value) => !value)}
+          onClick={() => setManualCollapsed(!collapsed)}
           aria-label={collapsed ? t('backlog.expandSection') : t('backlog.collapseSection')}
           className="shrink-0 rounded-lg p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
         >

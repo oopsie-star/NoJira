@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Calendar, ChevronLeft, ChevronRight, Link2, MessageSquare, Paperclip, Plus, Send, ShieldAlert, Sparkles, Timer, Trash2, Wand2, X } from 'lucide-react'
+import { Calendar, ChevronLeft, ChevronRight, Link2, MessageSquare, Paperclip, Play, Plus, Send, ShieldAlert, Sparkles, Timer, Trash2, Wand2, X } from 'lucide-react'
 import { callLLM, getLLMConfig } from '@/lib/ai'
 import type { LLMMessage } from '@/lib/ai'
 import { supabase } from '@/lib/supabase'
@@ -386,6 +386,21 @@ export function TaskDrawer() {
         ? [currentTask.assignee_id]
         : currentTask.assignee_placeholder_id ? [currentTask.assignee_placeholder_id] : [])
 
+  // "Take into work" — the one-click path out of To do, shown only while the
+  // task is still in To do. The assignee owns it; a manager can start it on
+  // anyone's behalf; and an unclaimed task can be picked up by any project
+  // member other than a viewer (the DB's auto_assign_on_start trigger then
+  // makes them the assignee). It is a shortcut for the status dropdown that
+  // was always there, not a new permission — the same RLS update applies.
+  const isAssignee = Boolean(profile?.id && currentAssigneeIds.includes(profile.id))
+  const isUnclaimed = currentAssigneeIds.length === 0
+  const isProjectContributor = Boolean(activeProjectRole && activeProjectRole !== 'viewer')
+  const showStartWork = currentTask.status === 'todo'
+  const canStartWork = !statusLocked && (isAssignee || canManage || (isUnclaimed && isProjectContributor))
+  const startWorkHint = canStartWork
+    ? t('task.startWork')
+    : statusLocked ? t('task.statusLocked') : t('task.startWorkDenied')
+
   function handleAssigneesChange(ids: string[]) {
     void quickUpdate(resolveAssigneeFields(ids, members, placeholders))
   }
@@ -455,6 +470,19 @@ export function TaskDrawer() {
                 className="inline-flex items-center gap-1.5 rounded-xl bg-qira-pistachio px-3 py-2 text-sm font-semibold text-white transition hover:bg-qira-pistachio-dk disabled:opacity-60"
               >
                 {saving ? '…' : t('common.save')}
+              </button>
+            )}
+            {showStartWork && (
+              <button
+                type="button"
+                onClick={() => { if (canStartWork) void quickUpdate({ status: 'in_progress' }) }}
+                disabled={!canStartWork}
+                title={startWorkHint}
+                aria-label={t('task.startWork')}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-qira-pistachio px-2.5 py-2 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-qira-pistachio-dk disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+              >
+                <Play size={15} />
+                <span className="hidden sm:inline">{t('task.startWork')}</span>
               </button>
             )}
             {canPrototype && (

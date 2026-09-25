@@ -7,7 +7,7 @@ import { previewKind } from '@/lib/attachments'
 import { useI18n } from '@/lib/i18n'
 import { formatDate } from '@/lib/format'
 import { DISCIPLINE_LABELS, taskDisciplines, type Discipline } from '@/lib/discipline'
-import { getSupersededByLink, isFreshTask, isSuperseded, isTaskBlocked } from '@/lib/ops'
+import { getSupersededByLink, isSuperseded, isTaskBlocked, isUnstartedTodo } from '@/lib/ops'
 import { useStore } from '@/store'
 import { isUniversalTask, type IssueType, type Task } from '@/types'
 
@@ -90,9 +90,11 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
     [task.attachments, attachmentNotes],
   )
   const otherAttachmentCount = task.attachments.length - audioAttachmentCount
-  // Newly added "To do" work stays highlighted (and pinned to the top) for a week;
-  // a task also counts as fresh while it has a subtask created within that window.
-  const fresh = isFreshTask(task, tasks)
+  // Work that hasn't been started stays highlighted green until its status
+  // moves off "To do" — not for a fixed week. (The 7-day isFreshTask window
+  // still governs which rows float to the TOP of a section; that's a separate
+  // concern from the colour, so it stays untouched here.)
+  const unstarted = isUnstartedTodo(task)
   const reworded = Boolean(task.formulation_changed_at)
   const blocked = isTaskBlocked(task.id, taskLinks, tasks)
   const disciplines = useMemo(
@@ -146,10 +148,15 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
                       ? 'border-orange-300 bg-orange-50 hover:bg-orange-100/70'
                       : task.status === 'done'
                       ? 'border-sky-200 bg-sky-50 hover:bg-sky-100/70'
-                      : fresh
-                        ? 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100/70'
-                        : universal
-                          ? 'border-slate-300 bg-slate-100 hover:bg-slate-200/70'
+                      // A shared (universal) task keeps its grey band ahead of the
+                      // green: its status is admin-only, so "not started yet" is
+                      // not something the reader can act on. Ordered above the
+                      // green on purpose — green now covers every To do task, and
+                      // grey is the only cue this row is a shared one.
+                      : universal
+                        ? 'border-slate-300 bg-slate-100 hover:bg-slate-200/70'
+                        : unstarted
+                          ? 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100/70'
                           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80',
             ].join(' ')}
           >

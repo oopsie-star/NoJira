@@ -140,8 +140,17 @@ export function BoardPage() {
     ? loadingBacklog
     : loadingBoard
 
-  // Metrics reflect the active board only — closed (cancelled/archived/deleted) tasks are excluded.
-  const activeTasks = useMemo(() => tasks.filter((task) => !isTerminalStatus(task.status)), [tasks])
+  // Metrics reflect the active board only — closed (cancelled/archived/deleted)
+  // tasks are excluded, and in a specific sprint so are the out-of-sprint
+  // subtasks fetchBoard loads alongside it (those exist so a card can list its
+  // children; counting them would inflate this sprint's numbers).
+  const boardTasks = useMemo(
+    () => (activeSprintId && activeSprintId !== 'all'
+      ? tasks.filter((task) => task.sprint_id === activeSprintId)
+      : tasks),
+    [tasks, activeSprintId]
+  )
+  const activeTasks = useMemo(() => boardTasks.filter((task) => !isTerminalStatus(task.status)), [boardTasks])
   const doneCount = useMemo(() => activeTasks.filter((task) => task.status === 'done').length, [activeTasks])
   const progress = activeTasks.length ? Math.round((doneCount / activeTasks.length) * 100) : 0
   const blockedCount = useMemo(() => activeTasks.filter((task) => isTaskBlocked(task.id, taskLinks, tasks)).length, [activeTasks, taskLinks, tasks])

@@ -1029,7 +1029,7 @@ export const useStore = create<AppState>((set, get) => {
     }
 
     set({ loadingBoard: true })
-    const tasks = await fetchAllTasks(() =>
+    const sprintTasks = await fetchAllTasks(() =>
       supabase
         .from('tasks')
         .select(TASK_SELECT)
@@ -1039,7 +1039,34 @@ export const useStore = create<AppState>((set, get) => {
         .order('position'),
     )
 
-    set({ tasks, loadingBoard: false })
+    // A subtask does not have to share its parent's sprint — move a task with
+    // subtasks into a sprint and the children stay where they were. Without
+    // them loaded, the parent's card on the board silently claims to have no
+    // subtasks at all. Pull them in as CONTEXT: they are appended to `tasks` so
+    // the card (and the drawer) can list them, but the board columns and the
+    // header metrics both filter on sprint_id, so they never become cards of
+    // their own or count towards this sprint's numbers.
+    const loadedIds = new Set(sprintTasks.map((task) => task.id))
+    const parentIds = sprintTasks.map((task) => task.id)
+    const contextSubtasks: Task[] = []
+
+    // Batched: each id is a 36-char UUID and PostgREST takes the `in` list in
+    // the query string, so a whole sprint in one call would blow the URL length.
+    for (let from = 0; from < parentIds.length; from += 100) {
+      const batch = parentIds.slice(from, from + 100)
+      const { data } = await supabase
+        .from('tasks')
+        .select(TASK_SELECT)
+        .eq('project_id', activeProjectId)
+        .in('parent_task_id', batch)
+      for (const row of (data ?? []) as Task[]) {
+        if (loadedIds.has(row.id)) continue
+        loadedIds.add(row.id)
+        contextSubtasks.push(row)
+      }
+    }
+
+    set({ tasks: [...sprintTasks, ...contextSubtasks], loadingBoard: false })
   },
 
   fetchBacklog: async () => {
@@ -2308,8 +2335,20 @@ export const useStore = create<AppState>((set, get) => {
     const task = tasks.find((item) => item.id === taskId)
     if (!task) return
 
+    // `toIndex` comes from the board the user is looking at, so the column it is
+    // an index into must be that same board's column. On a single-sprint board
+    // that means this sprint's tasks only — `tasks` also carries out-of-sprint
+    // subtasks that fetchBoard loads as card context, and letting those into the
+    // position maths would place the drop against rows nobody can see.
+    const activeSprintId = get().activeSprintId
+    const boardSprintId = activeSprintId && activeSprintId !== 'all' ? activeSprintId : null
+
     const columnTasks = tasks
-      .filter((item) => item.status === toStatus && item.id !== taskId)
+      .filter((item) => (
+        item.status === toStatus
+        && item.id !== taskId
+        && (!boardSprintId || item.sprint_id === boardSprintId)
+      ))
       .sort((left, right) => left.position - right.position)
 
     const before = columnTasks[toIndex - 1]?.position ?? 0

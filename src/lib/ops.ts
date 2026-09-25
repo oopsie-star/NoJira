@@ -50,6 +50,20 @@ export function isFreshTask(
   return isFreshTodo(task) || hasFreshSubtask(task.id, tasks)
 }
 
+/**
+ * Work nobody has picked up yet — the status is still "To do". This is what
+ * drives the green highlight in the backlog: a task stays green until someone
+ * takes it into work (or it is closed), rather than for a fixed week.
+ *
+ * Deliberately separate from isFreshTask above: freshness (a 7-day window) is
+ * what floats newly added work to the TOP of a list. Reusing it for the colour
+ * would mean every open task in the project counts as "fresh" and pins itself
+ * to the top of every section, which is not what the green is for.
+ */
+export function isUnstartedTodo(task: Pick<Task, 'status'>): boolean {
+  return task.status === 'todo'
+}
+
 export function formatStatusAge(locale: Locale, task: Pick<Task, 'status_changed_at' | 'updated_at' | 'created_at'>) {
   const days = getStatusAgeDays(task)
   if (days === 0) return locale === 'ru' ? 'сегодня' : 'today'
