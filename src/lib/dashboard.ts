@@ -54,8 +54,16 @@ export function daysInStatus(task: DashboardTask): number {
   return Math.max(0, Math.floor((Date.now() - baseline) / DAY_MS))
 }
 
+/**
+ * Work that was STARTED and then stopped moving.
+ *
+ * Deliberately limited to in_progress. Counting every non-done task made this
+ * read 481 of 513 on a real workspace — a backlog item nobody has picked up is
+ * not stuck, it is just a backlog item, and burying 27 genuinely stalled tasks
+ * inside that number is worse than not showing it at all.
+ */
 export function isStale(task: DashboardTask): boolean {
-  return task.status !== 'done' && daysInStatus(task) >= STALE_DAYS
+  return task.status === 'in_progress' && daysInStatus(task) >= STALE_DAYS
 }
 
 /** Whole days from now until `date`; negative once it has passed. */
@@ -92,7 +100,7 @@ export function attentionQueues(
     myInProgress: tasks.filter((task) => task.status === 'in_progress' && isAssignedTo(task, profileId)),
     blocked: open.filter((task) => blockedIds.has(task.id)),
     overdue: open.filter(isOverdue),
-    stale: open.filter(isStale),
+    stale: tasks.filter(isStale),
   }
 }
 

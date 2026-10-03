@@ -398,6 +398,9 @@ export function TopNavbar({ onToggleSidebar }: { onToggleSidebar: () => void }) 
   const [projectOpen, setProjectOpen] = useState(false)
 
   const currentLabel = useMemo(() => {
+    // The dashboard is not a project section, so sectionFromPathname would fall
+    // through to its 'board' default and label the workspace home "Board".
+    if (location.pathname.startsWith('/dashboard')) return t('nav.dashboard')
     const section = sectionFromPathname(location.pathname)
     if (section === 'backlog') return t('nav.backlog')
     if (section === 'people') return t('nav.people')
