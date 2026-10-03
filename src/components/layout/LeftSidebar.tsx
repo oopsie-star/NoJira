@@ -30,7 +30,7 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
   return (
     <>
     <aside className={[
-      'flex w-[228px] flex-shrink-0 flex-col border-r border-slate-200 bg-white xl:w-[236px]',
+      'flex w-[228px] flex-shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white xl:w-[236px]',
       // Mobile: fixed slide-in overlay. Above the tab bar (z-[75]) — it's the
       // wider navigation surface, so it has to cover it rather than sit under.
       'fixed inset-y-0 left-0 z-[85] transition-transform duration-300 ease-out',
@@ -61,6 +61,13 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
         </div>
       </div>
 
+      {/* Everything below the header scrolls as one column. Adding the workspace
+          entry pushed this past the viewport on shorter screens, and the aside
+          had no overflow handling at all — the project stats simply ran off the
+          bottom edge with no way to reach them. The flex-1 spacer still pins the
+          stats to the bottom whenever there IS room, and collapses when there
+          is not. No visible bar: see .scrollbar-none. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-none">
       <nav className="p-2">
         {/* Workspace level, above the project sections and separated from them —
             it is the one entry here that is not scoped to a project. */}
@@ -116,6 +123,7 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </aside>
     </>

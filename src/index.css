@@ -52,6 +52,18 @@
     overscroll-behavior-x: contain;
   }
 
+  /* Scrolls with the wheel and touch, shows no bar. For narrow chrome like the
+     sidebar, where the global 6px track eats into a 228px column and reads as
+     clutter next to content that is already tight. */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
 
   button,
   input,

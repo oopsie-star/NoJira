@@ -187,6 +187,24 @@ export function DashboardPage() {
   // state in the gap between them on a cold load.
   const showSkeleton = (loadingProjects || loadingDashboard) && summaries.length === 0
 
+  // No Blocked tile: this workspace records no 'blocks' links at all, so it was
+  // a permanent zero taking a slot. The queue is still computed and still feeds
+  // the per-project chip, which only appears when there is something to report.
+  // The approval tiles are admin-only and only when there is anything pending.
+  const attentionTiles: AttentionTileProps[] = [
+    { label: t('dashboard.tile.assignedNotStarted'), count: queues.assignedNotStarted.length, Icon: Clock, tone: 'neutral', to: myWorkLink },
+    { label: t('dashboard.tile.myInProgress'), count: queues.myInProgress.length, Icon: Sparkles, tone: 'neutral', to: myWorkLink },
+    { label: t('dashboard.tile.overdue'), count: queues.overdue.length, Icon: AlertTriangle, tone: 'danger', to: myWorkLink },
+    { label: t('dashboard.tile.stale'), count: queues.stale.length, Icon: Clock, tone: 'warn', to: myWorkLink },
+  ]
+  const peopleLink = firstProjectKey ? projectPath(firstProjectKey, 'people') : undefined
+  if (isAdmin && pendingMembers.length > 0) {
+    attentionTiles.push({ label: t('dashboard.tile.pendingMembers'), count: pendingMembers.length, Icon: UserPlus, tone: 'warn', to: peopleLink })
+  }
+  if (isAdmin && pendingDeletions > 0) {
+    attentionTiles.push({ label: t('dashboard.tile.pendingDeletions'), count: pendingDeletions, Icon: ShieldAlert, tone: 'warn', to: peopleLink })
+  }
+
   return (
     <GlobalLayout>
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -212,70 +230,21 @@ export function DashboardPage() {
             </button>
           </section>
 
-          {/* Triage — every tile is a queue of work, not a vanity number. */}
+          {/* Triage — every tile is a queue of work, not a vanity number.
+              One grid, admin tiles included: splitting them across two grids
+              pushed the approvals onto a row of their own, and sizing the grid
+              to the tiles present stretched them wide whenever there were few.
+              Six columns is the maximum this can hold, so the row stays one row
+              and a tile keeps the same width no matter how many are shown. */}
           <section className="mt-5">
             <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
               {t('dashboard.attention')}
             </h2>
-            {/* No Blocked tile: this workspace records no 'blocks' links at all,
-                so it was a permanent zero taking up a slot. The underlying
-                queue is still computed and still drives the per-project chip,
-                which appears only when there is something to report. */}
-            <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              <AttentionTile
-                label={t('dashboard.tile.assignedNotStarted')}
-                count={queues.assignedNotStarted.length}
-                Icon={Clock}
-                tone="neutral"
-                to={myWorkLink}
-              />
-              <AttentionTile
-                label={t('dashboard.tile.myInProgress')}
-                count={queues.myInProgress.length}
-                Icon={Sparkles}
-                tone="neutral"
-                to={myWorkLink}
-              />
-              <AttentionTile
-                label={t('dashboard.tile.overdue')}
-                count={queues.overdue.length}
-                Icon={AlertTriangle}
-                tone="danger"
-                to={myWorkLink}
-              />
-              <AttentionTile
-                label={t('dashboard.tile.stale')}
-                count={queues.stale.length}
-                Icon={Clock}
-                tone="warn"
-                to={myWorkLink}
-              />
+            <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+              {attentionTiles.map((tile) => (
+                <AttentionTile key={tile.label} {...tile} />
+              ))}
             </div>
-
-            {/* Admin-only approvals. These exist today but only inside a project,
-                where they are easy to miss entirely. */}
-            {isAdmin && (pendingMembers.length > 0 || pendingDeletions > 0) && (
-              <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                {pendingMembers.length > 0 && (
-                  <AttentionTile
-                    label={t('dashboard.tile.pendingMembers')}
-                    count={pendingMembers.length}
-                    Icon={UserPlus}
-                    tone="warn"
-                    to={firstProjectKey ? projectPath(firstProjectKey, 'people') : undefined}
-                  />
-                )}
-                {pendingDeletions > 0 && (
-                  <AttentionTile
-                    label={t('dashboard.tile.pendingDeletions')}
-                    count={pendingDeletions}
-                    Icon={ShieldAlert}
-                    tone="warn"
-                    to={firstProjectKey ? projectPath(firstProjectKey, 'people') : undefined}
-                  />
-                )}
-              </div>
-            )}
           </section>
 
           {/* Projects */}
