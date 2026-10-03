@@ -71,14 +71,20 @@ export function BoardPage() {
     ])
   }, [activeProjectId, fetchSprints, fetchEpics, fetchMembers, fetchTaskLinks])
 
-  // One-shot sprint initialization — only runs once per project, never overrides user selection
+  // One-shot sprint initialization — only runs once per project, never overrides
+  // user selection.
+  //
+  // Opens on ALL sprints. It used to pick the active sprint, falling back to the
+  // oldest one when no sprint was marked active — so the board silently showed a
+  // slice of the project and read as if the work had gone missing. Showing
+  // everything and letting the picker narrow it is the honest default: you
+  // cannot miss work you were never shown.
   useEffect(() => {
     if (!sprintsLoaded || sprints.length === 0) return
     if (sprintsInitialized.current) return
     sprintsInitialized.current = true
-    const activeSprint = sprints.find((s) => s.status === 'active') ?? sprints[0]
-    setActiveSprintId(activeSprint.id)
-  }, [sprintsLoaded, sprints, setActiveSprintId])
+    setActiveSprintId('all')
+  }, [sprintsLoaded, sprints.length, setActiveSprintId])
 
   // Load board tasks whenever the sprint selection changes
   useEffect(() => {
