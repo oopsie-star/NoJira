@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { DragDropContext, type DropResult } from '@hello-pangea/dnd'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { KanbanColumn } from './KanbanColumn'
 import { BoardSwimLane, NO_EPIC_LANE, type BoardLane } from './BoardSwimLane'
 import { useI18n } from '@/lib/i18n'
@@ -24,6 +25,7 @@ export function KanbanBoard() {
   const [quickFilters, setQuickFilters] = useState<string[]>([])
   const [showClosed, setShowClosed] = useState(false)
   const [groupByEpic, setGroupByEpic] = useState(true)
+  const [showEmptyLanes, setShowEmptyLanes] = useState(false)
 
   const quickFilterOptions = [
     { id: 'blocked', label: t('board.quick.blocked') },
@@ -93,8 +95,8 @@ export function KanbanBoard() {
   // board as containers rather than only as a label on a card.
   const grouped = groupByEpic && epics.length > 0
 
-  const lanes = useMemo<BoardLane[]>(() => {
-    if (!grouped) return []
+  const lanes = useMemo<{ withWork: BoardLane[]; empty: BoardLane[] }>(() => {
+    if (!grouped) return { withWork: [], empty: [] }
     // Every epic gets a lane — even an empty one, so it's visible and can be
     // dropped into. Empty lanes render collapsed. The pinned "Product Vision"
     // epic is a description card, not a work container, and an archived epic is
@@ -129,21 +131,19 @@ export function KanbanBoard() {
       ? [...epicLanes, { id: NO_EPIC_LANE, epic: null, tasks: noEpic }]
       : epicLanes
 
-    // Lanes holding work come first, empty ones after. A project accumulates far
-    // more epics than any one sprint touches, so in epic order a sprint with a
-    // couple of tasks reads as an empty board — you scroll past a screenful of
-    // blank epics before reaching anything. Stable within each group, so the
-    // epic ordering still holds among the lanes that do have work.
+    // Split rather than merely sort. A project accumulates far more epics than
+    // any one sprint touches — MOMNA has 13 lane-bearing epics against a sprint
+    // holding a single task — so a board that renders every epic is 12 blank
+    // headers and one card. Sinking the blanks to the bottom was not enough:
+    // they still fill the first screen, and the board reads as "the tasks are
+    // gone". Only lanes with work are shown; the rest stay reachable behind one
+    // summary row, because dropping a task into an empty epic's lane is how you
+    // reassign its epic and that has to keep working.
     const hasWork = (lane: BoardLane) => lane.tasks.some((task) => !isTerminalStatus(task.status))
-    return allLanes
-      .map((lane, index) => ({ lane, index }))
-      .sort((left, right) => {
-        const leftHasWork = hasWork(left.lane)
-        const rightHasWork = hasWork(right.lane)
-        if (leftHasWork !== rightHasWork) return leftHasWork ? -1 : 1
-        return left.index - right.index
-      })
-      .map((entry) => entry.lane)
+    return {
+      withWork: allLanes.filter(hasWork),
+      empty: allLanes.filter((lane) => !hasWork(lane)),
+    }
   }, [grouped, visibleTasks, epics])
 
   function toggleFilter(id: string) {
@@ -242,7 +242,7 @@ export function KanbanBoard() {
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4">
           <DragDropContext onDragEnd={onDragEnd}>
             <div className="space-y-3">
-              {lanes.map((lane) => (
+              {lanes.withWork.map((lane) => (
                 <BoardSwimLane
                   key={lane.id}
                   lane={lane}
@@ -250,6 +250,27 @@ export function KanbanBoard() {
                   sprintId={activeSprintId}
                 />
               ))}
+
+              {lanes.empty.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowEmptyLanes((value) => !value)}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white/60 px-3 py-2.5 text-xs font-semibold text-slate-500 transition hover:border-slate-400 hover:text-slate-700"
+                  >
+                    {showEmptyLanes ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    {t('board.emptyEpics', { count: lanes.empty.length })}
+                  </button>
+                  {showEmptyLanes && lanes.empty.map((lane) => (
+                    <BoardSwimLane
+                      key={lane.id}
+                      lane={lane}
+                      showClosed={showClosed}
+                      sprintId={activeSprintId}
+                    />
+                  ))}
+                </>
+              )}
             </div>
           </DragDropContext>
         </div>
