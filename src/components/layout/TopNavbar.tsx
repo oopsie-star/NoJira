@@ -10,6 +10,7 @@ import { canManageTelegramLink } from '@/lib/permissions'
 import { projectPath, sectionFromPathname, useCurrentProjectKey } from '@/lib/projectRoutes'
 import { supabase } from '@/lib/supabase'
 import { useTheme, type Theme } from '@/lib/theme'
+import { ColorLegend } from './ColorLegend'
 import { useStore } from '@/store'
 import type { Locale } from '@/types'
 
@@ -354,6 +355,8 @@ function HeaderMenu() {
               ))}
             </div>
           </div>
+
+          <ColorLegend />
 
           <div className="mt-2 rounded-xl border border-slate-200 p-2">
             <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
