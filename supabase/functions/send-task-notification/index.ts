@@ -42,7 +42,7 @@ const resendApiKey = Deno.env.get('RESEND_API_KEY')?.trim() ?? ''
 const telegramBotToken = Deno.env.get('TELEGRAM_BOT_TOKEN')?.trim() ?? ''
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
 const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-const appBaseUrl = Deno.env.get('APP_BASE_URL') ?? 'https://oopsie-star.github.io/NoJira/'
+const appBaseUrl = Deno.env.get('APP_BASE_URL') ?? 'https://oopsie-star.github.io/Qira/'
 const resendUserAgent = 'qira-task-notifier/1.0'
 
 function json(status: number, payload: unknown) {

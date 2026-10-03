@@ -262,7 +262,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
       options: {
         data: { full_name: fullName },
-        // Must include the /NoJira/ base — otherwise the confirm link lands on the
+        // Must include the /Qira/ base — otherwise the confirm link lands on the
         // domain root (no GitHub Pages site there) and 404s.
         emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}board`,
       },

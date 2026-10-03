@@ -34,7 +34,7 @@ const adminApprovalEmail = Deno.env.get('ADMIN_APPROVAL_EMAIL')?.trim() ?? ''
 const resendApiKey = Deno.env.get('RESEND_API_KEY')?.trim() ?? ''
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
 const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-const appBaseUrl = Deno.env.get('APP_BASE_URL') ?? 'https://oopsie-star.github.io/NoJira/'
+const appBaseUrl = Deno.env.get('APP_BASE_URL') ?? 'https://oopsie-star.github.io/Qira/'
 const resendUserAgent = 'qira-approval-notifier/1.0'
 const sandboxNotePrefix = 'sandbox:'
 

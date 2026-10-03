@@ -1,4 +1,4 @@
-# Deploying NoJira (Qira)
+# Deploying Qira
 
 Two independent deploy surfaces — a code push does **not** touch the database, and a migration does **not** touch the deployed site. Always confirm with the user before doing either (push to `main`, `supabase db push`, `supabase functions deploy`, setting secrets) — these are visible/production-ish actions, not local edits.
 
@@ -14,7 +14,7 @@ git commit -m "..."
 git push origin main
 ```
 
-The build takes effect on `oopsie-star.github.io/NoJira/` a minute or two after push. `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` are baked in at build time from GitHub Actions secrets (`gh secret list --repo oopsie-star/NoJira` to see what's set).
+The build takes effect on `oopsie-star.github.io/Qira/` a minute or two after push. (The repo was renamed NoJira -> Qira on 2026-10-03; GitHub does NOT redirect the old Pages URL, and the Pages base lives in `VITE_APP_BASE_URL` in the deploy workflow -- rename the repo again and that must change in step or every asset 404s.) `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` are baked in at build time from GitHub Actions secrets (`gh secret list --repo oopsie-star/Qira` to see what's set).
 
 ## 2. Database (Supabase migrations)
 
@@ -68,7 +68,7 @@ Prefer the `config.toml` pin over the flag — a plain `supabase functions deplo
 
 `gh` CLI is already authenticated (`gh auth status`) with `workflow` scope. Set GitHub Actions secrets with:
 ```bash
-gh secret set NAME --body "value" --repo oopsie-star/NoJira
+gh secret set NAME --body "value" --repo oopsie-star/Qira
 ```
 Set Supabase Edge Function secrets with:
 ```bash

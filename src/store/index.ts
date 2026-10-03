@@ -2986,7 +2986,7 @@ export const useStore = create<AppState>((set, get) => {
     const { error } = await supabase.auth.signInWithOtp({
       email: normalizedEmail,
       options: {
-        // Include the /NoJira/ base path so the magic link doesn't 404 on the domain root.
+        // Include the /Qira/ base path so the magic link doesn't 404 on the domain root.
         emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}board`,
         shouldCreateUser: true,
       },

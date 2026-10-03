@@ -384,7 +384,7 @@ export async function callLLM(
   }
 
   if (config.provider === 'openrouter') {
-    headers['HTTP-Referer'] = 'https://oopsie-star.github.io/NoJira/'
+    headers['HTTP-Referer'] = 'https://oopsie-star.github.io/Qira/'
     headers['X-Title'] = 'Qira'
   }
 

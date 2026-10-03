@@ -12,7 +12,7 @@ export type ShareTarget = 'telegram' | 'whatsapp' | 'viber'
 
 /** Absolute, shareable deep link to a task (opens the task drawer via ?task=). */
 export function buildTaskShareUrl(projectKey: string, taskId: string): string {
-  const base = import.meta.env.BASE_URL.replace(/\/$/, '') // e.g. "/NoJira"
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '') // e.g. "/Qira"
   return `${window.location.origin}${base}/projects/${encodeURIComponent(projectKey)}/backlog?task=${taskId}`
 }
 
