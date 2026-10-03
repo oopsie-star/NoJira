@@ -7,7 +7,7 @@
      working. Light values are byte-for-byte the originals, so light mode is
      unchanged; dark mode is the same class names resolving to other numbers.
      That is the whole point: no component had to be edited to gain a theme. */
-  :root, .light {
+  :root {
     --c-surface-card: 255 255 255;
     --c-slate-50: 248 250 252;
     --c-slate-100: 241 245 249;
@@ -145,11 +145,7 @@
     color-scheme: light;
   }
 
-  /* `.dark`, not `:root.dark`: the colour legend renders a dark swatch beside a
-     light one by nesting a .dark wrapper, which only works if the variables can
-     be redefined below the root. Same specificity as the :root block above and
-     declared after it, so <html class="dark"> still wins. */
-  .dark {
+  :root.dark {
     --c-surface-card: 21 27 35;
     --c-slate-50: 27 34 44;
     --c-slate-100: 35 44 56;

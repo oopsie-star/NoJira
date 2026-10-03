@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Moon, Palette, Sun } from 'lucide-react'
+import { ChevronDown, ChevronRight, Palette } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 
 /**
@@ -24,22 +24,17 @@ const BADGE_COLOURS: { swatch: string; key: string }[] = [
   { swatch: 'border-indigo-200 bg-indigo-100', key: 'legend.badge.story' },
 ]
 
-/** The same swatch twice — once in each theme — so the list answers "what does
- *  this look like for me" whichever theme the reader is currently in. */
-function SwatchPair({ swatch }: { swatch: string }) {
-  return (
-    <span className="flex shrink-0 items-center gap-1">
-      {/* BOTH swatches are explicitly scoped. Leaving the light one unscoped
-          made it inherit whatever theme the page was in, so on a dark page the
-          pair rendered as two identical dark squares. */}
-      <span className="light contents">
-        <span className={`h-4 w-4 rounded border ${swatch}`} aria-hidden />
-      </span>
-      <span className="dark contents">
-        <span className={`h-4 w-4 rounded border ${swatch}`} aria-hidden />
-      </span>
-    </span>
-  )
+/**
+ * One swatch, carrying whatever the active theme resolves it to. It needs no
+ * theme scope of its own precisely because it uses the same classes the real UI
+ * uses — so it cannot drift from what is on screen.
+ *
+ * It used to show the colour twice, light beside dark. That was a misreading:
+ * the point of the guide is to decode what you are looking at right now, and
+ * the other theme's square is a colour you will never see on this screen.
+ */
+function Swatch({ swatch }: { swatch: string }) {
+  return <span className={`h-4 w-4 shrink-0 rounded border ${swatch}`} aria-hidden />
 }
 
 function LegendRows({ rows }: { rows: { swatch: string; key: string }[] }) {
@@ -48,7 +43,7 @@ function LegendRows({ rows }: { rows: { swatch: string; key: string }[] }) {
     <ul className="space-y-1.5">
       {rows.map(({ swatch, key }) => (
         <li key={key} className="flex items-center gap-2">
-          <SwatchPair swatch={swatch} />
+          <Swatch swatch={swatch} />
           <span className="min-w-0 flex-1 text-[11px] leading-snug text-slate-600">{t(key)}</span>
         </li>
       ))}
@@ -75,13 +70,7 @@ export function ColorLegend() {
 
       {open && (
         <div className="mt-2.5 space-y-3">
-          <div className="flex items-center gap-2 pl-[2px]">
-            <span className="flex shrink-0 gap-1">
-              <span className="flex w-4 justify-center text-slate-400" title={t('common.themeLight')}><Sun size={11} /></span>
-              <span className="flex w-4 justify-center text-slate-400" title={t('common.themeDark')}><Moon size={11} /></span>
-            </span>
-            <span className="text-[10px] uppercase tracking-wide text-slate-400">{t('legend.rowHeading')}</span>
-          </div>
+          <p className="text-[10px] uppercase tracking-wide text-slate-400">{t('legend.rowHeading')}</p>
           <LegendRows rows={ROW_COLOURS} />
 
           <p className="pt-1 text-[10px] uppercase tracking-wide text-slate-400">{t('legend.badgeHeading')}</p>
