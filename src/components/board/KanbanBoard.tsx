@@ -256,7 +256,7 @@ export function KanbanBoard() {
                   <button
                     type="button"
                     onClick={() => setShowEmptyLanes((value) => !value)}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white/60 px-3 py-2.5 text-xs font-semibold text-slate-500 transition hover:border-slate-400 hover:text-slate-700"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-surface-card/60 px-3 py-2.5 text-xs font-semibold text-slate-500 transition hover:border-slate-400 hover:text-slate-700"
                   >
                     {showEmptyLanes ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     {t('board.emptyEpics', { count: lanes.empty.length })}

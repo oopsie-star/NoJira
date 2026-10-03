@@ -37,14 +37,14 @@ export function StatusDropdown({ value, onChange, disabled = false }: StatusDrop
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((current) => !current)}
-        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm transition hover:border-slate-300"
+        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-surface-card px-3 py-2 text-sm transition hover:border-slate-300"
       >
         <StatusBadge status={value} />
         <ChevronDown size={14} className="text-slate-500" />
       </button>
 
       {open && (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-50 min-w-[190px] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+        <div className="absolute left-0 top-[calc(100%+8px)] z-50 min-w-[190px] rounded-2xl border border-slate-200 bg-surface-card p-2 shadow-xl">
           {STATUS_COLUMNS.map((status) => (
             <button
               key={status}

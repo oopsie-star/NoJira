@@ -75,7 +75,7 @@ export function TaskCard({ task, index }: TaskCardProps) {
           {...provided.dragHandleProps}
           onClick={() => setOpenTaskId(task.id)}
           className={[
-            'cursor-pointer rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition',
+            'cursor-pointer rounded-xl border border-slate-200 bg-surface-card p-3 shadow-sm transition',
             snapshot.isDragging ? 'rotate-[1deg] shadow-xl' : 'hover:border-slate-300 hover:shadow-md',
           ].join(' ')}
         >

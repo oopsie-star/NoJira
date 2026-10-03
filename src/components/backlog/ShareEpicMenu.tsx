@@ -91,7 +91,7 @@ export function ShareEpicMenu({ epic, tasks, members, projectKey }: ShareEpicMen
       </button>
 
       {open && (
-        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl">
+        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 rounded-2xl border border-slate-200 bg-surface-card p-2 shadow-2xl">
           <p className="px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('share.titleEpic')}</p>
           {TARGETS.map((target) => (
             <button

@@ -25,7 +25,7 @@ export function MobileBottomBar() {
     // view included. Draft fields all persist on blur, which fires before the
     // tap lands, so closing the task from here can't lose an in-flight edit.
     <nav
-      className="fixed inset-x-0 bottom-0 z-[75] flex items-stretch border-t border-slate-200 bg-white px-1 pt-1.5 lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-[75] flex items-stretch border-t border-slate-200 bg-surface-card px-1 pt-1.5 lg:hidden"
       style={{ height: 'var(--qira-mobile-nav-h)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       {/* Workspace entry first — the only item here that is not project-scoped. */}

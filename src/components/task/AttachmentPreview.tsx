@@ -116,7 +116,7 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
   return (
     <div className="fixed inset-0 z-[90] flex flex-col bg-slate-950/70 p-2 sm:p-6" onClick={onClose}>
       <div
-        className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-surface-card shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
@@ -187,7 +187,7 @@ export function AttachmentPreview({ path, signedUrl, onClose }: AttachmentPrevie
                 title={filename}
                 src={htmlUrl}
                 sandbox="allow-scripts"
-                className="h-full w-full border-0 bg-white"
+                className="h-full w-full border-0 bg-surface-card"
               />
             )
           ) : kind === 'text' ? (

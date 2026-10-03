@@ -296,7 +296,7 @@ function ModelLibraryCard({
         'w-full rounded-2xl border px-4 py-3 text-left transition',
         selected
           ? 'border-qira-pistachio bg-qira-pistachio-lt/20 shadow-sm'
-          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50',
+          : 'border-slate-200 bg-surface-card hover:border-slate-300 hover:bg-slate-50',
       ].join(' ')}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -575,7 +575,7 @@ export function OpsPage() {
     return (
       <GlobalLayout>
         <div className="flex h-full min-h-0 flex-1 items-center justify-center p-6">
-          <section className="rounded-[28px] bg-white p-12 text-center shadow-sm">
+          <section className="rounded-[28px] bg-surface-card p-12 text-center shadow-sm">
             <h2 className="text-2xl font-semibold text-slate-900">{t('project.noProjects')}</h2>
             <p className="mt-2 text-sm text-slate-500">{t('project.noProjectsHint')}</p>
           </section>
@@ -587,7 +587,7 @@ export function OpsPage() {
   return (
     <GlobalLayout>
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-5">
-        <section className="shrink-0 rounded-[28px] bg-white px-5 py-3.5 shadow-sm">
+        <section className="shrink-0 rounded-[28px] bg-surface-card px-5 py-3.5 shadow-sm">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <h1 className="text-base font-semibold text-slate-900">{t('ops.title')}</h1>
             <span className="text-slate-300">·</span>
@@ -595,7 +595,7 @@ export function OpsPage() {
           </div>
         </section>
 
-        <section className="rounded-[28px] bg-white p-5 shadow-sm">
+        <section className="rounded-[28px] bg-surface-card p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">{t('ops.jira.title')}</h2>
@@ -619,7 +619,7 @@ export function OpsPage() {
 
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
           <div className="space-y-4">
-            <section className="rounded-[28px] bg-white p-5 shadow-sm">
+            <section className="rounded-[28px] bg-surface-card p-5 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">{t('ops.automationTitle')}</h2>
               <p className="mt-1 text-sm text-slate-500">{t('ops.subtitle')}</p>
 
@@ -641,7 +641,7 @@ export function OpsPage() {
               </div>
             </section>
 
-            <section className="rounded-[28px] bg-white p-5 shadow-sm">
+            <section className="rounded-[28px] bg-surface-card p-5 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">{t('ops.webhooksTitle')}</h2>
               <form onSubmit={handleWebhookSubmit} className="mt-4 grid gap-3">
                 <input
@@ -758,7 +758,7 @@ export function OpsPage() {
             </section>
           </div>
 
-          <section className="rounded-[28px] bg-white p-5 shadow-sm">
+          <section className="rounded-[28px] bg-surface-card p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">{t('ops.apiTitle')}</h2>
             <p className="mt-1 text-sm text-slate-500">{t('ops.apiSubtitle')}</p>
 
@@ -809,7 +809,7 @@ export function OpsPage() {
           </section>
         </div>
 
-        <section className="rounded-[28px] bg-white p-5 shadow-sm">
+        <section className="rounded-[28px] bg-surface-card p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">{t('ops.ai.title')}</h2>
@@ -966,7 +966,7 @@ export function OpsPage() {
         </section>
 
         {canSeeActivityLog && (
-          <section className="rounded-[28px] bg-white p-5 shadow-sm">
+          <section className="rounded-[28px] bg-surface-card p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">{t('ops.activity.title')}</h2>
@@ -1004,7 +1004,7 @@ export function OpsPage() {
         )}
 
         {canSeeActivityLog && (
-          <section className="rounded-[28px] bg-white p-5 shadow-sm">
+          <section className="rounded-[28px] bg-surface-card p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">{t('ops.agentAudit.title')}</h2>

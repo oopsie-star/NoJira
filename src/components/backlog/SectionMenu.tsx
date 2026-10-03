@@ -75,7 +75,7 @@ export function SectionMenu({ items, label }: SectionMenuProps) {
         <div
           ref={menuRef}
           style={{ top: position.top, right: position.right }}
-          className="fixed z-30 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
+          className="fixed z-30 w-52 overflow-hidden rounded-xl border border-slate-200 bg-surface-card p-1 shadow-xl"
         >
           {items.map((item) => (
             <button

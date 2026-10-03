@@ -101,7 +101,7 @@ function CreateSprintModal({
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/35 p-4">
-      <form onSubmit={handleSubmit} className="flex w-full max-w-xl flex-col rounded-[28px] bg-white shadow-2xl" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
+      <form onSubmit={handleSubmit} className="flex w-full max-w-xl flex-col rounded-[28px] bg-surface-card shadow-2xl" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
         <div className="flex-shrink-0 border-b border-slate-200 px-6 py-4">
           <h3 className="text-xl font-semibold text-slate-900">{t('backlog.createSprint')}</h3>
         </div>
@@ -179,7 +179,7 @@ function CreateEpicModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/35 p-4">
-      <form onSubmit={handleSubmit} className="flex w-full max-w-xl flex-col rounded-[28px] bg-white shadow-2xl" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
+      <form onSubmit={handleSubmit} className="flex w-full max-w-xl flex-col rounded-[28px] bg-surface-card shadow-2xl" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
         <div className="flex-shrink-0 border-b border-slate-200 px-6 py-4">
           <h3 className="text-xl font-semibold text-slate-900">{t('backlog.createEpic')}</h3>
         </div>
@@ -260,7 +260,7 @@ function FiltersSheet({
   return (
     <>
       <div className="fixed inset-0 z-[70] bg-slate-950/35" onClick={onClose} />
-      <div className="fixed inset-x-0 bottom-0 z-[80] rounded-t-[28px] bg-white px-4 pb-4 pt-3 shadow-2xl md:left-1/2 md:top-1/2 md:w-full md:max-w-xl md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-[28px] md:px-6 md:pb-6 md:pt-5">
+      <div className="fixed inset-x-0 bottom-0 z-[80] rounded-t-[28px] bg-surface-card px-4 pb-4 pt-3 shadow-2xl md:left-1/2 md:top-1/2 md:w-full md:max-w-xl md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-[28px] md:px-6 md:pb-6 md:pt-5">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-slate-900">{t('backlog.filters')}</h3>
@@ -437,7 +437,7 @@ function TaskListSection({
   const [editingTitle, setEditingTitle] = useState(false)
 
   return (
-    <section key={sectionKey} className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm">
+    <section key={sectionKey} className="overflow-hidden rounded-[20px] border border-slate-200 bg-surface-card shadow-sm">
       <div className="border-b border-slate-200 px-3 py-3 sm:px-4">
         <div className="flex items-start gap-3">
           <button
@@ -463,7 +463,7 @@ function TaskListSection({
                       if (value && value !== title) onTitleSave(value)
                       setEditingTitle(false)
                     }}
-                    className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-1 -mx-1 text-sm font-semibold text-slate-900 outline-none sm:text-base"
+                    className="min-w-0 flex-1 rounded-md border border-slate-200 bg-surface-card px-1 -mx-1 text-sm font-semibold text-slate-900 outline-none sm:text-base"
                   />
                 ) : (
                   <h2
@@ -543,7 +543,7 @@ function TaskListSection({
                 {...provided.droppableProps}
                 className={[
                   'space-y-2 p-2 sm:p-3',
-                  snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/30' : 'bg-white',
+                  snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/30' : 'bg-surface-card',
                 ].join(' ')}
               >
                 {tasks.length === 0 && (
@@ -983,13 +983,13 @@ export function BacklogView() {
     <DragDropContext onDragEnd={onDragEnd}>
       <div className="flex min-h-full min-w-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 sm:gap-4 sm:p-4">
         {!activeProjectId ? (
-          <section className="rounded-[28px] bg-white p-12 text-center shadow-sm">
+          <section className="rounded-[28px] bg-surface-card p-12 text-center shadow-sm">
             <h2 className="text-2xl font-semibold text-slate-900">{t('project.noProjects')}</h2>
             <p className="mt-2 text-sm text-slate-500">{t('project.noProjectsHint')}</p>
           </section>
         ) : (
           <>
-            <section className="shrink-0 rounded-[20px] border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-4">
+            <section className="shrink-0 rounded-[20px] border border-slate-200 bg-surface-card px-3 py-3 shadow-sm sm:px-4">
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2">
                   <div className="relative min-w-0 flex-1">
@@ -1023,7 +1023,7 @@ export function BacklogView() {
                   {memberPreview.length > 0 && (
                     <div className="hidden items-center -space-x-2 lg:flex">
                       {memberPreview.map((member) => (
-                        <div key={member.id} className="rounded-full ring-2 ring-white">
+                        <div key={member.id} className="rounded-full ring-2 ring-surface-card">
                           <UserAvatar profile={member} size={30} muted={!member} />
                         </div>
                       ))}
@@ -1112,7 +1112,7 @@ export function BacklogView() {
 
             <div className="space-y-3">
               {showGlobalEmptyState ? (
-                <section className="rounded-[20px] border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500 shadow-sm">
+                <section className="rounded-[20px] border border-slate-200 bg-surface-card px-4 py-6 text-sm text-slate-500 shadow-sm">
                   <p>{t('backlog.noVisibleIssues')}</p>
                   <button
                     type="button"

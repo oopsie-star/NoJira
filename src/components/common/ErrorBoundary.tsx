@@ -51,7 +51,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBound
       url.searchParams.set('_r', String(Date.now()))
       window.location.replace(url.toString())
       return (
-        <div className="flex h-screen items-center justify-center bg-white">
+        <div className="flex h-screen items-center justify-center bg-surface-card">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-qira-pistachio border-t-transparent" />
         </div>
       )
@@ -60,7 +60,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBound
     const details = `${error.name}: ${error.message}\n${error.stack ?? ''}\n${componentStack ?? ''}`.trim()
 
     return (
-      <div className="flex h-screen flex-col items-center gap-4 overflow-y-auto bg-white p-6 text-center">
+      <div className="flex h-screen flex-col items-center gap-4 overflow-y-auto bg-surface-card p-6 text-center">
         <p className="mt-8 text-lg font-semibold text-slate-900">Something went wrong / Что-то пошло не так</p>
         <p className="max-w-sm text-sm text-slate-500">
           Please reload the page. / Пожалуйста, обновите страницу.

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bell, Check, ChevronDown, FolderPlus, Globe, LogOut, Menu, Plus, Send } from 'lucide-react'
+import { Bell, Check, ChevronDown, FolderPlus, Globe, LogOut, Menu, Moon, Plus, Send, Sun } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthContext } from '@/auth/AuthContext'
 import { UserAvatar } from '@/components/common/UserAvatar'
@@ -9,6 +9,7 @@ import { useI18n } from '@/lib/i18n'
 import { canManageTelegramLink } from '@/lib/permissions'
 import { projectPath, sectionFromPathname, useCurrentProjectKey } from '@/lib/projectRoutes'
 import { supabase } from '@/lib/supabase'
+import { useTheme, type Theme } from '@/lib/theme'
 import { useStore } from '@/store'
 import type { Locale } from '@/types'
 
@@ -45,7 +46,7 @@ function ProjectSwitcher() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((value) => !value)}
-        className="flex min-w-0 max-w-[52vw] items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-left text-white transition hover:bg-white/15 sm:max-w-none sm:min-w-[176px] sm:gap-3 sm:rounded-xl xl:min-w-[200px]"
+        className="flex min-w-0 max-w-[52vw] items-center justify-between gap-2 rounded-2xl border border-white/10 bg-surface-card/10 px-3 py-2 text-left text-white transition hover:bg-surface-card/15 sm:max-w-none sm:min-w-[176px] sm:gap-3 sm:rounded-xl xl:min-w-[200px]"
       >
         <div className="min-w-0">
           <p className="hidden text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70 sm:block">{t('project.current')}</p>
@@ -55,7 +56,7 @@ function ProjectSwitcher() {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-50 w-[calc(100vw-1.5rem)] max-w-80 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl">
+        <div className="absolute left-0 top-[calc(100%+8px)] z-50 w-[calc(100vw-1.5rem)] max-w-80 rounded-2xl border border-slate-200 bg-surface-card p-2 shadow-2xl">
           <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t('project.switcher')}</p>
 
           {showSearch && (
@@ -172,7 +173,7 @@ function NotificationMenu() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((value) => !value)}
-        className="relative rounded-xl border border-white/10 bg-white/10 p-2 text-white transition hover:bg-white/15"
+        className="relative rounded-xl border border-white/10 bg-surface-card/10 p-2 text-white transition hover:bg-surface-card/15"
         title={t('nav.notifications')}
       >
         <Bell size={18} />
@@ -184,7 +185,7 @@ function NotificationMenu() {
       </button>
 
       {open && (
-        <div className="fixed left-3 right-3 top-[68px] z-[60] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:absolute sm:left-auto sm:right-0 sm:top-[calc(100%+8px)] sm:w-80">
+        <div className="fixed left-3 right-3 top-[68px] z-[60] overflow-hidden rounded-2xl border border-slate-200 bg-surface-card shadow-2xl sm:absolute sm:left-auto sm:right-0 sm:top-[calc(100%+8px)] sm:w-80">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <p className="text-sm font-semibold text-slate-900">{t('nav.notifications')}</p>
             <button
@@ -207,7 +208,7 @@ function NotificationMenu() {
                   onClick={() => void handleOpenNotification(notification.id, notification.task_id)}
                   className={[
                     'mb-2 w-full rounded-2xl border px-4 py-3 text-left transition last:mb-0',
-                    notification.is_read ? 'border-slate-200 bg-white hover:bg-slate-50' : 'border-qira-pistachio/20 bg-qira-pistachio-lt/40 hover:bg-qira-pistachio-lt/60',
+                    notification.is_read ? 'border-slate-200 bg-surface-card hover:bg-slate-50' : 'border-qira-pistachio/20 bg-qira-pistachio-lt/40 hover:bg-qira-pistachio-lt/60',
                   ].join(' ')}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -259,6 +260,8 @@ function HeaderMenu() {
     if (pollTimerRef.current) window.clearInterval(pollTimerRef.current)
   }, [])
 
+  const { theme, setTheme } = useTheme()
+
   async function handleLocaleChange(nextLocale: Locale) {
     setLocale(nextLocale)
     if (profile && profile.locale !== nextLocale) {
@@ -299,7 +302,7 @@ function HeaderMenu() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-2.5 py-1.5 text-white transition hover:bg-white/15"
+        className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface-card/10 px-2.5 py-1.5 text-white transition hover:bg-surface-card/15"
       >
         <UserAvatar profile={profile} size={30} />
         <div className="hidden text-left xl:block">
@@ -310,7 +313,7 @@ function HeaderMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl">
+        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 rounded-2xl border border-slate-200 bg-surface-card p-2 shadow-2xl">
           <div className="rounded-xl bg-slate-50 p-3">
             <div className="flex items-center gap-3">
               <UserAvatar profile={profile} size={40} />
@@ -322,6 +325,33 @@ function HeaderMenu() {
                   {profile.job_title ? ` • ${profile.job_title}` : ''}
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Per-browser, not per-account: it is a display preference a few
+              people asked for, and storing it on the profile would need a
+              migration for something that does not have to follow you between
+              machines. */}
+          <div className="mt-2 rounded-xl border border-slate-200 p-2">
+            <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+              {theme === 'dark' ? <Moon size={12} /> : <Sun size={12} />}
+              {t('common.theme')}
+            </p>
+            <div className="flex gap-2">
+              {(['light', 'dark'] as Theme[]).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setTheme(item)}
+                  className={[
+                    'flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition',
+                    theme === item ? 'bg-qira-pistachio text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+                  ].join(' ')}
+                >
+                  {item === 'light' ? <Sun size={14} /> : <Moon size={14} />}
+                  {item === 'light' ? t('common.themeLight') : t('common.themeDark')}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -416,7 +446,7 @@ export function TopNavbar({ onToggleSidebar }: { onToggleSidebar: () => void }) 
           {/* Hamburger — mobile only */}
           <button
             onClick={onToggleSidebar}
-            className="flex-shrink-0 rounded-xl border border-white/10 bg-white/10 p-2 text-white transition hover:bg-white/15 lg:hidden"
+            className="flex-shrink-0 rounded-xl border border-white/10 bg-surface-card/10 p-2 text-white transition hover:bg-surface-card/15 lg:hidden"
             aria-label="Open menu"
           >
             <Menu size={20} />
@@ -435,7 +465,7 @@ export function TopNavbar({ onToggleSidebar }: { onToggleSidebar: () => void }) 
               <UserAvatar key={member.id} profile={member.profile ?? null} size={30} muted={!member.profile} />
             ))}
             {projectMembers.length > 5 && (
-              <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-qira-anthracite bg-white text-[10px] font-semibold text-slate-600">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-qira-anthracite bg-surface-card text-[10px] font-semibold text-slate-600">
                 +{projectMembers.length - 5}
               </span>
             )}
@@ -445,7 +475,7 @@ export function TopNavbar({ onToggleSidebar }: { onToggleSidebar: () => void }) 
 
           <button
             onClick={() => setProjectOpen(true)}
-            className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/15 xl:inline-flex"
+            className="hidden items-center gap-2 rounded-xl border border-white/10 bg-surface-card/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-surface-card/15 xl:inline-flex"
           >
             <FolderPlus size={16} />
             {t('project.create')}
@@ -455,7 +485,7 @@ export function TopNavbar({ onToggleSidebar }: { onToggleSidebar: () => void }) 
             <button
               onClick={() => setCreateOpen(true)}
               aria-label={t('nav.create')}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-white p-2.5 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-100 sm:rounded-xl sm:px-3 sm:py-2"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-surface-card p-2.5 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-100 sm:rounded-xl sm:px-3 sm:py-2"
             >
               <Plus size={18} />
               <span className="hidden lg:inline">{t('nav.create')}</span>

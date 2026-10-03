@@ -17,6 +17,18 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script>
+      // Runs before first paint. Without it the page renders light and then
+      // snaps to dark once React mounts, which is worse than no dark mode.
+      // Mirrors readStoredTheme() in src/lib/theme.ts — light unless asked.
+      (function () {
+        try {
+          if (localStorage.getItem('qira-theme') === 'dark') {
+            document.documentElement.classList.add('dark')
+          }
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body class="antialiased">
     <div id="root" class="notranslate" translate="no"></div>

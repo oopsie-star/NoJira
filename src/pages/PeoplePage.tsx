@@ -78,7 +78,7 @@ function InviteForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-[28px] bg-white p-6 shadow-sm">
+    <form onSubmit={handleSubmit} className="rounded-[28px] bg-surface-card p-6 shadow-sm">
       <div className="mb-3">
         <h2 className="text-lg font-semibold text-slate-900">{t('people.addUser')}</h2>
         <p className="mt-1 text-sm text-slate-500">{t('people.addUserHint')}</p>
@@ -516,7 +516,7 @@ export function PeoplePage() {
   return (
     <GlobalLayout>
       <div className="flex min-h-full min-w-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden p-4 sm:p-5">
-        <section className="shrink-0 rounded-[28px] bg-white px-5 py-3.5 shadow-sm">
+        <section className="shrink-0 rounded-[28px] bg-surface-card px-5 py-3.5 shadow-sm">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <h1 className="text-base font-semibold text-slate-900">{t('people.title')}</h1>
             <span className="text-slate-300">·</span>
@@ -540,7 +540,7 @@ export function PeoplePage() {
                 const sandboxInfo = parseSandboxDeliveryNote(pending.approval_email_last_error)
 
                 return (
-                  <div key={pending.id} className="flex flex-col gap-4 rounded-2xl border border-amber-200 bg-white px-4 py-4">
+                  <div key={pending.id} className="flex flex-col gap-4 rounded-2xl border border-amber-200 bg-surface-card px-4 py-4">
                     <div className="flex min-w-0 items-start gap-3">
                       <UserAvatar profile={pending} size={36} />
                       <div className="min-w-0 flex-1">
@@ -607,7 +607,7 @@ export function PeoplePage() {
         )}
 
         {isAdmin && (
-          <section className="order-7 rounded-[28px] bg-white p-6 shadow-sm">
+          <section className="order-7 rounded-[28px] bg-surface-card p-6 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.deletionRequests')}</h2>
@@ -683,7 +683,7 @@ export function PeoplePage() {
         )}
 
         {isAdmin && (
-          <section className="order-8 rounded-[28px] bg-white p-6 shadow-sm">
+          <section className="order-8 rounded-[28px] bg-surface-card p-6 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">{t('project.workspaceProjects')}</h2>
@@ -778,7 +778,7 @@ export function PeoplePage() {
         )}
 
         {!activeProjectId ? (
-          <section className="rounded-[28px] bg-white p-12 text-center shadow-sm">
+          <section className="rounded-[28px] bg-surface-card p-12 text-center shadow-sm">
             <h2 className="text-2xl font-semibold text-slate-900">{t('project.noProjects')}</h2>
             <p className="mt-2 text-sm text-slate-500">{t('project.noProjectsHint')}</p>
           </section>
@@ -787,7 +787,7 @@ export function PeoplePage() {
             {canInvite && <div className="order-3 flex flex-col"><InviteForm /></div>}
 
             {canInvite && (
-              <section className="order-4 rounded-[28px] bg-white p-6 shadow-sm">
+              <section className="order-4 rounded-[28px] bg-surface-card p-6 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">{t('people.availableMembers')}</h2>
@@ -848,7 +848,7 @@ export function PeoplePage() {
             {canInvite && (() => {
               const openInvites = projectInvites.filter((invite) => invite.status !== 'accepted')
               return (
-              <section className="order-5 rounded-[28px] bg-white p-6 shadow-sm">
+              <section className="order-5 rounded-[28px] bg-surface-card p-6 shadow-sm">
                 <h2 className="text-lg font-semibold text-slate-900">{t('people.pendingInvites')}</h2>
                 <p className="mt-1 text-sm text-slate-500">{t('people.pendingInvitesHint')}</p>
                 {openInvites.length === 0 ? (
@@ -888,7 +888,7 @@ export function PeoplePage() {
               )
             })()}
 
-            <section className="order-1 rounded-[28px] bg-white shadow-sm">
+            <section className="order-1 rounded-[28px] bg-surface-card shadow-sm">
               <div className="border-b border-slate-200 px-6 py-5">
                 <h2 className="text-lg font-semibold text-slate-900">{t('people.title')}</h2>
                 <p className="mt-1 text-sm text-slate-500">{t('people.memberCount', { count: projectMembers.length + teamPlaceholders.length })}</p>
@@ -1239,7 +1239,7 @@ export function PeoplePage() {
             </section>
 
             {importedPlaceholders.length > 0 && (
-              <section className="order-2 rounded-[28px] bg-white shadow-sm">
+              <section className="order-2 rounded-[28px] bg-surface-card shadow-sm">
                 <div className="border-b border-slate-200 px-6 py-5">
                   <h2 className="text-lg font-semibold text-slate-900">{t('people.importedTitle')}</h2>
                   <p className="mt-1 text-sm text-slate-500">{t('people.importedHint')}</p>

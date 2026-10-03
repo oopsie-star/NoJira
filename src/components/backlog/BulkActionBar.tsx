@@ -36,11 +36,11 @@ export function BulkActionBar() {
   }
 
   const selectClass =
-    'rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-qira-pistachio'
+    'rounded-xl border border-slate-200 bg-surface-card px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-qira-pistachio'
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[80] flex justify-center px-4">
-      <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-2xl">
+      <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-surface-card px-3 py-2 shadow-2xl">
         <span className="inline-flex items-center gap-2 rounded-xl bg-qira-pistachio-lt px-3 py-2 text-sm font-semibold text-qira-pistachio-dk">
           <CheckSquare size={15} />
           {t('bulk.selected', { count })}

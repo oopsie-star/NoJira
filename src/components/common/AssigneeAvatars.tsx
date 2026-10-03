@@ -23,7 +23,7 @@ export function AssigneeAvatars({ task, members, placeholders, size = 24 }: Assi
           <UserAvatar profile={null} size={size} muted />
         ) : (
           people.map((entry, idx) => (
-            <span key={`${entry.label}-${idx}`} className="rounded-full ring-2 ring-white">
+            <span key={`${entry.label}-${idx}`} className="rounded-full ring-2 ring-surface-card">
               <UserAvatar profile={entry.person} size={size} />
             </span>
           ))

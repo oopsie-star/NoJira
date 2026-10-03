@@ -16,7 +16,7 @@ function ChangeEntry({ change }: { change: TaskFieldChange }) {
   const who = change.profile ? formatPerson(change.profile) : null
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-3">
+    <div className="rounded-2xl border border-slate-200 bg-surface-card p-3">
       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
         <span className="font-semibold text-slate-700">{t(FIELD_LABEL_KEY[change.field_name])}</span>
         <span>·</span>

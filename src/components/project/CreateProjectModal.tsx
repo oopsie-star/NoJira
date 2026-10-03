@@ -34,7 +34,7 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/35 p-0 sm:items-center sm:p-4">
-      <form onSubmit={handleSubmit} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-[28px] bg-white p-5 shadow-2xl sm:rounded-[28px] sm:p-6">
+      <form onSubmit={handleSubmit} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-[28px] bg-surface-card p-5 shadow-2xl sm:rounded-[28px] sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold text-slate-900">{t('project.create')}</h2>

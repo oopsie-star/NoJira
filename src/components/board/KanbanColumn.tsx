@@ -24,7 +24,7 @@ export function KanbanColumn({ status, tasks, sprintId, title, droppableId, disa
 
   return (
     <>
-      <section className="flex h-full w-[86vw] max-w-[420px] flex-shrink-0 snap-start flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm sm:w-[260px] lg:w-[300px] lg:max-w-none">
+      <section className="flex h-full w-[86vw] max-w-[420px] flex-shrink-0 snap-start flex-col rounded-[24px] border border-slate-200 bg-surface-card shadow-sm sm:w-[260px] lg:w-[300px] lg:max-w-none">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <div>
             <p className="text-[15px] font-semibold text-slate-900 sm:text-sm">{title ?? t(`status.${status}`)}</p>

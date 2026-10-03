@@ -87,7 +87,7 @@ export function PendingApprovalPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-qira-cream px-4">
-      <div className="w-full max-w-md rounded-[32px] bg-white p-10 text-center shadow-xl">
+      <div className="w-full max-w-md rounded-[32px] bg-surface-card p-10 text-center shadow-xl">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-qira-pistachio-lt text-qira-pistachio">
           <Clock size={32} />
         </div>

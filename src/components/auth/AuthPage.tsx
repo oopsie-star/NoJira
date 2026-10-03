@@ -56,7 +56,7 @@ export function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F5F7] px-4 py-8">
+    <div className="min-h-screen bg-surface-sidebar px-4 py-8">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="hidden rounded-[32px] bg-qira-anthracite p-10 text-white shadow-2xl lg:block">
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/70">Qira</p>
@@ -69,7 +69,7 @@ export function AuthPage() {
               'Google authentication, roles, positions and language preferences',
               'Sprints, epics, attachments and a faster editing flow',
             ].map((item) => (
-              <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-4">
+              <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/15 bg-surface-card/10 px-4 py-4">
                 <ArrowRight size={18} />
                 <span className="text-sm">{item}</span>
               </div>
@@ -77,7 +77,7 @@ export function AuthPage() {
           </div>
         </section>
 
-        <section className="rounded-[32px] bg-white p-8 shadow-xl">
+        <section className="rounded-[32px] bg-surface-card p-8 shadow-xl">
           <div className="mb-8">
             <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Qira</p>
             <h2 className="mt-2 text-3xl font-semibold text-slate-900">{tab === 'signin' ? t('auth.signIn') : t('auth.signUp')}</h2>
@@ -104,7 +104,7 @@ export function AuthPage() {
               onClick={() => setTab('signin')}
               className={[
                 'flex-1 rounded-2xl px-4 py-2.5 text-sm font-semibold transition',
-                tab === 'signin' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500',
+                tab === 'signin' ? 'bg-surface-card text-slate-900 shadow-sm' : 'text-slate-500',
               ].join(' ')}
             >
               {t('auth.signIn')}
@@ -113,7 +113,7 @@ export function AuthPage() {
               onClick={() => setTab('signup')}
               className={[
                 'flex-1 rounded-2xl px-4 py-2.5 text-sm font-semibold transition',
-                tab === 'signup' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500',
+                tab === 'signup' ? 'bg-surface-card text-slate-900 shadow-sm' : 'text-slate-500',
               ].join(' ')}
             >
               {t('auth.signUp')}

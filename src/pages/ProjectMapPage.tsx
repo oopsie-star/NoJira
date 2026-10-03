@@ -84,7 +84,7 @@ function QaThread({ question, answers }: { question: ProjectMapQaEntry; answers:
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-3">
+    <div className="rounded-2xl border border-slate-200 bg-surface-card p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <AuthorLine entry={question} />
@@ -281,7 +281,7 @@ function MapBlockCard({
     <section
       ref={sectionRef}
       className={[
-        'rounded-[28px] bg-white p-5 shadow-sm transition',
+        'rounded-[28px] bg-surface-card p-5 shadow-sm transition',
         focused ? 'ring-2 ring-qira-pistachio' : '',
       ].join(' ')}
     >
@@ -297,7 +297,7 @@ function MapBlockCard({
                 if (value && value !== block.title) void updateProjectMapBlock(block.id, { title: value })
                 else event.target.value = block.title
               }}
-              className="w-full rounded-lg border border-transparent bg-transparent px-1 -mx-1 text-base font-semibold text-slate-900 outline-none transition focus:border-slate-200 focus:bg-white"
+              className="w-full rounded-lg border border-transparent bg-transparent px-1 -mx-1 text-base font-semibold text-slate-900 outline-none transition focus:border-slate-200 focus:bg-surface-card"
             />
           ) : (
             <h2 className="text-base font-semibold text-slate-900">{block.title}</h2>
@@ -320,7 +320,7 @@ function MapBlockCard({
                   onChange={(event) => void updateProjectMapBlock(block.id, {
                     covers_discipline: (event.target.value || null) as ProjectMapBlock['covers_discipline'],
                   })}
-                  className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-600 outline-none transition focus:border-qira-pistachio"
+                  className="rounded-full border border-slate-200 bg-surface-card px-2 py-0.5 text-xs font-semibold text-slate-600 outline-none transition focus:border-qira-pistachio"
                 >
                   <option value="">{t('map.coversUndeclared')}</option>
                   {COVERABLE_DISCIPLINES.map((item) => (
@@ -398,7 +398,7 @@ function MapBlockCard({
         {questionsOpen && (
           <div className="mt-3 space-y-2">
             {questions.length === 0 ? (
-              <p className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-400">{t('map.noQuestions')}</p>
+              <p className="rounded-2xl bg-surface-card px-4 py-3 text-sm text-slate-400">{t('map.noQuestions')}</p>
             ) : (
               questions.map((question) => (
                 <QaThread
@@ -424,7 +424,7 @@ function MapBlockCard({
                     onNavigateToBlock(mismatch.suggested)
                     setMismatch(null)
                   }}
-                  className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3 py-2 text-left text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
+                  className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-xl border border-amber-300 bg-surface-card px-3 py-2 text-left text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
                 >
                   <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px]">
                     {t(`map.discipline.${mismatch.suggested.discipline}`)}
@@ -448,7 +448,7 @@ function MapBlockCard({
                 if (mismatch) setMismatch(null)
               }}
               placeholder={t('map.askPlaceholder')}
-              className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-qira-pistachio"
+              className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-surface-card px-3 py-2 text-sm outline-none transition focus:border-qira-pistachio"
             />
             <button
               type="submit"
@@ -459,7 +459,7 @@ function MapBlockCard({
             </button>
           </form>
         ) : (
-          <p className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500">
+          <p className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-surface-card px-4 py-3 text-sm text-slate-500">
             {ownDisciplines.length > 0
               ? t('map.askOtherBranch', {
                   branch: ownDisciplines.map((item) => t(`map.discipline.${item}`)).join(', '),
@@ -515,7 +515,7 @@ function QaNavigator({
                 'w-full rounded-xl border px-3 py-2 text-left transition',
                 entry.question.id === activeQuestionId
                   ? 'border-qira-pistachio bg-qira-pistachio-lt/40'
-                  : 'border-slate-200 bg-white hover:bg-slate-50',
+                  : 'border-slate-200 bg-surface-card hover:bg-slate-50',
               ].join(' ')}
             >
               <div className="flex items-center gap-1.5">
@@ -543,7 +543,7 @@ function QaNavigator({
   }
 
   return (
-    <section className="rounded-[28px] bg-white p-4 shadow-sm">
+    <section className="rounded-[28px] bg-surface-card p-4 shadow-sm">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -668,7 +668,7 @@ export function ProjectMapPage() {
   return (
     <GlobalLayout>
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-5">
-        <section className="shrink-0 rounded-[28px] bg-white px-5 py-3.5 shadow-sm">
+        <section className="shrink-0 rounded-[28px] bg-surface-card px-5 py-3.5 shadow-sm">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <h1 className="text-base font-semibold text-slate-900">{t('map.title')}</h1>
             <span className="text-slate-300">·</span>
@@ -699,14 +699,14 @@ export function ProjectMapPage() {
         </section>
 
         {loading && blocks.length === 0 ? (
-          <section className="rounded-[28px] bg-white p-8 shadow-sm">
+          <section className="rounded-[28px] bg-surface-card p-8 shadow-sm">
             <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
               <Loader2 size={16} className="animate-spin" />
               {t('map.loading')}
             </div>
           </section>
         ) : error ? (
-          <section className="rounded-[28px] bg-white p-8 shadow-sm">
+          <section className="rounded-[28px] bg-surface-card p-8 shadow-sm">
             <div className="flex flex-col items-center gap-3 text-center">
               <AlertCircle size={20} className="text-rose-500" />
               <div>
@@ -726,7 +726,7 @@ export function ProjectMapPage() {
           <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start">
             <div className="flex min-w-0 flex-1 flex-col gap-4">
               {visibleBlocks.length === 0 ? (
-                <section className="rounded-[28px] bg-white p-8 shadow-sm">
+                <section className="rounded-[28px] bg-surface-card p-8 shadow-sm">
                   <p className="text-center text-sm text-slate-500">{t('map.empty')}</p>
                 </section>
               ) : (
@@ -744,7 +744,7 @@ export function ProjectMapPage() {
                 <button
                   type="button"
                   onClick={() => void createProjectMapBlock({ discipline, title: t('map.newBlockTitle') })}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[28px] border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[28px] border border-dashed border-slate-300 bg-surface-card px-4 py-3 text-sm font-semibold text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
                 >
                   <Plus size={15} />
                   {t('map.addBlock')}

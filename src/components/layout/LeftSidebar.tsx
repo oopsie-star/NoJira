@@ -30,7 +30,7 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
   return (
     <>
     <aside className={[
-      'flex w-[228px] flex-shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white xl:w-[236px]',
+      'flex w-[228px] flex-shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-surface-card xl:w-[236px]',
       // Mobile: fixed slide-in overlay. Above the tab bar (z-[75]) — it's the
       // wider navigation surface, so it has to cover it rather than sit under.
       'fixed inset-y-0 left-0 z-[85] transition-transform duration-300 ease-out',
@@ -113,11 +113,11 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
           </p>
           {/* Stats for the ACTIVE project — its issues and its team. */}
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-white p-3 shadow-sm">
+            <div className="rounded-xl bg-surface-card p-3 shadow-sm">
               <p className="text-xs text-slate-500">{t('project.tasks')}</p>
               <p className="mt-1 truncate text-lg font-semibold text-slate-900">{projectTaskCount}</p>
             </div>
-            <div className="rounded-xl bg-white p-3 shadow-sm">
+            <div className="rounded-xl bg-surface-card p-3 shadow-sm">
               <p className="text-xs text-slate-500">{t('nav.people')}</p>
               <p className="mt-1 text-lg font-semibold text-slate-900">{projectMembers.length}</p>
             </div>

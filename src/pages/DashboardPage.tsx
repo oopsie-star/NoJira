@@ -38,9 +38,9 @@ interface AttentionTileProps {
 
 function AttentionTile({ label, count, Icon, tone, to, onClick }: AttentionTileProps) {
   const toneClasses = {
-    neutral: 'border-slate-200 bg-white hover:border-slate-300',
-    warn: count > 0 ? 'border-amber-200 bg-amber-50 hover:bg-amber-100/70' : 'border-slate-200 bg-white hover:border-slate-300',
-    danger: count > 0 ? 'border-rose-200 bg-rose-50 hover:bg-rose-100/70' : 'border-slate-200 bg-white hover:border-slate-300',
+    neutral: 'border-slate-200 bg-surface-card hover:border-slate-300',
+    warn: count > 0 ? 'border-amber-200 bg-amber-50 hover:bg-amber-100/70' : 'border-slate-200 bg-surface-card hover:border-slate-300',
+    danger: count > 0 ? 'border-rose-200 bg-rose-50 hover:bg-rose-100/70' : 'border-slate-200 bg-surface-card hover:border-slate-300',
   }[tone]
 
   const iconTone = {
@@ -71,7 +71,7 @@ function ProjectCard({ summary }: { summary: ProjectSummary }) {
   return (
     <Link
       to={projectPath(project.key, 'board')}
-      className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-qira-pistachio/60 hover:shadow-md"
+      className="group flex flex-col rounded-2xl border border-slate-200 bg-surface-card p-4 shadow-sm transition hover:border-qira-pistachio/60 hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -261,11 +261,11 @@ export function DashboardPage() {
             {showSkeleton ? (
               <div className="mt-2.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {Array.from({ length: 3 }).map((_, index) => (
-                  <div key={index} className="h-[168px] animate-pulse rounded-2xl bg-white shadow-sm" />
+                  <div key={index} className="h-[168px] animate-pulse rounded-2xl bg-surface-card shadow-sm" />
                 ))}
               </div>
             ) : summaries.length === 0 ? (
-              <div className="mt-2.5 rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+              <div className="mt-2.5 rounded-2xl border border-dashed border-slate-300 bg-surface-card p-10 text-center">
                 <p className="text-sm font-semibold text-slate-900">{t('project.noProjects')}</p>
                 <p className="mt-1 text-sm text-slate-500">{t('project.noProjectsHint')}</p>
                 <button
@@ -285,7 +285,7 @@ export function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setCreateOpen(true)}
-                  className="flex min-h-[140px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white/60 p-4 text-sm font-semibold text-slate-500 transition hover:border-qira-pistachio hover:text-qira-pistachio-dk"
+                  className="flex min-h-[140px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-surface-card/60 p-4 text-sm font-semibold text-slate-500 transition hover:border-qira-pistachio hover:text-qira-pistachio-dk"
                 >
                   <Plus size={20} />
                   {t('project.create')}

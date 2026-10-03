@@ -98,7 +98,7 @@ function MediaNode({ node, ctx, keyId }: { node: AdfNode; ctx: RenderCtx; keyId:
       href={url ?? '#'}
       target="_blank"
       rel="noreferrer"
-      className="my-1 inline-flex max-w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+      className="my-1 inline-flex max-w-full items-center gap-2 rounded-xl border border-slate-200 bg-surface-card px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
     >
       <Icon size={16} className="shrink-0 text-qira-pistachio" />
       <span className="truncate">{filename ?? ctx.t('task.jira.fileFromJira')}</span>
@@ -186,7 +186,7 @@ function renderNode(node: AdfNode, ctx: RenderCtx, keyId: string): ReactNode {
     case 'expand':
     case 'nestedExpand':
       return (
-        <details className="my-2 rounded-xl border border-slate-200 bg-white px-4 py-2">
+        <details className="my-2 rounded-xl border border-slate-200 bg-surface-card px-4 py-2">
           <summary className="cursor-pointer text-sm font-medium text-slate-700">{(node.attrs?.title as string) ?? '…'}</summary>
           <div className="mt-2">{renderChildren(node, ctx, keyId)}</div>
         </details>

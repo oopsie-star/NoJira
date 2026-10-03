@@ -185,7 +185,7 @@ export function AttachmentUpload({
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-slate-200 bg-surface-card p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-sm font-semibold text-slate-900">{t('task.attachments')}</p>
         {typeof MediaRecorder !== 'undefined' && (
@@ -235,7 +235,7 @@ export function AttachmentUpload({
                       <button
                         type="button"
                         onClick={() => handleDelete(path)}
-                        className="shrink-0 rounded-lg p-1 text-slate-400 transition hover:bg-white hover:text-slate-700"
+                        className="shrink-0 rounded-lg p-1 text-slate-400 transition hover:bg-surface-card hover:text-slate-700"
                       >
                         <X size={14} />
                       </button>
@@ -261,7 +261,7 @@ export function AttachmentUpload({
                         <button
                           type="button"
                           onClick={() => handleDelete(path)}
-                          className="rounded-lg p-1 text-slate-400 transition hover:bg-white hover:text-slate-700"
+                          className="rounded-lg p-1 text-slate-400 transition hover:bg-surface-card hover:text-slate-700"
                         >
                           <X size={14} />
                         </button>
@@ -281,7 +281,7 @@ export function AttachmentUpload({
                         <button
                           type="button"
                           onClick={() => setPreviewPath(path)}
-                          className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-white px-1 text-qira-pistachio transition hover:border-qira-pistachio hover:bg-qira-pistachio-lt/40"
+                          className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-surface-card px-1 text-qira-pistachio transition hover:border-qira-pistachio hover:bg-qira-pistachio-lt/40"
                         >
                           <FileText size={18} />
                         </button>
@@ -296,7 +296,7 @@ export function AttachmentUpload({
                         }}
                         placeholder={t('task.attachmentNotePlaceholder')}
                         rows={3}
-                        className="min-w-0 flex-1 resize-none rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none transition focus:border-qira-pistachio"
+                        className="min-w-0 flex-1 resize-none rounded-xl border border-slate-200 bg-surface-card px-2.5 py-2 text-xs text-slate-700 outline-none transition focus:border-qira-pistachio"
                       />
                     </div>
                   </div>

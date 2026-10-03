@@ -140,7 +140,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
                 : isOpen
                   ? 'border-qira-pistachio bg-qira-pistachio-lt/50 ring-1 ring-qira-pistachio/40'
                   : snapshot.isDragging
-                    ? 'border-slate-200 bg-white shadow-xl ring-2 ring-qira-pistachio/20'
+                    ? 'border-slate-200 bg-surface-card shadow-xl ring-2 ring-qira-pistachio/20'
                     // Reworded after it was started or finished — outranks every
                     // other state, including "done", because that's the point:
                     // finished work whose terms moved needs looking at again.
@@ -157,7 +157,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
                         ? 'border-slate-300 bg-slate-100 hover:bg-slate-200/70'
                         : unstarted
                           ? 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100/70'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80',
+                          : 'border-slate-200 bg-surface-card hover:border-slate-300 hover:bg-slate-50/80',
             ].join(' ')}
           >
           <div className={['flex items-start gap-3 px-3 py-2.5', mobile ? 'min-h-[68px]' : 'min-h-[52px]'].join(' ')}>
@@ -310,7 +310,7 @@ export function BacklogRow({ task, index, mobile = false, dragDisabled = false, 
                     type="button"
                     {...(dragHandleProps ?? {})}
                     onClick={(event) => event.stopPropagation()}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-slate-400 transition hover:border-slate-200 hover:bg-white hover:text-slate-600"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-slate-400 transition hover:border-slate-200 hover:bg-surface-card hover:text-slate-600"
                     aria-label={t('backlog.dragIssue')}
                   >
                     <GripVertical size={16} />

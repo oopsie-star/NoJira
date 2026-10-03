@@ -55,7 +55,7 @@ export function WeeklyDigestModal() {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/50 p-4">
-      <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+      <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-surface-card shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div className="flex items-center gap-2">
             <span className="text-2xl" aria-hidden>{mood.emoji}</span>

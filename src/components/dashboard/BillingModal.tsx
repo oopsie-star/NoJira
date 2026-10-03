@@ -28,7 +28,7 @@ export function BillingModal({ onClose }: { onClose: () => void }) {
         aria-modal="true"
         aria-label={t('billing.title')}
         onClick={(event) => event.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface-card p-6 shadow-2xl sm:rounded-3xl"
       >
         <div className="flex items-start justify-between gap-4">
           <div>

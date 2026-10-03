@@ -38,7 +38,7 @@ export function DeleteEntityModal({ message, taskCount, onCancel, onConfirm, lab
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/35 p-4">
-      <div className="w-full max-w-md rounded-[28px] bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-md rounded-[28px] bg-surface-card p-6 shadow-2xl">
         <h3 className="text-lg font-semibold text-slate-900">{message}</h3>
         <p className="mt-2 text-sm text-slate-500">
           {taskCount > 0 ? t('backlog.deleteEntityTaskCount', { count: taskCount }) : t('backlog.deleteEntityNoTasks')}

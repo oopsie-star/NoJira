@@ -1088,7 +1088,7 @@ export function JiraImportWizard({ onClose }: { onClose: () => void }) {
       />
 
       {/* Panel */}
-      <div className="absolute inset-y-0 right-0 flex max-w-xl w-full flex-col bg-white shadow-2xl">
+      <div className="absolute inset-y-0 right-0 flex max-w-xl w-full flex-col bg-surface-card shadow-2xl">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
           <div className="flex items-center gap-2.5">

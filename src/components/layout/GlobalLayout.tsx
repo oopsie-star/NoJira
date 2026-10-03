@@ -105,7 +105,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
   }, [profileId, activeProjectId, fetchWeeklyDigestIfDue])
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-[#F7F8F9]">
+    <div className="flex h-dvh flex-col overflow-hidden bg-surface-board">
       <TopNavbar onToggleSidebar={() => setSidebarOpen((v) => !v)} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {sidebarOpen && (
@@ -115,7 +115,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
           />
         )}
         <LeftSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#F7F8F9] pb-[var(--qira-mobile-nav-h)] lg:pb-0">
+        <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-surface-board pb-[var(--qira-mobile-nav-h)] lg:pb-0">
           {children}
         </main>
       </div>

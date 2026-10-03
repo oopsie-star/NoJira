@@ -119,7 +119,7 @@ export function ArchivePage() {
   return (
     <GlobalLayout>
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-5">
-        <section className="shrink-0 rounded-[28px] bg-white px-5 py-3.5 shadow-sm">
+        <section className="shrink-0 rounded-[28px] bg-surface-card px-5 py-3.5 shadow-sm">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <h1 className="text-base font-semibold text-slate-900">{t('archive.title')}</h1>
             <span className="text-slate-300">·</span>
@@ -127,7 +127,7 @@ export function ArchivePage() {
           </div>
         </section>
 
-        <section className="rounded-[28px] bg-white p-5 shadow-sm">
+        <section className="rounded-[28px] bg-surface-card p-5 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-slate-900">{t('archive.epicsTitle')}</h2>
           <div className="space-y-2">
             {archivedEpics.length === 0 ? (
@@ -140,7 +140,7 @@ export function ArchivePage() {
           </div>
         </section>
 
-        <section className="rounded-[28px] bg-white p-5 shadow-sm">
+        <section className="rounded-[28px] bg-surface-card p-5 shadow-sm">
           <div className="space-y-2">
             {archivedTasks.length === 0 ? (
               <p className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">{t('archive.empty')}</p>

@@ -14,7 +14,7 @@ function BoardSkeleton() {
   return (
     <div className="flex min-h-0 gap-4 overflow-x-auto">
       {Array.from({ length: 3 }).map((_, index) => (
-        <div key={index} className="w-[340px] rounded-[24px] bg-white p-4 shadow-sm">
+        <div key={index} className="w-[340px] rounded-[24px] bg-surface-card p-4 shadow-sm">
           <div className="h-6 w-24 animate-pulse rounded-full bg-slate-200" />
           <div className="mt-4 space-y-3">
             {Array.from({ length: 4 }).map((__, cardIndex) => (
@@ -167,13 +167,13 @@ export function BoardPage() {
     <GlobalLayout>
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-2.5 p-3 sm:gap-3 sm:p-4">
         {!activeProjectId ? (
-          <section className="rounded-[28px] bg-white p-16 text-center shadow-sm">
+          <section className="rounded-[28px] bg-surface-card p-16 text-center shadow-sm">
             <h2 className="text-2xl font-semibold text-slate-900">{t('project.noProjects')}</h2>
             <p className="mt-2 text-sm text-slate-500">{t('project.noProjectsHint')}</p>
           </section>
         ) : (
           <>
-            <section className="shrink-0 overflow-hidden rounded-2xl bg-white px-3 py-2.5 shadow-sm sm:rounded-3xl sm:px-5 sm:py-3">
+            <section className="shrink-0 overflow-hidden rounded-2xl bg-surface-card px-3 py-2.5 shadow-sm sm:rounded-3xl sm:px-5 sm:py-3">
               {/* Sprint name row */}
               <div className="flex min-w-0 items-center gap-3">
                 <div className="min-w-0 flex-1">
@@ -244,7 +244,7 @@ export function BoardPage() {
                   </div>
                 </div>
               ) : (
-                <section className="flex h-full items-center justify-center rounded-[28px] bg-white p-16 text-center shadow-sm">
+                <section className="flex h-full items-center justify-center rounded-[28px] bg-surface-card p-16 text-center shadow-sm">
                   <div>
                     <h2 className="text-2xl font-semibold text-slate-900">{t('board.noActiveSprint')}</h2>
                     <p className="mt-2 text-sm text-slate-500">{t('board.openBacklog')}</p>

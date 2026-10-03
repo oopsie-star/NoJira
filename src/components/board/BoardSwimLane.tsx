@@ -129,7 +129,7 @@ export function BoardSwimLane({ lane, showClosed, sprintId }: BoardSwimLaneProps
   )
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-surface-card shadow-sm">
       <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2">
         <button
           type="button"

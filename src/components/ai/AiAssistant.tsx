@@ -452,7 +452,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
     <>
       {open && (
         <div
-          className="fixed right-4 bottom-[calc(var(--qira-mobile-nav-h)+4.5rem)] lg:bottom-20 z-[80] w-80 sm:w-96 rounded-2xl bg-white shadow-2xl flex flex-col"
+          className="fixed right-4 bottom-[calc(var(--qira-mobile-nav-h)+4.5rem)] lg:bottom-20 z-[80] w-80 sm:w-96 rounded-2xl bg-surface-card shadow-2xl flex flex-col"
           style={{ maxHeight: '60vh', animation: 'aiSlideUp 0.18s ease-out' }}
         >
           <style>{`
@@ -464,7 +464,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
 
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <div className="flex items-center gap-2">
-              <Sparkles size={16} className="text-[#6B9E6B]" />
+              <Sparkles size={16} className="text-qira-pistachio" />
               <span className="text-sm font-semibold text-slate-900">{t('ai.title')}</span>
             </div>
             <button
@@ -494,7 +494,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
                   className={[
                     'max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words',
                     msg.role === 'user'
-                      ? 'bg-[#6B9E6B] text-white rounded-br-sm'
+                      ? 'bg-qira-pistachio text-white rounded-br-sm'
                       : 'bg-slate-100 text-slate-800 rounded-bl-sm',
                   ].join(' ')}
                 >
@@ -551,7 +551,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
                   onKeyDown={handleKeyDown}
                   placeholder={t('ai.placeholder')}
                   rows={1}
-                  className="flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#6B9E6B] transition"
+                  className="flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-qira-pistachio transition"
                   style={{ maxHeight: '100px' }}
                 />
                 {loading ? (
@@ -568,7 +568,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
                     type="button"
                     onClick={() => void handleSend()}
                     disabled={!input.trim() && !pendingFile}
-                    className="rounded-xl bg-[#6B9E6B] p-2.5 text-white transition hover:bg-[#5a8a5a] disabled:opacity-50"
+                    className="rounded-xl bg-qira-pistachio p-2.5 text-white transition hover:bg-qira-pistachio-dk disabled:opacity-50"
                   >
                     <Send size={15} />
                   </button>
@@ -587,7 +587,7 @@ export function AiAssistant({ projectName }: AiAssistantProps) {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-[#6B9E6B] text-white shadow-lg transition hover:bg-[#5a8a5a] hover:scale-105 active:scale-95"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-qira-pistachio text-white shadow-lg transition hover:bg-qira-pistachio-dk hover:scale-105 active:scale-95"
           title={t('ai.title')}
         >
           <Sparkles size={22} />

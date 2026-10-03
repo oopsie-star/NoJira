@@ -17,7 +17,7 @@ const PendingApprovalPage = lazy(() => import('@/pages/PendingApprovalPage').the
 
 function FullPageSpinner() {
   return (
-    <div className="flex h-screen items-center justify-center bg-white">
+    <div className="flex h-screen items-center justify-center bg-surface-card">
       <div className="h-8 w-8 animate-spin rounded-full border-4 border-qira-pistachio border-t-transparent" />
     </div>
   )

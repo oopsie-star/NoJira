@@ -154,7 +154,7 @@ export function MarkdownEditor({ value, onChange, onBlur, placeholder, rows = 8,
             title={aiLoading ? t('ai.suggestGenerating') : t('ai.suggestDescription')}
             onMouseDown={(e) => { e.preventDefault(); void handleAiSuggest() }}
             disabled={aiLoading}
-            className="ml-1 rounded-lg p-1.5 text-[#6B9E6B] transition hover:bg-slate-100 disabled:opacity-50"
+            className="ml-1 rounded-lg p-1.5 text-qira-pistachio transition hover:bg-slate-100 disabled:opacity-50"
           >
             {aiLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
           </button>
@@ -185,7 +185,7 @@ export function MarkdownEditor({ value, onChange, onBlur, placeholder, rows = 8,
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={acceptSuggestion}
-              className="rounded-xl bg-[#6B9E6B] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#5a8a5a]"
+              className="rounded-xl bg-qira-pistachio px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-qira-pistachio-dk"
             >
               {t('ai.suggestAccept')}
             </button>
@@ -193,7 +193,7 @@ export function MarkdownEditor({ value, onChange, onBlur, placeholder, rows = 8,
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => setAiSuggestion(null)}
-              className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white"
+              className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-surface-card"
             >
               {t('ai.suggestReject')}
             </button>

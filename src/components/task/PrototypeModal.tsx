@@ -174,7 +174,7 @@ export function PrototypeModal({ task, onClose }: PrototypeModalProps) {
 
   return (
     <div className="fixed inset-0 z-[90] flex flex-col bg-slate-950/70 p-2 sm:p-6">
-      <div className="mx-auto flex h-full w-full max-w-[1400px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="mx-auto flex h-full w-full max-w-[1400px] flex-col overflow-hidden rounded-2xl bg-surface-card shadow-2xl">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             <Wand2 size={16} className="shrink-0 text-qira-pistachio" />
@@ -235,7 +235,7 @@ export function PrototypeModal({ task, onClose }: PrototypeModalProps) {
                 value={brief}
                 onChange={(event) => { setBrief(event.target.value); setBriefEdited(true) }}
                 spellCheck={false}
-                className="min-h-[220px] flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-700 outline-none transition focus:border-qira-pistachio focus:bg-white"
+                className="min-h-[220px] flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-700 outline-none transition focus:border-qira-pistachio focus:bg-surface-card"
               />
               <p className="mt-2 text-xs text-slate-500">
                 {loadingProjectMap
@@ -354,7 +354,7 @@ export function PrototypeModal({ task, onClose }: PrototypeModalProps) {
                   title={t('prototype.preview')}
                   srcDoc={html}
                   sandbox="allow-scripts"
-                  className="h-full min-h-[420px] w-full border-none bg-white"
+                  className="h-full min-h-[420px] w-full border-none bg-surface-card"
                 />
               ) : (
                 <div className="flex h-full min-h-[420px] items-center justify-center p-8 text-center text-sm text-slate-500">

@@ -126,7 +126,7 @@ export function SprintContainer({
 
   return (
     <>
-      <section className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-[20px] border border-slate-200 bg-surface-card shadow-sm">
         <div className="border-b border-slate-200 px-3 py-3 sm:px-4">
           <div className="flex items-start gap-3">
             <button
@@ -157,7 +157,7 @@ export function SprintContainer({
                         if (value && value !== sprint.name) void updateSprint(sprint.id, { name: value })
                         setEditingName(false)
                       }}
-                      className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-1 -mx-1 text-sm font-semibold text-slate-900 outline-none sm:text-base"
+                      className="min-w-0 flex-1 rounded-md border border-slate-200 bg-surface-card px-1 -mx-1 text-sm font-semibold text-slate-900 outline-none sm:text-base"
                     />
                   ) : (
                     <h2
@@ -204,7 +204,7 @@ export function SprintContainer({
                       const value = event.target.value || null
                       if (value !== sprint.start_date) void updateSprint(sprint.id, { start_date: value })
                     }}
-                    className="rounded-md border border-transparent bg-transparent px-1 -mx-1 outline-none transition focus:border-slate-200 focus:bg-white"
+                    className="rounded-md border border-transparent bg-transparent px-1 -mx-1 outline-none transition focus:border-slate-200 focus:bg-surface-card"
                   />
                   <span>–</span>
                   <input
@@ -215,7 +215,7 @@ export function SprintContainer({
                       const value = event.target.value || null
                       if (value !== sprint.end_date) void updateSprint(sprint.id, { end_date: value })
                     }}
-                    className="rounded-md border border-transparent bg-transparent px-1 -mx-1 outline-none transition focus:border-slate-200 focus:bg-white"
+                    className="rounded-md border border-transparent bg-transparent px-1 -mx-1 outline-none transition focus:border-slate-200 focus:bg-surface-card"
                   />
                   <input
                     key={`goal-${sprint.goal}`}
@@ -225,7 +225,7 @@ export function SprintContainer({
                       const value = event.target.value.trim()
                       if (value !== sprint.goal) void updateSprint(sprint.id, { goal: value })
                     }}
-                    className="min-w-[8rem] flex-1 truncate rounded-md border border-transparent bg-transparent px-1 -mx-1 outline-none transition focus:border-slate-200 focus:bg-white"
+                    className="min-w-[8rem] flex-1 truncate rounded-md border border-transparent bg-transparent px-1 -mx-1 outline-none transition focus:border-slate-200 focus:bg-surface-card"
                   />
                 </div>
               ) : (
@@ -280,7 +280,7 @@ export function SprintContainer({
                   {...provided.droppableProps}
                   className={[
                     'space-y-2 p-2 sm:p-3',
-                    snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/30' : 'bg-white',
+                    snapshot.isDraggingOver ? 'bg-qira-pistachio-lt/30' : 'bg-surface-card',
                   ].join(' ')}
                 >
                   {tasks.length === 0 && (
