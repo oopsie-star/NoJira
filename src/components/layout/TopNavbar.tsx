@@ -313,8 +313,16 @@ function HeaderMenu() {
         <ChevronDown size={16} className="text-white/70" />
       </button>
 
+      {/* Capped and scrollable: this menu grows with its contents, and the colour
+          guide expanding inside it pushed the last rows past the bottom of the
+          window with no way to reach them. dvh, not vh, so the mobile address bar
+          collapsing does not leave it overflowing. No visible bar — same
+          treatment as the sidebar. */}
       {open && (
-        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 rounded-2xl border border-slate-200 bg-surface-card p-2 shadow-2xl">
+        <div
+          className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 overflow-y-auto scrollbar-none rounded-2xl border border-slate-200 bg-surface-card p-2 shadow-2xl"
+          style={{ maxHeight: 'calc(100dvh - 5rem)' }}
+        >
           <div className="rounded-xl bg-slate-50 p-3">
             <div className="flex items-center gap-3">
               <UserAvatar profile={profile} size={40} />
