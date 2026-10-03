@@ -20,7 +20,7 @@ interface StoredRedirect {
 }
 
 /** Paths that carry no destination of their own — every sign-in lands here. */
-const GENERIC_LANDING = new Set(['/', '/board'])
+const GENERIC_LANDING = new Set(['/', '/board', '/dashboard'])
 
 export function savePostLoginRedirect(path: string): void {
   // Returning from Google lands on …/board?code=… — never a real

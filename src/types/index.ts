@@ -227,6 +227,41 @@ export interface Task {
   reporter?:      Profile | null
 }
 
+/**
+ * The narrow task shape the workspace dashboard aggregates over. The dashboard
+ * spans EVERY project the viewer can see, so it deliberately selects a handful
+ * of columns instead of the full Task row — pulling whole tasks (descriptions,
+ * ADF bodies, attachments) across a whole workspace is what would make this
+ * page expensive.
+ */
+export interface DashboardTask {
+  id:                string
+  project_id:        string
+  status:            TaskStatus
+  assignee_id:       string | null
+  assignee_ids:      string[]
+  due_date:          string | null
+  parent_task_id:    string | null
+  status_changed_at: string
+  updated_at:        string
+  created_at:        string
+  completed_at:      string | null
+}
+
+/** A 'blocks' edge, project-agnostic — enough to tell whether a task is blocked. */
+export interface DashboardBlockLink {
+  source_task_id: string
+  target_task_id: string
+}
+
+/** The one active sprint of a project, for its dashboard card. */
+export interface DashboardSprint {
+  id:         string
+  project_id: string
+  name:       string
+  end_date:   string | null
+}
+
 export interface ProjectAutomationSettings {
   project_id:               string
   auto_assign_on_start:     boolean

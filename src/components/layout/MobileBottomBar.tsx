@@ -1,4 +1,4 @@
-import { Archive, LayoutDashboard, ListTodo, Map, Users, Workflow } from 'lucide-react'
+import { Archive, Home, LayoutDashboard, ListTodo, Map, Users, Workflow } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useI18n } from '@/lib/i18n'
 import { projectPath, useCurrentProjectKey, type AppSection } from '@/lib/projectRoutes'
@@ -28,6 +28,20 @@ export function MobileBottomBar() {
       className="fixed inset-x-0 bottom-0 z-[75] flex items-stretch border-t border-slate-200 bg-white px-1 pt-1.5 lg:hidden"
       style={{ height: 'var(--qira-mobile-nav-h)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
+      {/* Workspace entry first — the only item here that is not project-scoped. */}
+      <NavLink
+        to="/dashboard"
+        aria-label={t('nav.dashboard')}
+        onClick={() => { clearTaskContext(); setOpenTaskId(null) }}
+        className={({ isActive }) => [
+          'flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1 text-[10px] font-semibold leading-tight transition',
+          isActive ? 'bg-qira-pistachio-lt text-qira-pistachio' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
+        ].join(' ')}
+      >
+        <Home size={20} className="shrink-0" />
+        <span className="w-full truncate text-center">{t('nav.dashboard')}</span>
+      </NavLink>
+
       {MOBILE_NAV_ITEMS.map(({ section, key, Icon }) => (
         <NavLink
           key={section}

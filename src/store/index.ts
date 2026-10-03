@@ -12,6 +12,9 @@ import type {
   AgentAuditLogEntry,
   AgentType,
   AttachmentNote,
+  DashboardBlockLink,
+  DashboardSprint,
+  DashboardTask,
   DeletionRequest,
   DeletionRequestEntityType,
   Epic,
@@ -495,6 +498,13 @@ interface AppState {
   setActiveSprintId: (id: string | null) => void
   setActiveProjectId: (id: string | null) => void
   fetchProjects: () => Promise<void>
+  /** Cross-project slices powering the workspace dashboard. Read-only; nothing else touches them. */
+  dashboardTasks: DashboardTask[]
+  dashboardBlockLinks: DashboardBlockLink[]
+  dashboardSprints: DashboardSprint[]
+  loadingDashboard: boolean
+  dashboardLoadedAt: number | null
+  fetchDashboard: () => Promise<void>
   fetchWorkspaceProjects: () => Promise<void>
   fetchAssignableProfiles: () => Promise<void>
   fetchBoard: (sprintId: string) => Promise<void>
@@ -760,6 +770,11 @@ export const useStore = create<AppState>((set, get) => {
   return ({
     profile: null,
     projects: [],
+    dashboardTasks: [],
+    dashboardBlockLinks: [],
+    dashboardSprints: [],
+    loadingDashboard: false,
+    dashboardLoadedAt: null,
     workspaceProjects: [],
     assignableProfiles: [],
     projectMemberships: [],
@@ -959,6 +974,65 @@ export const useStore = create<AppState>((set, get) => {
       activeProjectId: nextActiveProjectId,
       activeProjectRole: nextRole,
       loadingProjects: false,
+    })
+  },
+
+  /**
+   * Loads the three cross-project slices the workspace dashboard aggregates.
+   *
+   * This is the only place that reads across every project at once, so it is
+   * deliberately frugal: a narrow column list (no descriptions, ADF bodies or
+   * attachments), terminal statuses filtered out server-side, and only the
+   * 'blocks' edges and currently-active sprints. RLS already limits every one
+   * of these to what the viewer may see, so no extra guard is needed here.
+   *
+   * It writes ONLY to dashboard* state — no existing slice is touched, so the
+   * board, backlog and task drawer are unaffected by a dashboard visit.
+   */
+  fetchDashboard: async () => {
+    const projects = get().projects
+    if (projects.length === 0) {
+      set({ dashboardTasks: [], dashboardBlockLinks: [], dashboardSprints: [], loadingDashboard: false, dashboardLoadedAt: Date.now() })
+      return
+    }
+
+    set({ loadingDashboard: true })
+    const projectIds = projects.map((project) => project.id)
+
+    const tasks: DashboardTask[] = []
+    const page = TASK_PAGE_SIZE
+    for (let from = 0; ; from += page) {
+      const { data } = await supabase
+        .from('tasks')
+        .select('id, project_id, status, assignee_id, assignee_ids, due_date, parent_task_id, status_changed_at, updated_at, created_at, completed_at')
+        .in('project_id', projectIds)
+        .not('status', 'in', '(cancelled,archived,deleted)')
+        .order('updated_at', { ascending: false })
+        .range(from, from + page - 1)
+      const rows = (data ?? []) as DashboardTask[]
+      tasks.push(...rows)
+      if (rows.length < page) break
+    }
+
+    const [{ data: linkRows }, { data: sprintRows }] = await Promise.all([
+      supabase
+        .from('task_links')
+        .select('source_task_id, target_task_id')
+        .in('project_id', projectIds)
+        .eq('link_type', 'blocks'),
+      supabase
+        .from('sprints')
+        .select('id, project_id, name, end_date')
+        .in('project_id', projectIds)
+        .eq('status', 'active'),
+    ])
+
+    set({
+      dashboardTasks: tasks,
+      dashboardBlockLinks: (linkRows ?? []) as DashboardBlockLink[],
+      dashboardSprints: (sprintRows ?? []) as DashboardSprint[],
+      loadingDashboard: false,
+      dashboardLoadedAt: Date.now(),
     })
   },
 

@@ -6,6 +6,7 @@ import { projectPath, sectionFromPathname } from '@/lib/projectRoutes'
 import { clearPostLoginRedirect, peekPostLoginRedirect, savePostLoginRedirect } from '@/lib/postLoginRedirect'
 
 const AuthPage = lazy(() => import('@/components/auth/AuthPage').then((module) => ({ default: module.AuthPage })))
+const DashboardPage = lazy(() => import('@/pages/DashboardPage').then((module) => ({ default: module.DashboardPage })))
 const BoardPage = lazy(() => import('@/pages/BoardPage').then((module) => ({ default: module.BoardPage })))
 const BacklogPage = lazy(() => import('@/pages/BacklogPage').then((module) => ({ default: module.BacklogPage })))
 const ProjectMapPage = lazy(() => import('@/pages/ProjectMapPage').then((module) => ({ default: module.ProjectMapPage })))
@@ -69,7 +70,7 @@ function PendingApprovalRoute() {
   const { session, profile, isLoading } = useAuthContext()
   if (isLoading) return <FullPageSpinner />
   if (!session) return <Navigate to="/auth" replace />
-  if (profile?.approved) return <Navigate to="/board" replace />
+  if (profile?.approved) return <Navigate to="/dashboard" replace />
   return <PendingApprovalPage />
 }
 
@@ -77,13 +78,16 @@ function PendingApprovalRoute() {
  * A session that resolves while sitting on /auth (a sign-in completing, or a
  * stored session being restored) used to go straight to /board, dropping the
  * deep link that sent the visitor here in the first place.
+ *
+ * With no deep link waiting it now lands on the workspace dashboard rather than
+ * whichever project happened to be first — see ProjectRedirect.
  */
 function AuthRoute() {
   const { session, isLoading } = useAuthContext()
   // Only latch once the session is in hand and we're leaving this screen.
   const pending = usePendingRedirect(!isLoading && Boolean(session))
   if (isLoading) return <FullPageSpinner />
-  if (session) return <Navigate to={pending ?? '/board'} replace />
+  if (session) return <Navigate to={pending ?? '/dashboard'} replace />
   return <AuthPage />
 }
 
@@ -117,6 +121,14 @@ function ProjectRedirect() {
 
   if (pending) return <Navigate to={pending} replace />
 
+  // A bare "/" carries no destination, and resolving it to whichever project
+  // sorted first is what made opening a bookmark feel random. Send it to the
+  // workspace dashboard instead. Legacy section paths (/board, /backlog, …)
+  // still resolve to the active project exactly as before, so every link
+  // already in circulation — email, Telegram, someone's bookmark — is unaffected.
+  const bare = location.pathname.replace(/\/+$/, '')
+  if (bare === '') return <Navigate to="/dashboard" replace />
+
   if (!ready) return <FullPageSpinner />
   // Genuinely no projects — let the board render its empty state.
   if (projects.length === 0) return <BoardPage />
@@ -133,6 +145,7 @@ export function App() {
       <Routes>
         <Route path="/auth" element={<AuthRoute />} />
         <Route path="/pending-approval" element={<PendingApprovalRoute />} />
+        <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route
           path="/projects/:projectKey/board"
           element={<ProtectedRoute><BoardPage /></ProtectedRoute>}

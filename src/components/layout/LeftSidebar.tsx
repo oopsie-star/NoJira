@@ -1,4 +1,4 @@
-import { Archive, LayoutDashboard, ListTodo, Map, Users, Workflow, X } from 'lucide-react'
+import { Archive, Home, LayoutDashboard, ListTodo, Map, Users, Workflow, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useI18n } from '@/lib/i18n'
 import { projectPath, type AppSection } from '@/lib/projectRoutes'
@@ -62,6 +62,23 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
       </div>
 
       <nav className="p-2">
+        {/* Workspace level, above the project sections and separated from them —
+            it is the one entry here that is not scoped to a project. */}
+        <NavLink
+          to="/dashboard"
+          onClick={onClose}
+          className={({ isActive }) => [
+            'mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+            isActive
+              ? 'bg-qira-pistachio-lt text-qira-pistachio shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+          ].join(' ')}
+        >
+          <Home size={18} />
+          {t('nav.dashboard')}
+        </NavLink>
+        <div className="my-2 border-t border-slate-100" />
+
         {NAV_ITEMS.map(({ section, key, Icon }) => (
           <NavLink
             key={section}
