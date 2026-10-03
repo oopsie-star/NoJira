@@ -95,11 +95,22 @@ export function KanbanBoard() {
 
   const lanes = useMemo<BoardLane[]>(() => {
     if (!grouped) return []
+    // Every epic gets a lane — even an empty one, so it's visible and can be
+    // dropped into. Empty lanes render collapsed. The pinned "Product Vision"
+    // epic is a description card, not a work container, and an archived epic is
+    // off the board by definition — neither gets a lane.
+    const laneEpics = epics.filter((epic) => !epic.is_vision && epic.status !== 'archived')
+    const laneEpicIds = new Set(laneEpics.map((epic) => epic.id))
+
     const byEpic = new Map<string, typeof visibleTasks>()
     const noEpic: typeof visibleTasks = []
 
     for (const task of visibleTasks) {
-      if (task.epic_id) {
+      // A task whose epic has no lane — it sits in the vision epic, or in one
+      // that was archived under it — belongs in "no epic", NOT in a bucket no
+      // lane reads. Bucketing it by epic_id regardless is what used to drop it
+      // off the board silently: present in the data, in no column anywhere.
+      if (task.epic_id && laneEpicIds.has(task.epic_id)) {
         const bucket = byEpic.get(task.epic_id)
         if (bucket) bucket.push(task)
         else byEpic.set(task.epic_id, [task])
@@ -108,10 +119,7 @@ export function KanbanBoard() {
       }
     }
 
-    // Every epic gets a lane — even an empty one, so it's visible and can be
-    // dropped into. Empty lanes render collapsed. The pinned "Product
-    // Vision" epic is a description card, not a work container — no lane.
-    const epicLanes: BoardLane[] = epics.filter((epic) => !epic.is_vision && epic.status !== 'archived').map((epic) => ({
+    const epicLanes: BoardLane[] = laneEpics.map((epic) => ({
       id: epic.id,
       epic,
       tasks: byEpic.get(epic.id) ?? [],

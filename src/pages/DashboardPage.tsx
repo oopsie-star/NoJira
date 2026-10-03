@@ -217,7 +217,11 @@ export function DashboardPage() {
             <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
               {t('dashboard.attention')}
             </h2>
-            <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+            {/* No Blocked tile: this workspace records no 'blocks' links at all,
+                so it was a permanent zero taking up a slot. The underlying
+                queue is still computed and still drives the per-project chip,
+                which appears only when there is something to report. */}
+            <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
               <AttentionTile
                 label={t('dashboard.tile.assignedNotStarted')}
                 count={queues.assignedNotStarted.length}
@@ -230,13 +234,6 @@ export function DashboardPage() {
                 count={queues.myInProgress.length}
                 Icon={Sparkles}
                 tone="neutral"
-                to={myWorkLink}
-              />
-              <AttentionTile
-                label={t('dashboard.tile.blocked')}
-                count={queues.blocked.length}
-                Icon={CircleAlert}
-                tone="danger"
                 to={myWorkLink}
               />
               <AttentionTile
@@ -258,7 +255,7 @@ export function DashboardPage() {
             {/* Admin-only approvals. These exist today but only inside a project,
                 where they are easy to miss entirely. */}
             {isAdmin && (pendingMembers.length > 0 || pendingDeletions > 0) && (
-              <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+              <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                 {pendingMembers.length > 0 && (
                   <AttentionTile
                     label={t('dashboard.tile.pendingMembers')}
